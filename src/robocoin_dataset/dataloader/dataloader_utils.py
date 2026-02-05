@@ -1,11 +1,12 @@
 """Dataset utilities for LeRobot datasets.
+Here we assume all dataset Lerobot format, and do:
+    1. Sample frames from dataset.
+    2. Load test.(check structure and do video decoding-main time cost.)
 
 This module provides utilities for:
 - Creating LeRobot datasets.
 - Episode sampling with downsampling support (single & multi-episode)
-- Hardlink preparation for dataset structures
 - Worker initialization for DataLoader
-- Dataset detection using MultiEpisodeSampler
 """
 
 import logging
@@ -81,23 +82,6 @@ class MultiEpisodeSampler(torch.utils.data.Sampler):  # type: ignore
 
     def __len__(self) -> int:
         return len(self.frame_ids)
-
-def create_episode_dataloader(
-    dataset: "LeRobotDataset",
-    episode_index: int,
-    batch_size: int = 32,
-    num_workers: int = 0,
-    sample_ratio: float = 1.0,
-) -> torch.utils.data.DataLoader:
-
-    episode_sampler = MultiEpisodeSampler(dataset, episode_index, sample_ratio)
-    return torch.utils.data.DataLoader(
-        dataset,
-        num_workers=num_workers,
-        batch_size=batch_size,
-        sampler=episode_sampler,
-        worker_init_fn=_worker_init_suppress_output if num_workers > 0 else None,
-    )
 
 
 def create_lerobot_dataset(
@@ -311,19 +295,15 @@ def _parse_episode_specification(
     return sorted(set(episodes))
 
 
-# =============================
-# Public API Exports
-# =============================
+
+#=== Public API Exports ===
 
 __all__ = [
-    # Constants
     "TASK_CATEGORY",
-    # Dataset classes and utilities
     "LeRobotDataset",
     "MultiEpisodeSampler",
     "create_lerobot_dataset",
     "create_episode_dataloader",
-    # Detection and validation
     "_run_detection",
     "_parse_episode_specification",
 ]
