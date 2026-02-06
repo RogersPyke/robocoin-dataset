@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from .constant import DEFAULT_OUTPUT_LOG_PATH
+from ..config.constant import DEFAULT_OUTPUT_LOG_PATH
 
 
 @dataclass()
@@ -17,6 +17,6 @@ class LogConfig:
         log_level (str): Logging level (e.g., "DEBUG", "INFO", "WARNING", "ERROR"). Defaults to "INFO".
     """
 
-    log_dir: str = DEFAULT_OUTPUT_LOG_PATH
+    log_dir: str = str(DEFAULT_OUTPUT_LOG_PATH)
     log_to_console: bool = True
     log_level: str = "INFO"

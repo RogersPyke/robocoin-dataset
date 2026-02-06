@@ -15,7 +15,7 @@ from robocoin_dataset.database.models import DatasetDB
 from robocoin_dataset.distribution_computation.constant import DATASET_UUID
 from robocoin_dataset.distribution_computation.task_server import TaskServer
 from robocoin_dataset.format_converter.tolerobot.constant import LEFORMAT_PATH
-from .constant import DatasetsHubEnum
+from ..config.constant import DatasetsHubEnum
 from .task import (
     _gen_one_dataset_upload_task,
     _mark_upload_completed,

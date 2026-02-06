@@ -21,7 +21,7 @@ from robocoin_dataset.hub_upload.gen_readme.gen_readme import gen_readme
 from robocoin_dataset.prepare_metadata.metadata_service import MetadataSyncService
 from robocoin_dataset.prepare_metadata.unified_metadata_def import UnifiedMetadata
 
-from .constant import (
+from ..config.constant import (
     DatasetsHubEnum,
 )
 from .local_datasets_util import LocalDsConfig, LocalDsUtil

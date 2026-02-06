@@ -160,7 +160,7 @@ class LocalDsUtil:
             FileNotFoundError: If dataset directory doesn't exist or required files are missing.
             NotADirectoryError: If the dataset path is not a directory.
         """
-        from .constant import LOCAL_DATASET_CHECK_STRUCTURE
+        from ..config.constant import LOCAL_DATASET_CHECK_STRUCTURE
 
         ds_path = self.root_path / ds_name
         if not ds_path.exists():
@@ -275,7 +275,7 @@ class LocalDsReadmeUtil(LocalDsUtil):
     from ...prepare_metadata.metadata_collect_utils import (
         generate_folder_structure,
     )
-    from .constant import (
+    from ..config.constant import (
         DATASET_INFO_FILE,
         LEROBOT_META_INFO_FILE,
     )
@@ -349,7 +349,7 @@ class LocalDsReadmeUtil(LocalDsUtil):
     This method validates datasets and generates README.md files for each one
     using the Jinja2 template and dataset information files.
     """
-    from .constant import README_FILE
+    from ..config.constant import README_FILE
 
     self.check_root_path_valid()
     ds_names = self.get_root_path_subdirs()

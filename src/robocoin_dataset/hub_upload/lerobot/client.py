@@ -24,7 +24,7 @@ from robocoin_dataset.distribution_computation.constant import (
 )
 from robocoin_dataset.distribution_computation.task_client import TaskClient
 from robocoin_dataset.format_converter.tolerobot.constant import LEFORMAT_PATH
-from .constant import DatasetsHubEnum
+from ..config.constant import DatasetsHubEnum
 from .utils import (
     LocalDsUploadConfig,
     LocalDsUploadUtil,
