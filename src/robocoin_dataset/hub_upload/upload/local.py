@@ -28,11 +28,11 @@ def upload_datasets_from_database_local(config: UploadConfig, logger: logging.Lo
     from robocoin_dataset.database.models import DatasetDB, TaskStatus
 
     from .task import (
-        _gen_one_dataset_upload_task,
-        _get_hub_field_prefix,
+        _gen_one_upload_task,
+        _get_field,
         _mark_upload_completed,
         _mark_upload_failed,
-        _sync_datasets_upload_status,
+        _sync_upload_status,
     )
 
     _logger = logger or logging.getLogger(__name__)
@@ -69,12 +69,12 @@ def upload_datasets_from_database_local(config: UploadConfig, logger: logging.Lo
     try:
         while True:
             # 获取上传状态字段
-            upload_status_field = _get_hub_field_prefix(config.hub_name, DatasetDB, "upload_status")
+            upload_status_field = _get_field(config.hub_name, DatasetDB, "upload_status")
             upload_status_col = getattr(DatasetDB, upload_status_field)
 
             with db.with_session() as session:
                 # 同步数据集上传状态
-                _sync_datasets_upload_status(session, config.hub_name, _logger)
+                _sync_upload_status(session, config.hub_name, _logger)
 
                 # 统计待上传的数据集数量
                 pending_count = session.query(DatasetDB).filter(
@@ -92,7 +92,7 @@ def upload_datasets_from_database_local(config: UploadConfig, logger: logging.Lo
                     pbar.total = pending_count + uploaded_count + failed_count + skipped_count
 
                 # 获取下一个待上传的数据集任务
-                dataset_uuid, hardlink_path = _gen_one_dataset_upload_task(
+                dataset_uuid, hardlink_path = _gen_one_upload_task(
                     session, config.hub_name, _logger
                 )
 
