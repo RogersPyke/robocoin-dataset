@@ -275,7 +275,7 @@ class LocalDsReadmeUtil(LocalDsUtil):
     from ...prepare_metadata.metadata_collect_utils import (
         generate_folder_structure,
     )
-    from ..constant import (
+    from .constant import (
         DATASET_INFO_FILE,
         LEROBOT_META_INFO_FILE,
     )
@@ -349,7 +349,7 @@ class LocalDsReadmeUtil(LocalDsUtil):
     This method validates datasets and generates README.md files for each one
     using the Jinja2 template and dataset information files.
     """
-    from ..constant import README_FILE
+    from .constant import README_FILE
 
     self.check_root_path_valid()
     ds_names = self.get_root_path_subdirs()

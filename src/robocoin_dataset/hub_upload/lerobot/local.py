@@ -3,7 +3,7 @@
 import logging
 from pathlib import Path
 
-from .hub_upload_util import (
+from .utils import (
     LocalDsUploadConfig,
     LocalDsUploadUtil,
 )
@@ -27,7 +27,7 @@ def upload_datasets_from_database_local(config: LocalDsUploadConfig, logger: log
     from robocoin_dataset.database.database import DatasetDatabase
     from robocoin_dataset.database.models import DatasetDB, TaskStatus
 
-    from .hub_upload_task import (
+    from .task import (
         _gen_one_dataset_upload_task,
         _get_hub_field_prefix,
         _mark_upload_completed,
