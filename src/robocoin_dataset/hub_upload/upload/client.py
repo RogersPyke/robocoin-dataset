@@ -115,7 +115,7 @@ class HubUploadClient(TaskClient):
             token=self.token,
             namespace=self.namespace,
             output_path=str(self.output_path),
-            pg_cfg_oath="",  # Client never reads DB; metadata is provided by server
+            pg_cfg_path="",  # Client never reads DB; metadata is provided by server
             skip_err=True,
             upload_force_overwrite=self.force_overwrite,
             upload_readme_only=self.readme_only,

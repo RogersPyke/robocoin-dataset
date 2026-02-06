@@ -44,7 +44,7 @@ def upload_datasets_from_database_local(config: UploadConfig, logger: logging.Lo
     uploader = LocalDsUploadUtil(config)
 
     # 验证并解析数据库路径
-    db_path = Path(config.pg_cfg_oath).expanduser().absolute()
+    db_path = Path(config.pg_cfg_path).expanduser().absolute()
 
     # 打印初始配置
     _logger.info(f"🚀 Upload: {config.hub_name.value}/{config.namespace}")
