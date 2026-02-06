@@ -13,7 +13,7 @@ from typing import Any
 import yaml
 from jinja2 import Environment, FileSystemLoader
 
-from robocoin_dataset.hub_upload.lerobot.constant import (
+from robocoin_dataset.hub_upload.config.constant import (
     DATASET_INFO_FILE,
     LEROBOT_META_INFO_FILE,
     README_FILE,

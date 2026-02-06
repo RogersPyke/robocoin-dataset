@@ -68,7 +68,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from robocoin_dataset.hub_upload.lerobot.constant import (
+from robocoin_dataset.hub_upload.config.constant import (
     DS_PLATFORM_NAME,
     DatasetsHubEnum,
 )
@@ -420,7 +420,7 @@ Examples:
         "--name-space",
         type=str,
         help="Namespace (username) on the hub platform where datasets will be uploaded. "
-             "If not provided, uses default value from constant.py (DS_PLATFORM_NAME)"
+             "If not provided, uses default value from constant.yml (DS_PLATFORM_NAME)"
     )
 
     parser.add_argument(
