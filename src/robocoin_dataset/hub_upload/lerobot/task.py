@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 if TYPE_CHECKING:
 
     from robocoin_dataset.database.models import DatasetDB
-    from robocoin_dataset.hub_upload.constant import DatasetsHubEnum
+    from .constant import DatasetsHubEnum
 
 
 def _get_hub_field_prefix(hub_name_enum: "DatasetsHubEnum", dataset_table: "type[DatasetDB]", field_suffix: str) -> str:
@@ -28,7 +28,7 @@ def _get_hub_field_prefix(hub_name_enum: "DatasetsHubEnum", dataset_table: "type
     Raises:
         AttributeError: If neither short nor long field name exists
     """
-    from ..constant import DatasetsHubEnum
+    from .constant import DatasetsHubEnum
 
     # Try short prefix first (ms/hf)
     short_prefix = "ms" if hub_name_enum == DatasetsHubEnum.modelscope else "hf"

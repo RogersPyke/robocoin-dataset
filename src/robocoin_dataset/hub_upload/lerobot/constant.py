@@ -11,13 +11,7 @@ from pathlib import Path
 
 
 class DatasetsHubEnum(str, Enum):
-    """
-    Enumeration of supported dataset hub platforms.
-
-    Attributes:
-        HUGGINGFACE: Huggingface platform identifier.
-        MODELSCOPE: Modelscope platform identifier.
-    """
+    """Enumeration of supported dataset hub platforms."""
 
     huggingface = "huggingface"
     modelscope = "modelscope"
