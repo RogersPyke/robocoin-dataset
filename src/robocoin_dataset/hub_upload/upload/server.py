@@ -15,7 +15,6 @@ from robocoin_dataset.database.models import DatasetDB
 from robocoin_dataset.distribution_computation.constant import DATASET_UUID
 from robocoin_dataset.distribution_computation.task_server import TaskServer
 from robocoin_dataset.format_converter.tolerobot.constant import LEFORMAT_PATH
-from ..config.constant import DatasetsHubEnum
 from .task import (
     _gen_one_upload_task,
     _mark_upload_completed,
@@ -26,20 +25,12 @@ from robocoin_dataset.prepare_metadata.metadata_collect import create_unified_me
 
 TASK_CATEGORY = "hub_upload"
 
-
 class HubUploadServer(TaskServer):
     """Task distribution server for hub upload."""
 
     def __init__(
         self,
-        db_file_path: str | Path,
-        summary_logger: logging.Logger,
-        hub_name: DatasetsHubEnum = DatasetsHubEnum.huggingface,
-        token: str = "",
-        namespace: str = "",
-        output_path: str = "",
-        force_overwrite: bool = False,
-        readme_only: bool = False,
+        cfg: UploadConfig,
         host: str = "0.0.0.0",
         port: int = 2100,
         heartbeat_interval: float = 30.0,
@@ -59,55 +50,41 @@ class HubUploadServer(TaskServer):
             timeout=timeout,
         )
 
-        if not db_file_path:
-            raise ValueError("db_file_path is required and cannot be None or empty")
-        self.db_file_path: Path = Path(db_file_path).expanduser().absolute()
-        if not self.db_file_path.exists():
-            raise FileNotFoundError(f"Database file not found: {self.db_file_path}")
-        if not self.db_file_path.is_file():
-            raise ValueError(f"Database path is not a file: {self.db_file_path}")
+        if not cfg.pg_cfg_path:
+            raise ValueError("pg_cfg_path is required to specify database and cannot be None or empty")
+        self.cfg.pg_cfg_path: Path = Path(cfg.pg_cfg_path).expanduser().absolute()
+        if not self.cfg.pg_cfg_path.exists():
+            raise FileNotFoundError(f"Database config file not found: {self.cfg.pg_cfg_path}")
 
-        self.db = DatasetDatabase(self.db_file_path)
+        self.database = DatasetDatabase(self.cfg.pg_cfg_path)
         self.logger = logger or logging.getLogger(__name__)
-        self.summary_logger = summary_logger
-        self.hub_name = hub_name
 
-        # Store client configuration parameters to be sent with tasks
-        # NOTE: Client should not need to know any database path – all metadata
-        # is prepared on the server side and sent with each task.
-        self.client_token = token
-        self.client_namespace = namespace
-        self.client_output_path = output_path or "./dataset_info"
-        self.client_force_overwrite = force_overwrite
-        self.client_readme_only = readme_only
-        self.logger.info(f"Server db_file_path: {self.db_file_path}")
-
-        self.datasets_succeeded = 0
-        self.datasets_failed = 0
+        self.succeed_cnt = 0
+        self.fail_cnt = 0
 
     def get_task_category(self) -> str:
         return TASK_CATEGORY
 
-    def generate_task_content(self) -> dict | None:
+    def gen_task_content(self) -> dict | None:
         while True:
             dataset_uuid = None
 
-            # Step 1: Sync and claim task (with DB session, includes hardlink validation)
+            # Step 1: Sync and claim task with both huggingface and modelscope
             try:
-                with self.db.with_session() as session:
-                    _sync_upload_status(session, self.hub_name, logger=self.logger)
+                with self.database.with_session() as session:
+                    _sync_upload_status(session, hub_name="huggingface", logger=self.logger)
+                    _sync_upload_status(session, hub_name="modelscope", logger=self.logger)
 
-                    dataset_uuid, hardlink_path = _gen_one_upload_task(
-                        session, self.hub_name, logger=self.logger
-                    )
-                    if dataset_uuid is None:
+                    hf_uuid = _gen_one_upload_task(session, hub_name="huggingface", logger=self.logger)
+                    ms_uuid = _gen_one_upload_task(session, hub_name="modelscope", logger=self.logger)
+                    if hf_uuid is None and ms_uuid is None:
+                        self.logger.debug("No PENDING tasks found")
                         break
-                if hardlink_path is None:
-                    raise FileNotFoundError(f"No hard_link_path found for dataset {dataset_uuid}")
-                if not hardlink_path.exists():
-                    raise FileNotFoundError(f"No such hardlink found in {hardlink_path}")
-
-                self.logger.debug(f"Using existing hardlink for client: {hardlink_path}")
+                    hf_hardlink_path = _get_hardlink_path(session, hf_uuid, logger=self.logger)
+                    ms_hardlink_path = _get_hardlink_path(session, ms_uuid, logger=self.logger)
+                    if hf_hardlink_path is None and ms_hardlink_path is None:
+                        self.logger.debug("No hardlink path found for dataset")
+                        break
 
                 # Step 2: Build unified metadata on the server side so that
                 # clients never need to access the database.
@@ -124,10 +101,10 @@ class HubUploadServer(TaskServer):
                         f"{traceback.format_exc()}"
                     )
                     self.logger.exception(f"❌ {dataset_uuid}: {err_msg}")
-                    with self.db.with_session() as session:
+                    with self.database.with_session() as session:
                         _mark_upload_failed(session, dataset_uuid, err_msg, self.hub_name, logger=self.logger)
                     self.summary_logger.debug(f"❌ {dataset_uuid}: {err_msg}")
-                    self.datasets_failed += 1
+                    self.fail_cnt += 1
                     # Try to fetch next available task
                     continue
 
@@ -153,20 +130,20 @@ class HubUploadServer(TaskServer):
             except FileNotFoundError as e:
                 err_msg = f"Hardlink assertion failed: {e}\n{traceback.format_exc()}"
                 self.logger.exception(f"❌ {dataset_uuid}: {err_msg}")
-                with self.db.with_session() as session:
+                with self.database.with_session() as session:
                     _mark_upload_failed(session, dataset_uuid, err_msg, self.hub_name, logger=self.logger)
                 self.summary_logger.debug(f"❌ {dataset_uuid}: {err_msg}")
-                self.datasets_failed += 1
+                self.fail_cnt += 1
                 self.logger.debug("Attempting to fetch next task...")
                 continue
             except Exception as e:
                 if dataset_uuid:
                     err_msg = f"Unexpected error during task generation: {e}\n{traceback.format_exc()}"
                     self.logger.exception(f"❌ {dataset_uuid}: {err_msg}")
-                    with self.db.with_session() as session:
+                    with self.database.with_session() as session:
                         _mark_upload_failed(session, dataset_uuid, err_msg, self.hub_name, logger=self.logger)
                     self.summary_logger.debug(f"❌ {dataset_uuid}: {err_msg}")
-                    self.datasets_failed += 1
+                    self.fail_cnt += 1
                 else:
                     self.logger.exception(f"❌ Unexpected error before task claimed: {e}")
                 self.logger.debug("Attempting to fetch next task...")
@@ -180,7 +157,7 @@ class HubUploadServer(TaskServer):
         upload_result = task_result_content or {}
         upload_success = upload_result.get("success", False)
 
-        with self.db.with_session() as session:
+        with self.database.with_session() as session:
             item = session.query(DatasetDB).filter(DatasetDB.dataset_uuid == dataset_uuid).first()
             if item is None:
                 self.logger.error(f"Dataset {dataset_uuid} not found in dataset DB.")
@@ -189,15 +166,15 @@ class HubUploadServer(TaskServer):
             # in case of success:
             if upload_success:
                 _mark_upload_completed(session, dataset_uuid, self.hub_name, logger=self.logger, item=item)
-                self.datasets_succeeded += 1
+                self.succeed_cnt += 1
                 self.logger.info(f"Task result: SUCCESS | UUID: {dataset_uuid}")
                 self.summary_logger.debug(f"✅ {dataset_uuid}: Upload completed successfully")
 
                 # Log cumulative statistics
-                total_datasets = self.datasets_succeeded + self.datasets_failed
+                total_datasets = self.succeed_cnt + self.fail_cnt
                 self.summary_logger.debug(
                     f"📊 Cumulative: {total_datasets} datasets "
-                    f"({self.datasets_succeeded} ✅, {self.datasets_failed} ❌)"
+                    f"({self.succeed_cnt} ✅, {self.fail_cnt} ❌)"
                 )
                 self.logger.debug(f"Marked {item.convert_path} upload as COMPLETED")
 
@@ -205,23 +182,23 @@ class HubUploadServer(TaskServer):
             else:
                 error_message = upload_result.get("error_message") or "Upload failed"
                 _mark_upload_failed(session, dataset_uuid, error_message, self.hub_name, logger=self.logger, item=item)
-                self.datasets_failed += 1
+                self.fail_cnt += 1
                 self.logger.info(f"Task result: FAILED | UUID: {dataset_uuid} | Error: {error_message}")
                 self.summary_logger.debug(f"❌ {dataset_uuid}: {error_message}")
 
                 # Log cumulative statistics
-                total_datasets = self.datasets_succeeded + self.datasets_failed
+                total_datasets = self.succeed_cnt + self.fail_cnt
                 self.summary_logger.debug(
                     f"📊 Cumulative: {total_datasets} datasets "
-                    f"({self.datasets_succeeded} ✅, {self.datasets_failed} ❌)"
+                    f"({self.succeed_cnt} ✅, {self.fail_cnt} ❌)"
                 )
 
                 self.logger.debug(f"Marked {item.convert_path} upload as FAILED: {error_message}")
 
     def get_statistics(self) -> dict:
         return {
-            "datasets_succeeded": self.datasets_succeeded,
-            "datasets_failed": self.datasets_failed,
+            "datasets_succeeded": self.succeed_cnt,
+            "datasets_failed": self.fail_cnt,
         }
 
 

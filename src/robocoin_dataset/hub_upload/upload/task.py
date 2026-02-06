@@ -206,3 +206,16 @@ def _mark_upload_completed(
         setattr(item, HF_STATE, TaskStatus.COMPLETED)
         session.commit()
         _logger.debug(f"Marked dataset {dataset_uuid} as COMPLETED")
+
+def _get_hardlink_path(
+    session: Session,
+    dataset_uuid: str,
+    logger: logging.Logger | None = None,
+) -> Path | None:
+    """
+    Get the hardlink path for a dataset.
+    """
+    from robocoin_dataset.database.models import DatasetHardLinkDB
+    _logger = logger or logging.getLogger(__name__)
+    item = session.query(DatasetHardLinkDB).filter(DatasetHardLinkDB.dataset_uuid == dataset_uuid).first()
+    return Path(item.hard_link_path) if item else None

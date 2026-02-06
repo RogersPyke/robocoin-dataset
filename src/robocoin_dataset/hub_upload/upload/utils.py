@@ -3,6 +3,8 @@ RoboCoin Datasets Upload Utilities
 
 This module provides utility classes and functions for uploading datasets to remote hubs.
 It contains the business logic for dataset upload operations.
+
+Do only upload, no other logic, no checking.
 """
 
 import random
