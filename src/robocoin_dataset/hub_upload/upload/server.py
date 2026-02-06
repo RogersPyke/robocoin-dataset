@@ -17,10 +17,10 @@ from robocoin_dataset.distribution_computation.task_server import TaskServer
 from robocoin_dataset.format_converter.tolerobot.constant import LEFORMAT_PATH
 from ..config.constant import DatasetsHubEnum
 from .task import (
-    _gen_one_dataset_upload_task,
+    _gen_one_upload_task,
     _mark_upload_completed,
     _mark_upload_failed,
-    _sync_datasets_upload_status,
+    _sync_upload_status,
 )
 from robocoin_dataset.prepare_metadata.metadata_collect import create_unified_metadata
 
@@ -95,9 +95,9 @@ class HubUploadServer(TaskServer):
             # Step 1: Sync and claim task (with DB session, includes hardlink validation)
             try:
                 with self.db.with_session() as session:
-                    _sync_datasets_upload_status(session, self.hub_name, logger=self.logger)
+                    _sync_upload_status(session, self.hub_name, logger=self.logger)
 
-                    dataset_uuid, hardlink_path = _gen_one_dataset_upload_task(
+                    dataset_uuid, hardlink_path = _gen_one_upload_task(
                         session, self.hub_name, logger=self.logger
                     )
                     if dataset_uuid is None:
