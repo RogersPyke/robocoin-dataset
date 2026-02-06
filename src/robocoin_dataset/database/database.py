@@ -121,7 +121,17 @@ if __name__ == "__main__":
     # 方式1：使用默认配置文件（postgresql_config.yaml）
     try:
         db = DatasetDatabase("db/postgresql_config.yaml")
+<<<<<<< HEAD
         print("数据库实例创建成功！")
+=======
+        # Use relative path to avoid hardcoding.
+        # NOTE: 
+        # 1.Here we just test the connection, and create table structure if not exists.
+        # Rely on CREATED database.
+        # 2. The yaml file is just used for user-password, IP, Port and database spcification,
+        # which is euqal to command "psql -h *IP* -p *Port* -U *RoleName* -d *TargetDatabase*"
+        print("Database instance Connected and Tables Created(if not exists).")
+>>>>>>> 70da43a2 (WIP: modified db/postgresql_config.yaml and src/robocoin_dataset/database/database.py(relative path and annotations) to satisfy local test demands for postgreSQL)
         
     
     except Exception as e:
