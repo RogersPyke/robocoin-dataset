@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 TASK_CATEGORY = "hub_upload"
 
-class HubUploadServer(TaskServer):
+class UploadServer(TaskServer):
     """Task distribution server for hub upload.
     
     This server handles tasks for a SINGLE hub platform (either HuggingFace or ModelScope).
@@ -50,7 +50,6 @@ class HubUploadServer(TaskServer):
     def __init__(
         self,
         cfg: "UploadConfig",
-        hub_name: str,
         logger: logging.Logger | None = None,
     ) -> None:
         """
@@ -63,7 +62,7 @@ class HubUploadServer(TaskServer):
                 - ModelScope configuration (ms_token, ms_namespace)
                 - Common configuration (force_overwrite, readme_only)
                 - Server network configuration (host, port, heartbeat_interval, timeout)
-            hub_name: Hub platform this server will handle ("huggingface" or "modelscope")
+                - hub_name: Hub platform this server will handle ("huggingface" or "modelscope")
             logger: Optional logger instance
 
         Raises:
@@ -78,17 +77,18 @@ class HubUploadServer(TaskServer):
             timeout=cfg.server_timeout,
         )
 
+        self.cfg = cfg
+
         # Validate hub_name
-        if hub_name not in ("huggingface", "modelscope", "hf", "ms"):
+        if self.cfg.hub_name not in ("huggingface", "modelscope", "hf", "ms"):
             raise ValueError(
-                f"Invalid hub_name: {hub_name}. Must be 'huggingface', 'modelscope', 'hf', or 'ms'"
+                f"Invalid hub_name: {self.cfg.hub_name}. Must be 'huggingface', 'modelscope', 'hf', or 'ms'"
             )
-        self.hub_name = hub_name
 
         # Validate and initialize database connection
-        if not cfg.pg_cfg_path:
+        if not self.cfg.pg_cfg_path:
             raise ValueError("pg_cfg_path is required to specify database and cannot be None or empty")
-        self.cfg_pg_path: Path = Path(cfg.pg_cfg_path).expanduser().absolute()
+        self.cfg_pg_path: Path = Path(self.cfg.pg_cfg_path).expanduser().absolute()
         if not self.cfg_pg_path.exists():
             raise FileNotFoundError(f"Database config file not found: {self.cfg_pg_path}")
 
@@ -102,13 +102,13 @@ class HubUploadServer(TaskServer):
         }
 
         # ===== Store hub-specific configuration for THIS server's hub =====
-        if hub_name == "huggingface" or hub_name == "hf":
+        if self.cfg.hub_name == "huggingface" or self.cfg.hub_name == "hf":
             self.hub_config = {
                 "token": cfg.hf_token,
                 "namespace": cfg.hf_namespace,
                 **self.common_config,
             }
-        elif hub_name == "modelscope" or hub_name == "ms":
+        elif self.cfg.hub_name == "modelscope" or self.cfg.hub_name == "ms":
             self.hub_config = {
                 "token": cfg.ms_token,
                 "namespace": cfg.ms_namespace,
@@ -263,7 +263,7 @@ class HubUploadServer(TaskServer):
         self.logger.debug(f"[TASK] Sending task for dataset {dataset_uuid} to {hub_name}")
         return task_config
 
-    def handle_task_result(self, task_content: dict, task_result_content: dict) -> None:
+    def handle_task_result(self, task_result_content: dict) -> None:
         """
         Handle task result from client and update database status.
         
@@ -274,10 +274,9 @@ class HubUploadServer(TaskServer):
             task_content: Original task content dictionary containing dataset_uuid and hub_name
             task_result_content: Result dictionary from client containing success status and error message
         """
-        dataset_uuid = task_content.get(DATASET_UUID)
-        hub_name = task_content.get("hub_name", self.hub_name)  # Get hub_name from task content
-        upload_result = task_result_content or {}
-        upload_success = upload_result.get("success", False)
+        dataset_uuid = task_result_content.get("dataset_uuid")
+        hub_name = task_result_content.get("hub_name", self.hub_name)
+        upload_success = task_result_content.get("success", False)
 
         if not dataset_uuid:
             self.logger.error("[ERROR] Task result missing dataset_uuid")
@@ -308,7 +307,7 @@ class HubUploadServer(TaskServer):
                     f"({self.succeed_cnt} succeeded, {self.fail_cnt} failed)"
                 )
             else:
-                error_message = upload_result.get("error_message") or "Upload failed"
+                error_message = task_result_content.get("error_message") or "Upload failed"
                 _mark_upload_failed(session, dataset_uuid, error_message, hub_name, logger=self.logger)
                 self.fail_cnt += 1
                 self.logger.info(f"[FAILED] Task failed | UUID: {dataset_uuid} | Hub: {hub_name} | Error: {error_message}")
@@ -328,6 +327,6 @@ class HubUploadServer(TaskServer):
 
 
 __all__ = [
-    "HubUploadServer",
+    "UploadServer",
     "TASK_CATEGORY",
 ]

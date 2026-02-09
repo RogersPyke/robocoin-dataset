@@ -124,7 +124,7 @@ def _log_url(logger: logging.Logger, message: str, level: int = logging.INFO) ->
     logger.log(level, _colorize(message, ANSI_BLUE))
 
 
-class HubUploadClient(TaskClient):
+class UploadClient(TaskClient):
     """Client for distributed hub upload tasks."""
 
     def __init__(
@@ -230,6 +230,8 @@ class HubUploadClient(TaskClient):
             error_msg = "No hardlink path provided in task content"
             self.logger.error(f"[HubUploadClient._sync_process_task] {error_msg}")
             return {
+                "dataset_uuid": dataset_uuid,
+                "hub_name": hub_name,
                 "success": False,
                 "error_message": error_msg
             }
@@ -240,7 +242,7 @@ class HubUploadClient(TaskClient):
         _log_url(self.logger, f"[HubUploadClient._sync_process_task] Task details | UUID: {dataset_uuid} | Path: {hardlink_path} | Hub: {hub_name} | Namespace: {namespace}", logging.DEBUG)
 
         try:
-            upload_success, upload_error = self.upload_util._upload(hardlink_path)
+            upload_success, upload_error = self.upload_util.upload(hardlink_path)
             if upload_success:
                 _log_success(self.logger, f"[HubUploadClient._sync_process_task] Task completed | UUID: {dataset_uuid} | Success: True")
                 return {
@@ -248,6 +250,8 @@ class HubUploadClient(TaskClient):
                 }
             _log_error(self.logger, f"[HubUploadClient._sync_process_task] Task failed | UUID: {dataset_uuid} | Error: {upload_error}")
             return {
+                "dataset_uuid": dataset_uuid,
+                "hub_name": hub_name,
                 "success": False,
                 "error_message": upload_error
             }
@@ -257,13 +261,13 @@ class HubUploadClient(TaskClient):
             _log_error(self.logger, f"[HubUploadClient._sync_process_task] Task exception | UUID: {dataset_uuid} | Error: {e}")
             self.logger.debug(f"[HubUploadClient._sync_process_task] Full traceback:\n{tb}")
             return {
+                "dataset_uuid": dataset_uuid,
+                "hub_name": hub_name,
                 "success": False,
                 "error_message": error_msg
             }
 
-
 # ===== Client entry points =====
-
 
 async def run_one_client_async(
     config: UploadConfig,
@@ -308,7 +312,7 @@ async def run_one_client_async(
     _log_url(logger, f"[run_one_client_async] Server: {server_uri}")
     logger.debug(f"[run_one_client_async] Configuration | Heartbeat: {config.client_heartbeat_interval}s")
 
-    client = HubUploadClient(
+    client = UploadClient(
         config=config,
         logger=logger,
     )
@@ -719,7 +723,7 @@ def run_multi_clients(
 
 
 __all__ = [
-    "HubUploadClient",
+    "UploadClient",
     "run_one_client_async",
     "run_one_client_process_main",
     "run_multi_clients",

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from ..config.constant import DEFAULT_OUTPUT_LOG_PATH
+from robocoin_dataset.config.constant import DEFAULT_OUTPUT_LOG_PATH
 
 
 @dataclass()
