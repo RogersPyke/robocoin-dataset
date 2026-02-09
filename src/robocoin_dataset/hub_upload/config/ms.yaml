@@ -1,0 +1,138 @@
+# RoboCoin Dataset Upload Configuration
+# This configuration file is used by upload2hub.py script for uploading datasets
+# to remote hubs (HuggingFace/ModelScope).
+
+# ============================================================================
+# Hub Platform Configuration
+# ============================================================================
+# Specify which hub platform to upload to
+# Options: "huggingface", "hf", "modelscope", "ms"
+hub_name: modelscope
+
+# ============================================================================
+# Database Configuration
+# ============================================================================
+# Path to PostgreSQL configuration YAML file
+# This file should contain PostgreSQL connection parameters (user, password, host, database, port)
+# Example: db/postgresql_config.yaml
+pg_cfg_path: db/postgresql_config.yaml
+
+# ============================================================================
+# HuggingFace Configuration
+# ============================================================================
+# HuggingFace authentication token
+# Leave empty to use environment variable or prompt
+hf_token: ""
+
+# HuggingFace namespace (username/organization)
+# If left empty, defaults to "RoboCOIN"
+hf_namespace: "RoboCOIN"
+
+# ============================================================================
+# ModelScope Configuration
+# ============================================================================
+# ModelScope authentication token
+# Leave empty to use environment variable or prompt
+ms_token: ""
+
+# ModelScope namespace (username/organization)
+# If left empty, defaults to "RoboCOIN"
+ms_namespace: "RoboCOIN"
+
+# ============================================================================
+# Upload Behavior Configuration
+# ============================================================================
+# Skip errors and continue uploading other datasets
+# If false, script will stop on first error
+skip_errors: false
+
+# Force overwrite existing repositories without prompting
+# If true, will overwrite existing repositories on the hub
+force_overwrite: false
+
+# Only update README files without uploading dataset files
+# If true, only README.md files will be updated, no dataset files will be uploaded
+readme_only: false
+
+# Maximum number of retries for failed uploads
+# Default: 3
+max_retries: 3
+
+# ============================================================================
+# Server Mode Configuration (for distributed upload)
+# ============================================================================
+# Server host address (default: 0.0.0.0 to accept connections from any interface)
+server_host: "0.0.0.0"
+
+# Server port number
+# Recommended: 2100 for HuggingFace, 2101 for ModelScope
+server_port: 2101
+
+# Heartbeat interval in seconds for server-client communication
+server_heartbeat_interval: 30.0
+
+# Connection timeout in seconds
+server_timeout: 90.0
+
+# ============================================================================
+# Client Mode Configuration (for distributed upload)
+# ============================================================================
+# Client host address (default: 127.0.0.1 for localhost)
+client_host: "127.0.0.1"
+
+# Client port number (must match server_port)
+client_port: 2101
+
+# Heartbeat interval in seconds for client-server communication
+client_heartbeat_interval: 30.0
+
+# Connection timeout in seconds
+client_timeout: 90.0
+
+# Request task timeout in seconds
+# Use -1 or <= 0 to wait indefinitely for tasks
+request_task_timeout: -1
+
+# ============================================================================
+# Usage Examples
+# ============================================================================
+#
+# 1. Local upload mode (single machine, default):
+#    python scripts/hub_upload/upload2hub.py \\
+#        --config scripts/hub_upload/upload_config.yaml
+#
+# 2. Server mode (distribute tasks to clients):
+#    python scripts/hub_upload/upload2hub.py --server \\
+#        --config scripts/hub_upload/upload_config.yaml \\
+#        --host 0.0.0.0 \\
+#        --port 2100
+#
+# 3. Client mode (connect to server and process tasks):
+#    python scripts/hub_upload/upload2hub.py --client \\
+#        --config scripts/hub_upload/upload_config.yaml \\
+#        --host 127.0.0.1 \\
+#        --port 2100 \\
+#        --num-clients 4
+#
+# 4. With command line overrides:
+#    python scripts/hub_upload/upload2hub.py \\
+#        --config scripts/hub_upload/upload_config.yaml \\
+#        --log-level DEBUG \\
+#        --force \\
+#        --readme-only
+#
+# ============================================================================
+# Notes
+# ============================================================================
+# - For HuggingFace: Set hub_name to "huggingface" or "hf"
+# - For ModelScope: Set hub_name to "modelscope" or "ms"
+# - Each server instance handles ONE hub platform only
+# - To process both hubs, run TWO separate server instances with different hub_name
+# - PostgreSQL config file should contain connection parameters:
+#   postgresql:
+#     user: your_username
+#     password: your_password
+#     host: localhost
+#     database: your_database
+#     port: 5432
+

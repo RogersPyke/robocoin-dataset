@@ -7,6 +7,7 @@ It contains the business logic for dataset upload operations.
 Do only upload, no other logic, no checking.
 """
 
+import logging
 import random
 import re
 import shutil
@@ -18,10 +19,6 @@ from pathlib import Path
 
 import yaml
 from tqdm import tqdm
-
-from robocoin_dataset.hub_upload.gen_readme.gen_readme import gen_readme
-from robocoin_dataset.prepare_metadata.metadata_service import MetadataSyncService
-from robocoin_dataset.prepare_metadata.unified_metadata_def import UnifiedMetadata
 
 #===== Local var =====
 
@@ -207,7 +204,7 @@ class UploadUtil():
         else:
             raise ValueError(f"hub {hub_name} is not supported or illegal.")
 
-        self.logger = self.setup_logger(logger_name=UPLOAD_LOGGER_NAME)
+        self.logger = logging.getLogger(UPLOAD_LOGGER_NAME)
 
     def upload(self, hardlink_path: Path) -> tuple[bool]:
         """
