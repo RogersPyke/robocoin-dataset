@@ -24,7 +24,6 @@ Usage:
 import asyncio
 import logging
 import multiprocessing as mp
-import os
 import time
 import traceback
 from functools import cached_property
@@ -38,90 +37,21 @@ from robocoin_dataset.distribution_computation.constant import (
     TASK_RESULT,
 )
 from robocoin_dataset.distribution_computation.task_client import TaskClient
+from .log_config import (
+    ANSI_GREEN,
+    ANSI_RED,
+    colorize,
+    log_error,
+    log_success,
+    log_url,
+    log_warning,
+)
 from .utils import (
     UploadConfig,
     UploadUtil,
 )
 
 TASK_CATEGORY = "hub_upload"
-
-# ANSI color codes for terminal output
-# Red for WARNING and ERR
-ANSI_RED = "\033[91m"
-# Green for SUCCESS
-ANSI_GREEN = "\033[92m"
-# Blue for URLs and arguments
-ANSI_BLUE = "\033[94m"
-# Reset color
-ANSI_RESET = "\033[0m"
-
-
-def _colorize(text: str, color: str, use_color: bool = True) -> str:
-    """
-    Apply ANSI color code to text if terminal supports colors.
-
-    Args:
-        text: Text to colorize
-        color: ANSI color code (e.g., ANSI_RED, ANSI_GREEN, ANSI_BLUE)
-        use_color: Whether to apply color (default: True, auto-detected if None)
-
-    Returns:
-        Colorized text string
-    """
-    if use_color is False:
-        return text
-    # Auto-detect if use_color is None
-    if use_color is True:
-        # Check if terminal supports colors
-        use_color = os.getenv("TERM") not in (None, "dumb") and os.getenv("NO_COLOR") is None
-    if use_color:
-        return f"{color}{text}{ANSI_RESET}"
-    return text
-
-
-def _log_success(logger: logging.Logger, message: str) -> None:
-    """
-    Log success message with green color.
-
-    Args:
-        logger: Logger instance
-        message: Success message to log
-    """
-    logger.info(_colorize(message, ANSI_GREEN))
-
-
-def _log_error(logger: logging.Logger, message: str) -> None:
-    """
-    Log error message with red color.
-
-    Args:
-        logger: Logger instance
-        message: Error message to log
-    """
-    logger.error(_colorize(message, ANSI_RED))
-
-
-def _log_warning(logger: logging.Logger, message: str) -> None:
-    """
-    Log warning message with red color.
-
-    Args:
-        logger: Logger instance
-        message: Warning message to log
-    """
-    logger.warning(_colorize(message, ANSI_RED))
-
-
-def _log_url(logger: logging.Logger, message: str, level: int = logging.INFO) -> None:
-    """
-    Log URL or argument with blue color.
-
-    Args:
-        logger: Logger instance
-        message: URL or argument message to log
-        level: Logging level (default: INFO)
-    """
-    logger.log(level, _colorize(message, ANSI_BLUE))
 
 
 class UploadClient(TaskClient):
@@ -239,16 +169,16 @@ class UploadClient(TaskClient):
         dataset_name = hardlink_path.name.removesuffix("_qced_hardlink").removesuffix("_hardlink")
 
         self.logger.info(f"[HubUploadClient._sync_process_task] Processing task | UUID: {dataset_uuid} | Dataset: {dataset_name}")
-        _log_url(self.logger, f"[HubUploadClient._sync_process_task] Task details | UUID: {dataset_uuid} | Path: {hardlink_path} | Hub: {hub_name} | Namespace: {namespace}", logging.DEBUG)
+        log_url(self.logger, f"[HubUploadClient._sync_process_task] Task details | UUID: {dataset_uuid} | Path: {hardlink_path} | Hub: {hub_name} | Namespace: {namespace}", logging.DEBUG)
 
         try:
             upload_success, upload_error = self.upload_util.upload(hardlink_path)
             if upload_success:
-                _log_success(self.logger, f"[HubUploadClient._sync_process_task] Task completed | UUID: {dataset_uuid} | Success: True")
+                log_success(self.logger, f"[HubUploadClient._sync_process_task] Task completed | UUID: {dataset_uuid} | Success: True")
                 return {
                     "success": True
                 }
-            _log_error(self.logger, f"[HubUploadClient._sync_process_task] Task failed | UUID: {dataset_uuid} | Error: {upload_error}")
+            log_error(self.logger, f"[HubUploadClient._sync_process_task] Task failed | UUID: {dataset_uuid} | Error: {upload_error}")
             return {
                 "dataset_uuid": dataset_uuid,
                 "hub_name": hub_name,
@@ -258,7 +188,7 @@ class UploadClient(TaskClient):
         except Exception as e:
             tb = traceback.format_exc()
             error_msg = f"Unexpected error during upload: {e}\n\nFull traceback:\n{tb}"
-            _log_error(self.logger, f"[HubUploadClient._sync_process_task] Task exception | UUID: {dataset_uuid} | Error: {e}")
+            log_error(self.logger, f"[HubUploadClient._sync_process_task] Task exception | UUID: {dataset_uuid} | Error: {e}")
             self.logger.debug(f"[HubUploadClient._sync_process_task] Full traceback:\n{tb}")
             return {
                 "dataset_uuid": dataset_uuid,
@@ -309,7 +239,7 @@ async def run_one_client_async(
     
     server_uri = f"ws://{config.client_host}:{config.client_port}"
     logger.info(f"[run_one_client_async] Client starting | Hub: {hub_display} | Namespace: {namespace}")
-    _log_url(logger, f"[run_one_client_async] Server: {server_uri}")
+    log_url(logger, f"[run_one_client_async] Server: {server_uri}")
     logger.debug(f"[run_one_client_async] Configuration | Heartbeat: {config.client_heartbeat_interval}s")
 
     client = UploadClient(
@@ -329,14 +259,14 @@ async def run_one_client_async(
             try:
                 await client.connect_to_server()
             except ConnectionError as e:
-                _log_error(logger, f"[run_one_client_async] Connection failed: {e}")
+                log_error(logger, f"[run_one_client_async] Connection failed: {e}")
                 return {
                     "tasks_processed": 0,
                     "tasks_succeeded": 0,
                     "tasks_failed": 0,
                 }
             except Exception as e:
-                _log_error(logger, f"[run_one_client_async] Connection error: {e}")
+                log_error(logger, f"[run_one_client_async] Connection error: {e}")
                 logger.debug(f"[run_one_client_async] Connection error traceback:", exc_info=True)
                 return {
                     "tasks_processed": 0,
@@ -349,7 +279,7 @@ async def run_one_client_async(
 
         registration_success = await client.register()
         if not registration_success or not client.client_id:
-            _log_error(logger, "[run_one_client_async] Registration failed - no client_id received")
+            log_error(logger, "[run_one_client_async] Registration failed - no client_id received")
             return {
                 "tasks_processed": 0,
                 "tasks_succeeded": 0,
@@ -357,7 +287,7 @@ async def run_one_client_async(
             }
 
         await client._start_heartbeat()
-        _log_success(logger, f"[run_one_client_async] Client ready | ID: {client.client_id}")
+        log_success(logger, f"[run_one_client_async] Client ready | ID: {client.client_id}")
 
         # Process tasks until none remain
         while True:
@@ -389,7 +319,7 @@ async def run_one_client_async(
     except KeyboardInterrupt:
         logger.info("[run_one_client_async] Interrupted by user")
     except Exception as e:
-        _log_error(logger, f"[run_one_client_async] Client runtime exception: {e}")
+        log_error(logger, f"[run_one_client_async] Client runtime exception: {e}")
         logger.debug(f"[run_one_client_async] Runtime exception traceback:", exc_info=True)
     finally:
         logger.debug("[run_one_client_async] Cleaning up and disconnecting...")
@@ -478,7 +408,7 @@ def run_one_client_process_main(
 
     server_uri = f"ws://{config.client_host}:{config.client_port}"
     logger.info(f"[run_one_client_process_main] Hub upload client process {process_id} started")
-    _log_url(logger, f"[run_one_client_process_main] Connecting to: {server_uri}")
+    log_url(logger, f"[run_one_client_process_main] Connecting to: {server_uri}")
 
     # Run async client
     try:
@@ -495,12 +425,12 @@ def run_one_client_process_main(
     except Exception as e:
         # Always show critical errors to console, regardless of log level
         error_msg = f"[run_one_client_process_main] Hub upload client process {process_id} failed: {e}"
-        _log_error(logger, error_msg)
+        log_error(logger, error_msg)
         if log_level == "DEBUG":
             logger.debug(f"[run_one_client_process_main] Full traceback:", exc_info=True)
 
         # Always print critical errors to stderr so user sees them
-        print(f"\n{_colorize(error_msg, ANSI_RED)}", file=sys.stderr)
+        print(f"\n{colorize(error_msg, ANSI_RED)}", file=sys.stderr)
         if log_level == "DEBUG":
             print(traceback.format_exc(), file=sys.stderr)
 
@@ -565,7 +495,7 @@ def run_multi_clients(
     console_logger.info("=" * 80)
     console_logger.info(f"\n[run_multi_clients] CONFIGURATION")
     console_logger.info(f"  Clients            : {num_clients}")
-    _log_url(console_logger, f"  Server URI         : {server_uri}")
+    log_url(console_logger, f"  Server URI         : {server_uri}")
     console_logger.info(f"  Hub                : {hub_display}")
     console_logger.info(f"  Namespace          : {namespace}")
     console_logger.info(f"  Heartbeat interval : {config.client_heartbeat_interval}s")
@@ -592,7 +522,7 @@ def run_multi_clients(
         )
         proc.start()
         processes.append(proc)
-        _log_success(console_logger, f"[run_multi_clients] Process {i:>2} spawned (PID: {proc.pid})")
+        log_success(console_logger, f"[run_multi_clients] Process {i:>2} spawned (PID: {proc.pid})")
 
         # Add startup delay to avoid thundering herd
         if i < num_clients - 1:
@@ -613,7 +543,7 @@ def run_multi_clients(
 
     except KeyboardInterrupt:
         console_logger.info("\n\n" + "=" * 80)
-        _log_warning(console_logger, "[run_multi_clients] INTERRUPTION DETECTED - SHUTTING DOWN".center(80))
+        log_warning(console_logger, "[run_multi_clients] INTERRUPTION DETECTED - SHUTTING DOWN".center(80))
         console_logger.info("=" * 80 + "\n")
         for i, proc in enumerate(processes):
             if proc.is_alive():
@@ -621,7 +551,7 @@ def run_multi_clients(
                 proc.terminate()
                 proc.join(timeout=5.0)
                 if proc.is_alive():
-                    _log_warning(console_logger, f"[run_multi_clients] Force-killing process {i:>2} (PID: {proc.pid})")
+                    log_warning(console_logger, f"[run_multi_clients] Force-killing process {i:>2} (PID: {proc.pid})")
                     proc.kill()
                     proc.join()
                 exit_codes[i] = -2  # Mark as interrupted
@@ -673,13 +603,13 @@ def run_multi_clients(
     # Task results section
     console_logger.info(f"\n[run_multi_clients] TASK RESULTS")
     console_logger.info(f"  Total processed    : {total_tasks_processed}")
-    _log_success(console_logger, f"  Succeeded          : {total_tasks_succeeded}")
-    _log_error(console_logger, f"  Failed             : {total_tasks_failed}")
+    log_success(console_logger, f"  Succeeded          : {total_tasks_succeeded}")
+    log_error(console_logger, f"  Failed             : {total_tasks_failed}")
 
     # Process status section
     console_logger.info(f"\n[run_multi_clients] PROCESS STATUS")
-    _log_success(console_logger, f"  Completed          : {process_success_count}")
-    _log_error(console_logger, f"  Failed             : {process_fail_count}")
+    log_success(console_logger, f"  Completed          : {process_success_count}")
+    log_error(console_logger, f"  Failed             : {process_fail_count}")
 
     # Per-process details table
     if exit_codes:
@@ -694,19 +624,19 @@ def run_multi_clients(
             error_msg = stats.get("error")
 
             if code == 0:
-                status = _colorize("SUCCESS", ANSI_GREEN)
+                status = colorize("SUCCESS", ANSI_GREEN)
             elif code == -2:
-                status = _colorize("INTERRUPTED", ANSI_RED)
+                status = colorize("INTERRUPTED", ANSI_RED)
             elif code is None:
                 status = "UNKNOWN"
             else:
-                status = _colorize(f"FAILED (exit {code})", ANSI_RED)
+                status = colorize(f"FAILED (exit {code})", ANSI_RED)
 
             console_logger.info(f"  {proc_id:<6} {status:<18} {tasks_processed:<10}")
 
             # Show error message if present
             if error_msg:
-                _log_error(console_logger, f"         Error: {error_msg}")
+                log_error(console_logger, f"         Error: {error_msg}")
 
     # Show any error details
     errors_found = [s for s in process_stats.values() if s.get("error")]
@@ -715,7 +645,7 @@ def run_multi_clients(
         for stats in errors_found:
             proc_id = stats["process_id"]
             error = stats["error"]
-            _log_error(console_logger, f"  Process {proc_id}: {error}")
+            log_error(console_logger, f"  Process {proc_id}: {error}")
 
     console_logger.info("\n" + "=" * 80 + "\n")
 
