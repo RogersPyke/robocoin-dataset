@@ -250,9 +250,7 @@ def setup_logging(
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     logger = logging.getLogger(__name__)
-    # Log to file, print to console
     logger.info(f"[SETUP] Logging to: {log_file}")
-    print(f"[SETUP] Logging to: {log_file}")
 
     return logger, log_file
 
@@ -300,30 +298,30 @@ def parse_arguments() -> argparse.Namespace:
         description="Upload RoboCoin datasets to remote hubs (HuggingFace/ModelScope).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  # Local upload mode (single machine, default)
-  python scripts/hub_upload/upload2hub.py \\
-      --config configs/upload.yaml
+    Examples:
+    # Local upload mode (single machine, default)
+    python scripts/hub_upload/upload2hub.py \\
+        --config configs/upload.yaml
 
-  # Server mode (start task distribution server)
-  python scripts/hub_upload/upload2hub.py --server \\
-      --config configs/upload.yaml \\
-      --host 0.0.0.0 \\
-      --port 2100
+    # Server mode (start task distribution server)
+    python scripts/hub_upload/upload2hub.py --server \\
+        --config configs/upload.yaml \\
+        --host 0.0.0.0 \\
+        --port 2100
 
-  # Client mode (connect to server and process tasks)
-  python scripts/hub_upload/upload2hub.py --client \\
-      --config configs/upload.yaml \\
-      --host 127.0.0.1 \\
-      --port 2100 \\
-      --num-clients 4
+    # Client mode (connect to server and process tasks)
+    python scripts/hub_upload/upload2hub.py --client \\
+        --config configs/upload.yaml \\
+        --host 127.0.0.1 \\
+        --port 2100 \\
+        --num-clients 4
 
-  # All options for local mode
-  python scripts/hub_upload/upload2hub.py \\
-      --config configs/upload.yaml \\
-      --log-level DEBUG \\
-      --force \\
-      --readme-only
+    # All options for local mode
+    python scripts/hub_upload/upload2hub.py \\
+        --config configs/upload.yaml \\
+        --log-level DEBUG \\
+        --force \\
+        --readme-only
         """
     )
 
@@ -438,8 +436,6 @@ def run_local_mode(config: UploadConfig, args: argparse.Namespace, logger: loggi
         - Logs all operations with [stage] identifiers
         - Handles errors gracefully and continues with next task
     """
-    from tqdm import tqdm
-
     # Validate required configuration
     if not config.pg_cfg_path:
         raise ValueError("pg_cfg_path is required for local mode")
@@ -464,12 +460,6 @@ def run_local_mode(config: UploadConfig, args: argparse.Namespace, logger: loggi
     logger.info(f"[LOCAL_MODE] Force overwrite: {config.force_overwrite}")
     logger.info(f"[LOCAL_MODE] Readme only: {config.readme_only}")
     logger.info("=" * 80)
-    tqdm.write("=" * 80)
-    tqdm.write("[LOCAL_MODE] Starting local upload process")
-    tqdm.write("=" * 80)
-    tqdm.write(f"[LOCAL_MODE] Hub: {hub_name}")
-    tqdm.write(f"[LOCAL_MODE] Namespace: {namespace}")
-    tqdm.write("=" * 80)
 
     # Initialize database connection
     try:
@@ -496,7 +486,6 @@ def run_local_mode(config: UploadConfig, args: argparse.Namespace, logger: loggi
 
     # Initial sync: Mark all eligible datasets as PENDING
     logger.info("[LOCAL_MODE] Syncing upload status in database...")
-    tqdm.write("[LOCAL_MODE] Syncing upload status in database...")
     try:
         with database.with_session() as session:
             _sync_upload_status(
@@ -513,7 +502,6 @@ def run_local_mode(config: UploadConfig, args: argparse.Namespace, logger: loggi
 
     # Main processing loop
     logger.info("[LOCAL_MODE] Starting task processing loop...")
-    tqdm.write("[LOCAL_MODE] Starting task processing loop...")
 
     try:
         while True:
@@ -570,7 +558,6 @@ def run_local_mode(config: UploadConfig, args: argparse.Namespace, logger: loggi
 
                     # Process upload task
                     logger.info(f"[LOCAL_MODE] Processing task | UUID: {dataset_uuid} | Path: {hardlink_path}")
-                    _log_url(logger, f"[LOCAL_MODE] Task details | UUID: {dataset_uuid} | Path: {hardlink_path}", logging.DEBUG)
 
                     # Upload using UploadLocal (handles database status updates internally)
                     # UploadLocal.upload() will:
@@ -592,7 +579,6 @@ def run_local_mode(config: UploadConfig, args: argparse.Namespace, logger: loggi
 
             except KeyboardInterrupt:
                 logger.info("[LOCAL_MODE] Interrupted by user")
-                tqdm.write("\n[LOCAL_MODE] Interrupted by user")
                 break
             except Exception as e:
                 tasks_processed += 1
@@ -632,13 +618,6 @@ def run_local_mode(config: UploadConfig, args: argparse.Namespace, logger: loggi
         _log_success(logger, f"[LOCAL_MODE] Tasks succeeded: {tasks_succeeded}")
         _log_error(logger, f"[LOCAL_MODE] Tasks failed: {tasks_failed}")
         logger.info("=" * 80)
-        tqdm.write("=" * 80)
-        tqdm.write("[LOCAL_MODE] SUMMARY")
-        tqdm.write("=" * 80)
-        tqdm.write(f"[LOCAL_MODE] Tasks processed: {tasks_processed}")
-        tqdm.write(f"[LOCAL_MODE] Tasks succeeded: {tasks_succeeded}")
-        tqdm.write(f"[LOCAL_MODE] Tasks failed: {tasks_failed}")
-        tqdm.write("=" * 80)
 
 
 def run_server_mode(config: UploadConfig, args: argparse.Namespace, logger: logging.Logger) -> None:
@@ -656,8 +635,6 @@ def run_server_mode(config: UploadConfig, args: argparse.Namespace, logger: logg
         - Updates database status based on client results
         - Handles one hub platform per server instance
     """
-    from tqdm import tqdm
-
     # Validate required configuration
     if not config.pg_cfg_path:
         raise ValueError("pg_cfg_path is required for server mode")
@@ -684,13 +661,6 @@ def run_server_mode(config: UploadConfig, args: argparse.Namespace, logger: logg
     logger.info(f"[SERVER_MODE] Heartbeat interval: {args.heartbeat_interval}s")
     logger.info(f"[SERVER_MODE] Timeout: {args.timeout}s")
     logger.info("=" * 80)
-    tqdm.write("=" * 80)
-    tqdm.write("[SERVER_MODE] Starting hub upload server")
-    tqdm.write("=" * 80)
-    tqdm.write(f"[SERVER_MODE] Host: {args.host}:{args.port}")
-    tqdm.write(f"[SERVER_MODE] Hub: {hub_name}")
-    tqdm.write(f"[SERVER_MODE] Namespace: {namespace}")
-    tqdm.write("=" * 80)
 
     # Update config with server network settings
     config.server_host = args.host
@@ -706,11 +676,9 @@ def run_server_mode(config: UploadConfig, args: argparse.Namespace, logger: logg
 
     try:
         logger.info("[SERVER_MODE] Server starting...")
-        tqdm.write("[SERVER_MODE] Server starting...")
         asyncio.run(server.start())
     except KeyboardInterrupt:
-        logger.info("\n[SERVER_MODE] Server interrupted by user")
-        tqdm.write("\n[SERVER_MODE] Server interrupted by user")
+        logger.info("[SERVER_MODE] Server interrupted by user")
     finally:
         stats = server.get_statistics()
         logger.info("=" * 80)
@@ -719,12 +687,6 @@ def run_server_mode(config: UploadConfig, args: argparse.Namespace, logger: logg
         _log_success(logger, f"[SERVER_MODE] Datasets succeeded: {stats['datasets_succeeded']}")
         _log_error(logger, f"[SERVER_MODE] Datasets failed: {stats['datasets_failed']}")
         logger.info("=" * 80)
-        tqdm.write("=" * 80)
-        tqdm.write("[SERVER_MODE] SUMMARY")
-        tqdm.write("=" * 80)
-        tqdm.write(f"[SERVER_MODE] Datasets succeeded: {stats['datasets_succeeded']}")
-        tqdm.write(f"[SERVER_MODE] Datasets failed: {stats['datasets_failed']}")
-        tqdm.write("=" * 80)
 
 
 def run_client_mode(config: UploadConfig, args: argparse.Namespace, logger: logging.Logger) -> None:
@@ -742,8 +704,6 @@ def run_client_mode(config: UploadConfig, args: argparse.Namespace, logger: logg
         - Reports results back to server
         - Supports multiple client processes for parallel processing
     """
-    from tqdm import tqdm
-
     hub_name = _normalize_hub_name(config.hub_name)
     
     # Get namespace based on hub
@@ -774,15 +734,6 @@ def run_client_mode(config: UploadConfig, args: argparse.Namespace, logger: logg
     logger.info(f"[CLIENT_MODE] Heartbeat interval: {args.heartbeat_interval}s")
     logger.info(f"[CLIENT_MODE] Log folder: {log_folder}")
     logger.info("=" * 80)
-    tqdm.write("=" * 80)
-    tqdm.write("[CLIENT_MODE] Starting hub upload client(s)")
-    tqdm.write("=" * 80)
-    _log_url(logger, f"[CLIENT_MODE] Server URI: {server_uri}")
-    tqdm.write(f"[CLIENT_MODE] Number of clients: {args.num_clients}")
-    tqdm.write(f"[CLIENT_MODE] Hub: {hub_name}")
-    tqdm.write(f"[CLIENT_MODE] Namespace: {namespace}")
-    tqdm.write(f"[CLIENT_MODE] Log folder: {log_folder}")
-    tqdm.write("=" * 80)
 
     # Run client(s) - all clients will use the same log folder
     exit_code = run_multi_clients(
@@ -795,11 +746,9 @@ def run_client_mode(config: UploadConfig, args: argparse.Namespace, logger: logg
 
     if exit_code != 0:
         _log_error(logger, "[CLIENT_MODE] Client(s) completed with errors")
-        tqdm.write("[CLIENT_MODE] Client(s) completed with errors")
         sys.exit(exit_code)
     else:
         _log_success(logger, "[CLIENT_MODE] Client(s) completed successfully")
-        tqdm.write("[CLIENT_MODE] Client(s) completed successfully")
 
 
 def main() -> None:
@@ -820,13 +769,11 @@ def main() -> None:
         modes_selected = sum([args.server, args.client, args.local])
         if modes_selected > 1:
             _log_error(logger, "[MAIN] Cannot specify more than one mode: --server, --client, or --local")
-            print("[MAIN] Cannot specify more than one mode: --server, --client, or --local")
             sys.exit(1)
 
         # Load configuration from YAML file
         if not args.config:
             _log_error(logger, "[MAIN] --config/-c is required")
-            print("[MAIN] --config/-c is required")
             sys.exit(1)
 
         logger.info(f"[MAIN] Loading configuration from: {args.config}")
@@ -863,30 +810,23 @@ def main() -> None:
         _log_success(logger, f"[MAIN] Script completed successfully in {time_str}")
         logger.info(f"[MAIN] Total execution time: {script_elapsed:.2f}s")
         logger.info("=" * 80)
-        print("=" * 80)
-        print(f"[MAIN] Script completed successfully in {time_str}")
-        print("=" * 80)
 
     except FileNotFoundError as e:
         script_elapsed = time.time() - script_start_time
         _log_error(logger, f"[MAIN] File not found: {e} (after {script_elapsed:.2f}s)")
-        print(f"[MAIN] File not found: {e}")
         sys.exit(1)
     except ValueError as e:
         script_elapsed = time.time() - script_start_time
         _log_error(logger, f"[MAIN] Configuration error: {e} (after {script_elapsed:.2f}s)")
-        print(f"[MAIN] Configuration error: {e}")
         sys.exit(1)
     except KeyboardInterrupt:
         script_elapsed = time.time() - script_start_time
-        logger.warning(f"\n[MAIN] Upload interrupted by user (after {script_elapsed:.2f}s)")
-        print("\n[MAIN] Upload interrupted by user")
+        logger.warning(f"[MAIN] Upload interrupted by user (after {script_elapsed:.2f}s)")
         sys.exit(1)
     except Exception as e:
         script_elapsed = time.time() - script_start_time
         _log_error(logger, f"[MAIN] Unexpected error: {e} (after {script_elapsed:.2f}s)")
         logger.debug(f"[MAIN] Full traceback:", exc_info=True)
-        print(f"[MAIN] Unexpected error: {e}")
         sys.exit(1)
 
 
