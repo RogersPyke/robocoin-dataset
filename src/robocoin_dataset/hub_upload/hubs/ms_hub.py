@@ -4,11 +4,15 @@ from pathlib import Path
 
 from modelscope.hub.api import HubApi  # noqa: E402
 
-from robocoin_dataset.hub_upload.config.constant import (  # noqa: E402
-    DEFAULT_UPLOAD_ALLOW_PATTERNS,
-    DEFAULT_UPLOAD_IGNORE_PATTERNS,
-    MODELSCOPE_BUG_EXCEPTON_MSG,
-)
+# from robocoin_dataset.hub_upload.config.constant import (  # noqa: E402
+#     DEFAULT_UPLOAD_ALLOW_PATTERNS,
+#     DEFAULT_UPLOAD_IGNORE_PATTERNS,
+#     MODELSCOPE_BUG_EXCEPTON_MSG,
+# )
+
+DEFAULT_UPLOAD_ALLOW_PATTERNS=None
+DEFAULT_UPLOAD_IGNORE_PATTERNS=None
+MODELSCOPE_BUG_EXCEPTON_MSG="Expecting value: line 1 column 1 (char 0)"
 
 from .abstract_hub import (  # noqa: E402
     AbstractUploadHub,
@@ -54,7 +58,7 @@ class ModelscopeUploadHub(AbstractUploadHub):
         try:
             return self.hub.repo_exists(repo_id=repo_id, token=self.token, repo_type="dataset")
         except Exception as e:
-            print(f"⚠️  Warning: Could not check if repo {repo_id} exists: {e}")
+            print(f"[ModelscopeUploadHub.repo_exists] Warning: Could not check if repo {repo_id} exists: {e}")
             return False
 
     def create_repo(self, repo_id: str) -> None:
@@ -156,12 +160,12 @@ class ModelscopeUploadHub(AbstractUploadHub):
 
             # Handle both single CommitInfo and List[CommitInfo] returns
             if isinstance(commit_info, list):
-                logger.info(f"✅ Uploaded in {len(commit_info)} batches")
+                logger.info(f"[ModelscopeUploadHub.upload_repo_batched] Uploaded in {len(commit_info)} batches")
                 return f"Uploaded successfully in {len(commit_info)} batches"
             if hasattr(commit_info, 'commit_url'):
-                logger.info(f"✅ Upload completed: {commit_info.commit_url}")
+                logger.info(f"[ModelscopeUploadHub.upload_repo_batched] Upload completed: {commit_info.commit_url}")
                 return commit_info.commit_url
-            logger.info(f"✅ Successfully uploaded to {repo_id}")
+            logger.info(f"[ModelscopeUploadHub.upload_repo_batched] Successfully uploaded to {repo_id}")
             return f"Successfully uploaded to {repo_id}"
 
         except Exception as e:

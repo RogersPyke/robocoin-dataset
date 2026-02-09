@@ -3,10 +3,13 @@ from pathlib import Path
 
 from huggingface_hub import HfApi
 
-from robocoin_dataset.hub_upload.config.constant import (
-    DEFAULT_UPLOAD_ALLOW_PATTERNS,
-    DEFAULT_UPLOAD_IGNORE_PATTERNS,
-)
+# from robocoin_dataset.hub_upload.config.constant import (
+#     DEFAULT_UPLOAD_ALLOW_PATTERNS,
+#     DEFAULT_UPLOAD_IGNORE_PATTERNS,
+# )
+
+DEFAULT_UPLOAD_ALLOW_PATTERNS=None
+DEFAULT_UPLOAD_IGNORE_PATTERNS=None
 
 from .abstract_hub import AbstractUploadHub
 
@@ -46,7 +49,7 @@ class HuggingfaceUploadHub(AbstractUploadHub):
         try:
             return self.hub.repo_exists(repo_id=repo_id, token=self.token, repo_type="dataset")
         except Exception as e:
-            print(f"⚠️  Warning: Could not check if repo {repo_id} exists: {e}")
+            print(f"[HuggingfaceUploadHub.repo_exists] Warning: Could not check if repo {repo_id} exists: {e}")
             return False
 
     def create_repo(self, repo_id: str) -> None:
@@ -103,9 +106,9 @@ class HuggingfaceUploadHub(AbstractUploadHub):
 
             # Handle both single CommitInfo object and Future[CommitInfo]
             if hasattr(commit_info, 'commit_url'):
-                logger.info(f"✅ Upload completed: {commit_info.commit_url}")
+                logger.info(f"[HuggingfaceUploadHub.upload_repo] Upload completed: {commit_info.commit_url}")
                 return commit_info.commit_url
-            logger.info(f"✅ Successfully uploaded to {repo_id}")
+            logger.info(f"[HuggingfaceUploadHub.upload_repo] Successfully uploaded to {repo_id}")
             return f"Successfully uploaded to {repo_id}"
         except Exception as e:
             logger.error(f"Upload failed: {e}")
