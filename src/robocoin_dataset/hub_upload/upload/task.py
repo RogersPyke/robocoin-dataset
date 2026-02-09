@@ -96,9 +96,8 @@ def _sync_upload_status(
                 setattr(item, HF_VERSION_PS, pre_stage_version_value)
                 hf_synced_count += 1
         session.commit()
-        _logger.debug(f"Synced HuggingFace hub for dataset {item.dataset_uuid}")
         if hf_items:
-            _logger.debug(f"Synced HuggingFace hub for dataset {item.dataset_uuid}")
+            _logger.debug(f"Synced HuggingFace hub for {hf_synced_count} dataset(s)")
         else:
             _logger.debug("No datasets to sync for HuggingFace hub")
             
@@ -130,7 +129,7 @@ def _sync_upload_status(
                 ms_synced_count += 1
         session.commit()
         if ms_items:
-            _logger.debug(f"Synced ModelScope hub for dataset {item.dataset_uuid}")
+            _logger.debug(f"Synced ModelScope hub for {ms_synced_count} dataset(s)")
         else:
             _logger.debug("No datasets to sync for ModelScope hub")
 
