@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .utils import (
     UploadConfig,
-    LocalDsUploadUtil,
+    UploadUtil,
 )
 
 
@@ -42,7 +42,7 @@ def upload_datasets_from_database_local(config: UploadConfig, logger: logging.Lo
 
     # 初始化上传器
     _logger.info("正在初始化上传器...")
-    uploader = LocalDsUploadUtil(config)
+    uploader = UploadUtil(config)
 
     # 验证并解析数据库路径
     db_path = Path(config.pg_cfg_path).expanduser().absolute()

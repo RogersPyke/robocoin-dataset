@@ -106,6 +106,7 @@ class UploadConfig():
     client_port: int = 2140
     client_heartbeat_interval: float = 30.0
     client_timeout: float = 90.0
+    request_task_timeout: float | None = 90.0
 
 def _load_config_from_yaml(config_path: str | Path) -> dict:
     """
@@ -162,6 +163,7 @@ def _create_upload_config(config_dict: dict) -> UploadConfig:
         client_port=config_dict.get("client_port", 2140),
         client_heartbeat_interval=config_dict.get("client_heartbeat_interval", 30.0),
         client_timeout=config_dict.get("client_timeout", 90.0),
+        request_task_timeout=config_dict.get("request_task_timeout", 90.0),
     )
 
 
