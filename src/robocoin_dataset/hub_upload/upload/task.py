@@ -76,12 +76,12 @@ def _sync_upload_status(
         else:
             hf_query = session.query(DatasetDB).filter(
                 and_(
-                    DatasetDB[PRE_STAGE_STATUS] == TaskStatus.COMPLETED,
+                    getattr(DatasetDB, PRE_STAGE_STATUS) == TaskStatus.COMPLETED,
                     or_(
-                        DatasetDB[HF_STATE] == TaskStatus.PENDING,
+                        getattr(DatasetDB, HF_STATE) == TaskStatus.PENDING,
                         and_(
-                            DatasetDB[HF_STATE] == TaskStatus.COMPLETED,
-                            DatasetDB[HF_VERSION_PS] < DatasetDB[HF_VERSION],
+                            getattr(DatasetDB, HF_STATE) == TaskStatus.COMPLETED,
+                            getattr(DatasetDB, HF_VERSION_PS) < getattr(DatasetDB, HF_VERSION),
                         ),
                     ),
                 )
@@ -109,12 +109,12 @@ def _sync_upload_status(
         else:
             ms_query = session.query(DatasetDB).filter(
                 and_(
-                    DatasetDB[PRE_STAGE_STATUS] == TaskStatus.COMPLETED,
+                    getattr(DatasetDB, PRE_STAGE_STATUS) == TaskStatus.COMPLETED,
                     or_(
-                        DatasetDB[MS_STATE] == TaskStatus.PENDING,
+                        getattr(DatasetDB, MS_STATE) == TaskStatus.PENDING,
                         and_(
-                            DatasetDB[MS_STATE] == TaskStatus.COMPLETED,
-                            DatasetDB[MS_VERSION_PS] < DatasetDB[MS_VERSION],
+                            getattr(DatasetDB, MS_STATE) == TaskStatus.COMPLETED,
+                            getattr(DatasetDB, MS_VERSION_PS) < getattr(DatasetDB, MS_VERSION),
                         ),
                     ),
                 )
@@ -157,8 +157,8 @@ def _gen_one_upload_task(
         else:
             query = session.query(DatasetDB).filter(
                 and_(
-                    DatasetDB[PRE_STAGE_STATUS] == TaskStatus.COMPLETED,
-                    DatasetDB[HF_STATE] == TaskStatus.PENDING,
+                    getattr(DatasetDB, PRE_STAGE_STATUS) == TaskStatus.COMPLETED,
+                    getattr(DatasetDB, HF_STATE) == TaskStatus.PENDING,
                 )
             )
         hf_item = query.first()
@@ -174,8 +174,8 @@ def _gen_one_upload_task(
         else:
             query = session.query(DatasetDB).filter(
                 and_(
-                    DatasetDB[PRE_STAGE_STATUS] == TaskStatus.COMPLETED,
-                    DatasetDB[MS_STATE] == TaskStatus.PENDING,
+                    getattr(DatasetDB, PRE_STAGE_STATUS) == TaskStatus.COMPLETED,
+                    getattr(DatasetDB, MS_STATE) == TaskStatus.PENDING,
                 )
             )
         ms_item = query.first()
