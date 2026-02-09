@@ -91,6 +91,7 @@ class UploadConfig():
     # Common configuration
     force_overwrite: bool = False
     readme_only: bool = False
+    
     # ==== Server network configuration =====
     server_host: str = "0.0.0.0"
     server_port: int = 2100
