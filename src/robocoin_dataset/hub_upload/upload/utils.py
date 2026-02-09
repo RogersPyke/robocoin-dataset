@@ -108,6 +108,8 @@ class UploadConfig():
     client_timeout: float = 90.0
     request_task_timeout: float | None = 90.0
 
+    # ===== helpers to build cfg =====
+
 def _load_config_from_yaml(config_path: str | Path) -> dict:
     """
     Load configuration from YAML file.
@@ -165,10 +167,17 @@ def _create_upload_config(config_dict: dict) -> UploadConfig:
         client_timeout=config_dict.get("client_timeout", 90.0),
         request_task_timeout=config_dict.get("request_task_timeout", 90.0),
     )
+    
+    # ----- Calling entrypoint -----
 
+def create_config(config_path: str | Path) -> UploadConfig:
+    """
+    Create UploadConfig from configuration file.
+    """
+    config_dict = _load_config_from_yaml(config_path)
+    return _create_upload_config(config_dict)
 
 ######## UPLOAD UTILITY CLASS ########
-
 
 class UploadUtil():
     """
@@ -200,7 +209,7 @@ class UploadUtil():
 
         self.logger = self.setup_logger(logger_name=UPLOAD_LOGGER_NAME)
 
-    def _upload(self, hardlink_path: Path) -> tuple[bool]:
+    def upload(self, hardlink_path: Path) -> tuple[bool]:
         """
         Upload a single, local dataset folder to the remote hub.
         """
@@ -262,6 +271,32 @@ class UploadUtil():
                     return False, error_msg
         return False
 
+    def upload_readme_only(
+        self,
+        hardlink_path: Path,
+        dataset_name: str,
+    ) -> tuple[bool, str]:
+        """
+        Upload only the README.md file for a dataset by staging it in a temporary folder.
+        """
+        readme_path = hardlink_path / "README.md"
+        if not readme_path.exists():
+            error_msg = f"README.md not found for {dataset_name}"
+            self.logger.error(error_msg)
+            return False, error_msg
+
+        with tempfile.TemporaryDirectory(prefix="robo-readme-upload-") as tmpdir:
+            staging_dir = Path(tmpdir)
+            staging_readme = staging_dir / "README.md"
+            shutil.copy2(readme_path, staging_readme)
+            self.logger.debug(f"{dataset_name}: Staging README for upload at {staging_readme}")
+            return self.upload(
+                hardlink_path=hardlink_path,
+                upload_path=staging_dir,
+            )
+
+    # ---- inner helpers -----
+
     def _folder_name_to_repo_name(self, folder_name: str) -> str:
         """
         Normalize a folder name into a valid repository name by stripping upload suffixes,
@@ -318,30 +353,6 @@ class UploadUtil():
             # Fallback: use a default name if sanitization results in empty string
             sanitized = "dataset"
         return sanitized
-    
-    def _upload_readme_only(
-        self,
-        hardlink_path: Path,
-        dataset_name: str,
-    ) -> tuple[bool, str]:
-        """
-        Upload only the README.md file for a dataset by staging it in a temporary folder.
-        """
-        readme_path = hardlink_path / "README.md"
-        if not readme_path.exists():
-            error_msg = f"README.md not found for {dataset_name}"
-            self.logger.error(error_msg)
-            return False, error_msg
-
-        with tempfile.TemporaryDirectory(prefix="robo-readme-upload-") as tmpdir:
-            staging_dir = Path(tmpdir)
-            staging_readme = staging_dir / "README.md"
-            shutil.copy2(readme_path, staging_readme)
-            self.logger.debug(f"{dataset_name}: Staging README for upload at {staging_readme}")
-            return self._upload(
-                hardlink_path=hardlink_path,
-                upload_path=staging_dir,
-            )
 
 if __name__ == "__main__":
     pass

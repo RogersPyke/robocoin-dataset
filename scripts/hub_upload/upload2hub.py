@@ -1,189 +1,175 @@
 """
 RoboCoin Datasets Uploader - Main CLI Entry Point
 
-This script uploads datasets to the hub using a database-driven strategy.
-It generates dataset info YAML files and README.md files ON-DEMAND for each dataset
-right before uploading, using the hardlink paths from the database.
-
-KEY FEATURES:
-- On-demand generation of dataset info YAML files from metadata (per dataset)
-- On-demand generation of README.md files from templates (per dataset)
-- Upload datasets to HuggingFace or ModelScope
-- Database-driven upload tracking
-- Works with hardlinks at any location (not restricted to single root_path)
-- Supports three modes: local, server, and client
+This script uploads datasets to remote hubs (HuggingFace/ModelScope) using a database-driven strategy.
+It supports three modes: local, server, and client.
 
 MODES:
-    1. Local mode (default, --local): Single machine upload
-    2. Server mode (--server): Starts a task distribution server
+    1. Local mode (default, --local): Single machine upload with direct database access
+    2. Server mode (--server): Starts a task distribution server for distributed upload
     3. Client mode (--client): Connects to server and processes tasks
 
-WORKFLOW:
+WORKFLOW (Local Mode):
     For each dataset in the database:
-    1. Generate dataset_info.yml file from metadata
-    2. Generate README.md file from template
-    3. Upload dataset to hub (unless --readme-only is specified)
+    1. Sync upload status in database (mark as PENDING if needed)
+    2. Generate upload task (mark as PROCESSING)
+    3. Execute upload to hub
+    4. Update database status (COMPLETED or FAILED)
+
+Dependencies:
+    - robocoin_dataset.hub_upload.upload: Core upload modules
+    - robocoin_dataset.database: Database connection and models
+    - asyncio: For async server/client operations
+    - logging: For audit logging
 
 Usage:
     # Local upload mode (single machine, default)
-    python scripts/hub_upload/upload2hub.py \
-        --config configs/upload.yaml \
-        --token YOUR_TOKEN
+    python scripts/hub_upload/upload2hub.py \\
+        --config configs/upload.yaml
 
     # Server mode (distribute tasks to clients)
-    python scripts/hub_upload/upload2hub.py --server \
-        --config configs/upload.yaml \
-        --db-file-path /path/to/datasets.db \
-        --token YOUR_TOKEN \
-        --name-space YourUsername \
-        --host 0.0.0.0 \
-        --port 2140
+    python scripts/hub_upload/upload2hub.py --server \\
+        --config configs/upload.yaml \\
+        --host 0.0.0.0 \\
+        --port 2100
 
     # Client mode (connect to server and process tasks)
-    python scripts/hub_upload/upload2hub.py --client \
-        --host 127.0.0.1 \
-        --port 2140 \
-        --num-clients 4 \
-        --config configs/upload.yaml \
-        --token YOUR_TOKEN \
-        --name-space YourUsername
-
-    # With custom database path
-    python scripts/hub_upload/upload2hub.py \
-        --config configs/upload.yaml \
-        --db-file-path /path/to/datasets_new.db \
-        --token YOUR_TOKEN
-
-    # README-only mode (only update README files, no dataset upload)
-    python scripts/hub_upload/upload2hub.py \
-        --config configs/upload.yaml \
-        --readme-only \
-        --token YOUR_TOKEN
+    python scripts/hub_upload/upload2hub.py --client \\
+        --host 127.0.0.1 \\
+        --port 2100 \\
+        --num-clients 4 \\
+        --config configs/upload.yaml
 """
 
 import argparse
 import asyncio
 import logging
+import os
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
-from robocoin_dataset.hub_upload.config.constant import (
-    DS_PLATFORM_NAME,
-    DatasetsHubEnum,
+from robocoin_dataset.database.database import DatasetDatabase
+from robocoin_dataset.hub_upload.upload.client import run_multi_clients
+from robocoin_dataset.hub_upload.upload.local import UploadLocal
+from robocoin_dataset.hub_upload.upload.server import UploadServer
+from robocoin_dataset.hub_upload.upload.task import (
+    _gen_one_upload_task,
+    _get_hardlink_path_by_uuid,
+    _mark_upload_failed,
+    _sync_upload_status,
 )
-from robocoin_dataset.hub_upload.lerobot.hub_upload_local import (
-    upload_datasets_main as upload_datasets_main_local,
-)
-from robocoin_dataset.hub_upload.lerobot.hub_upload_util import (
-    create_upload_config,
-    load_config_from_yaml,
-)
+from robocoin_dataset.hub_upload.upload.utils import UploadConfig, create_config
+
+# ANSI color codes for terminal output
+# Red for WARNING and ERR
+ANSI_RED = "\033[91m"
+# Green for SUCCESS
+ANSI_GREEN = "\033[92m"
+# Blue for URLs and arguments
+ANSI_BLUE = "\033[94m"
+# Reset color
+ANSI_RESET = "\033[0m"
+
+# Default platform name (can be overridden by config)
+DEFAULT_PLATFORM_NAME = "RoboCOIN"
 
 
-def _ensure_required_config_fields(config: dict, required_fields: list[str]) -> None:
+def _colorize(text: str, color: str, use_color: bool = True) -> str:
     """
-    Raise ValueError if any required field is missing or empty-ish in config dict.
+    Apply ANSI color code to text if terminal supports colors.
+
+    Args:
+        text: Text to colorize
+        color: ANSI color code (e.g., ANSI_RED, ANSI_GREEN, ANSI_BLUE)
+        use_color: Whether to apply color (default: True, auto-detected if None)
+
+    Returns:
+        Colorized text string
     """
-    missing: list[str] = []
-    for field in required_fields:
-        value = config.get(field)
-        if value is None:
-            missing.append(field)
-            continue
-        if isinstance(value, str):
-            normalized = value.strip().lower()
-            if normalized in {"", "null", "none", "default"}:
-                missing.append(field)
-    if missing:
-        missing_str = ", ".join(missing)
-        raise ValueError(f"Missing required config field(s): {missing_str}")
+    if use_color is False:
+        return text
+    # Auto-detect if use_color is True
+    if use_color is True:
+        # Check if terminal supports colors
+        use_color = os.getenv("TERM") not in (None, "dumb") and os.getenv("NO_COLOR") is None
+    if use_color:
+        return f"{color}{text}{ANSI_RESET}"
+    return text
 
 
-def _resolve_required_path(
-    value: str | Path | None,
-    field_name: str,
-    *,
-    must_be_dir: bool,
-) -> Path:
+def _log_success(logger: logging.Logger, message: str) -> None:
     """
-    Resolve and validate a user-provided path.
+    Log success message with green color.
+
+    Args:
+        logger: Logger instance
+        message: Success message to log
+    """
+    logger.info(_colorize(message, ANSI_GREEN))
+
+
+def _log_error(logger: logging.Logger, message: str) -> None:
+    """
+    Log error message with red color.
+
+    Args:
+        logger: Logger instance
+        message: Error message to log
+    """
+    logger.error(_colorize(message, ANSI_RED))
+
+
+def _log_warning(logger: logging.Logger, message: str) -> None:
+    """
+    Log warning message with red color.
+
+    Args:
+        logger: Logger instance
+        message: Warning message to log
+    """
+    logger.warning(_colorize(message, ANSI_RED))
+
+
+def _log_url(logger: logging.Logger, message: str, level: int = logging.INFO) -> None:
+    """
+    Log URL or argument with blue color.
+
+    Args:
+        logger: Logger instance
+        message: URL or argument message to log
+        level: Logging level (default: INFO)
+    """
+    logger.log(level, _colorize(message, ANSI_BLUE))
+
+
+def _normalize_hub_name(value: str | None) -> str:
+    """
+    Normalize hub name to standard format.
+
+    Args:
+        value: Hub name string (can be "huggingface", "hf", "modelscope", "ms")
+
+    Returns:
+        Normalized hub name string ("huggingface" or "modelscope")
     """
     if value is None:
-        raise ValueError(f"{field_name} is required")
-
-    resolved = Path(value).expanduser().absolute()
-    if not resolved.exists():
-        raise ValueError(f"{field_name} does not exist: {resolved}")
-    if must_be_dir and not resolved.is_dir():
-        raise ValueError(f"{field_name} must be a directory: {resolved}")
-    if not must_be_dir and not resolved.is_file():
-        raise ValueError(f"{field_name} must be a file: {resolved}")
-    return resolved
-
-
-def _normalize_hub_name(value: str | DatasetsHubEnum | None) -> DatasetsHubEnum:
-    """
-    Convert CLI/config hub_name into a DatasetsHubEnum.
-    """
-    if isinstance(value, DatasetsHubEnum):
-        return value
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        try:
-            return DatasetsHubEnum[normalized]
-        except KeyError as exc:
-            raise ValueError(
-                f"Invalid hub_name '{value}'. Must be one of: "
-                f"{', '.join(member.name for member in DatasetsHubEnum)}"
-            ) from exc
-    if value is None:
-        return DatasetsHubEnum.huggingface
-    raise ValueError(f"Unsupported hub_name type: {type(value)!r}")
-
-
-def _prepare_upload_config_dict(config: dict) -> dict:
-    """
-    Normalize and validate configuration values before constructing the dataclass.
-    Note: root_path is now optional for Local mode (not used).
-    """
-    prepared: dict = dict(config)
-
-    # root_path is optional for Local mode and not needed for readme-only mode
-    if prepared.get("root_path") and not prepared.get("readme_only", False):
-        root_path = _resolve_required_path(
-            prepared.get("root_path"),
-            "root_path",
-            must_be_dir=True,
+        return "huggingface"
+    normalized = value.strip().lower()
+    if normalized in ("hf", "huggingface"):
+        return "huggingface"
+    elif normalized in ("ms", "modelscope"):
+        return "modelscope"
+    else:
+        raise ValueError(
+            f"Invalid hub_name '{value}'. Must be one of: huggingface, hf, modelscope, ms"
         )
-        prepared["root_path"] = str(root_path)
-
-    db_file_path = _resolve_required_path(
-        prepared.get("db_file_path"),
-        "db_file_path",
-        must_be_dir=False,
-    )
-    prepared["db_file_path"] = str(db_file_path)
-
-    namespace = prepared.get("namespace")
-    namespace = namespace.strip() if isinstance(namespace, str) else ""
-    prepared["namespace"] = namespace or DS_PLATFORM_NAME
-
-    output_path = prepared.get("output_path") or "./dataset_info"
-    prepared["output_path"] = str(Path(output_path).expanduser().absolute())
-
-    prepared["skip_missing"] = bool(prepared.get("skip_missing", False))
-    prepared["force_overwrite"] = bool(prepared.get("force_overwrite", False))
-    prepared["readme_only"] = bool(prepared.get("readme_only", False))
-
-    prepared["hub_name"] = _normalize_hub_name(prepared.get("hub_name"))
-
-    return prepared
 
 
 def _generate_log_folder_name(
     mode: str,
-    hub_name: DatasetsHubEnum | str,
+    hub_name: str,
     namespace: str,
     timestamp: str | None = None,
 ) -> str:
@@ -202,16 +188,10 @@ def _generate_log_folder_name(
     if timestamp is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Normalize hub_name to string
-    if isinstance(hub_name, DatasetsHubEnum):
-        hub_str = hub_name.value
-    else:
-        hub_str = str(hub_name)
-
     # Sanitize namespace (remove special characters that might cause issues in folder names)
     namespace_safe = namespace.replace("/", "_").replace("\\", "_").replace(" ", "_")
 
-    return f"{mode}_{timestamp}_{hub_str}_{namespace_safe}"
+    return f"{mode}_{timestamp}_{hub_name}_{namespace_safe}"
 
 
 def setup_logging(
@@ -270,17 +250,16 @@ def setup_logging(
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     logger = logging.getLogger(__name__)
-    # Log to file, print to console using tqdm.write
-    logger.info(f"📝 Logging to: {log_file}")
-    from tqdm import tqdm
-    tqdm.write(f"📝 Logging to: {log_file}")
+    # Log to file, print to console
+    logger.info(f"[SETUP] Logging to: {log_file}")
+    print(f"[SETUP] Logging to: {log_file}")
 
     return logger, log_file
 
 
 def _setup_mode_logging(
     mode: str,
-    hub_name: DatasetsHubEnum | str,
+    hub_name: str,
     namespace: str,
     args: argparse.Namespace,
     log_filename: str
@@ -318,63 +297,41 @@ def parse_arguments() -> argparse.Namespace:
         Parsed arguments namespace
     """
     parser = argparse.ArgumentParser(
-        description="Upload RoboCoin datasets to remote hubs (HuggingFace/ModelScope). "
-                    "Always generates info YAML and README files before uploading.",
+        description="Upload RoboCoin datasets to remote hubs (HuggingFace/ModelScope).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Local upload mode (single machine, default)
   python scripts/hub_upload/upload2hub.py \\
-      --config configs/upload.yaml \\
-      --token YOUR_TOKEN
+      --config configs/upload.yaml
 
   # Server mode (start task distribution server)
   python scripts/hub_upload/upload2hub.py --server \\
       --config configs/upload.yaml \\
-      --db-file-path /path/to/datasets.db \\
-      --token YOUR_TOKEN \\
-      --name-space YourUsername \\
       --host 0.0.0.0 \\
-      --port 2140
+      --port 2100
 
   # Client mode (connect to server and process tasks)
   python scripts/hub_upload/upload2hub.py --client \\
       --config configs/upload.yaml \\
-      --token YOUR_TOKEN \\
-      --name-space YourUsername \\
       --host 127.0.0.1 \\
-      --port 2140 \\
+      --port 2100 \\
       --num-clients 4
 
   # All options for local mode
   python scripts/hub_upload/upload2hub.py \\
       --config configs/upload.yaml \\
-      --info-output-path ./outputs/infos \\
-      --token YOUR_TOKEN \\
-      --name-space YourUsername \\
-      --db-file-path /path/to/db.db \\
       --log-level DEBUG \\
-      --skip-missing \\
-      --force
-
-  # README-only mode (only update README files, no dataset upload)
-  python scripts/hub_upload/upload2hub.py \\
-      --config configs/upload.yaml \\
-      --readme-only \\
-      --token YOUR_TOKEN
+      --force \\
+      --readme-only
         """
     )
 
     parser.add_argument(
         "--config", "-c",
         type=str,
+        required=True,
         help="Path to YAML configuration file"
-    )
-
-    parser.add_argument(
-        "--token",
-        type=str,
-        help="Authentication token for the hub platform (if not provided, will prompt)"
     )
 
     parser.add_argument(
@@ -383,12 +340,6 @@ Examples:
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Logging level (default: INFO)"
-    )
-
-    parser.add_argument(
-        "--skip-missing",
-        action="store_true",
-        help="Skip datasets with missing hardlinks instead of aborting"
     )
 
     parser.add_argument(
@@ -401,34 +352,6 @@ Examples:
         "--readme-only",
         action="store_true",
         help="Only update README files without uploading dataset files"
-    )
-
-    parser.add_argument(
-        "--db-file-path",
-        type=str,
-        help="Override database file path from config"
-    )
-
-    parser.add_argument(
-        "--info-output-path",
-        type=str,
-        default=None,
-        help="Output path for generated dataset info files (default: ./dataset_info)"
-    )
-
-    parser.add_argument(
-        "--name-space",
-        type=str,
-        help="Namespace (username) on the hub platform where datasets will be uploaded. "
-             "If not provided, uses default value from constant.yml (DS_PLATFORM_NAME)"
-    )
-
-    parser.add_argument(
-        "--hub",
-        type=str,
-        choices=["huggingface", "modelscope"],
-        default="huggingface",
-        help="Target hub platform for client mode (default: huggingface)"
     )
 
     parser.add_argument(
@@ -459,7 +382,7 @@ Examples:
     parser.add_argument(
         "--port",
         type=int,
-        default=2140,
+        default=2100,
         help="Port number for server/client mode (default: 2100)"
     )
 
@@ -471,17 +394,17 @@ Examples:
     )
 
     parser.add_argument(
-        "--num-workers",
-        type=int,
-        default=1,
-        help="Number of worker threads per client (default: 1, currently not used)"
-    )
-
-    parser.add_argument(
         "--heartbeat-interval",
         type=float,
         default=30.0,
         help="Heartbeat interval in seconds for server/client mode (default: 30.0)"
+    )
+
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=90.0,
+        help="Timeout in seconds for server/client heartbeat (default: 90.0)"
     )
 
     parser.add_argument(
@@ -490,333 +413,439 @@ Examples:
         default=-1,
         help=(
             "Timeout in seconds when waiting for a task from server in client mode. "
-            "Use <= 0 to wait indefinitely for tasks (default: 15.0)."
+            "Use <= 0 to wait indefinitely for tasks (default: -1)."
         ),
-    )
-
-    parser.add_argument(
-        "--timeout",
-        type=float,
-        default=90.0,
-        help="Timeout in seconds for server/client heartbeat (default: 300.0)"
     )
 
     return parser.parse_args()
 
 
-def run_server_mode(config: dict, args: argparse.Namespace, logger: logging.Logger) -> None:
+def run_local_mode(config: UploadConfig, args: argparse.Namespace, logger: logging.Logger) -> None:
+    """
+    Run the upload process in local single-machine mode.
+
+    This function processes upload tasks directly from the database, one by one,
+    using the UploadLocal class which handles database status updates.
+
+    Args:
+        config: UploadConfig object containing all configuration parameters
+        args: Parsed command line arguments
+        logger: Logger instance for audit logging
+
+    Expected Behavior:
+        - Processes all PENDING upload tasks from database
+        - Updates database status for each task (PROCESSING -> COMPLETED/FAILED)
+        - Logs all operations with [stage] identifiers
+        - Handles errors gracefully and continues with next task
+    """
+    from tqdm import tqdm
+
+    # Validate required configuration
+    if not config.pg_cfg_path:
+        raise ValueError("pg_cfg_path is required for local mode")
+    
+    hub_name = _normalize_hub_name(config.hub_name)
+    
+    # Get namespace based on hub
+    if hub_name == "modelscope":
+        namespace = config.ms_namespace or DEFAULT_PLATFORM_NAME
+    else:
+        namespace = config.hf_namespace or DEFAULT_PLATFORM_NAME
+
+    # Setup logging with timestamped folder for local mode
+    logger, log_folder = _setup_mode_logging("local", hub_name, namespace, args, "local.log")
+
+    logger.info("=" * 80)
+    logger.info("[LOCAL_MODE] Starting local upload process")
+    logger.info("=" * 80)
+    logger.info(f"[LOCAL_MODE] Hub: {hub_name}")
+    logger.info(f"[LOCAL_MODE] Namespace: {namespace}")
+    logger.info(f"[LOCAL_MODE] Database config: {config.pg_cfg_path}")
+    logger.info(f"[LOCAL_MODE] Force overwrite: {config.force_overwrite}")
+    logger.info(f"[LOCAL_MODE] Readme only: {config.readme_only}")
+    logger.info("=" * 80)
+    tqdm.write("=" * 80)
+    tqdm.write("[LOCAL_MODE] Starting local upload process")
+    tqdm.write("=" * 80)
+    tqdm.write(f"[LOCAL_MODE] Hub: {hub_name}")
+    tqdm.write(f"[LOCAL_MODE] Namespace: {namespace}")
+    tqdm.write("=" * 80)
+
+    # Initialize database connection
+    try:
+        database = DatasetDatabase(config.pg_cfg_path)
+        logger.info(f"[LOCAL_MODE] Database connection established")
+    except Exception as e:
+        error_msg = f"[LOCAL_MODE] Failed to connect to database: {e}"
+        _log_error(logger, error_msg)
+        raise
+
+    # Initialize upload utility
+    try:
+        uploader = UploadLocal(config)
+        logger.info(f"[LOCAL_MODE] Upload utility initialized")
+    except Exception as e:
+        error_msg = f"[LOCAL_MODE] Failed to initialize upload utility: {e}"
+        _log_error(logger, error_msg)
+        raise
+
+    # Statistics tracking
+    tasks_processed = 0
+    tasks_succeeded = 0
+    tasks_failed = 0
+
+    # Initial sync: Mark all eligible datasets as PENDING
+    logger.info("[LOCAL_MODE] Syncing upload status in database...")
+    tqdm.write("[LOCAL_MODE] Syncing upload status in database...")
+    try:
+        with database.with_session() as session:
+            _sync_upload_status(
+                session=session,
+                specific_uuid=None,
+                hub_name=hub_name,
+                logger=logger,
+            )
+        logger.info("[LOCAL_MODE] Status sync completed")
+    except Exception as e:
+        error_msg = f"[LOCAL_MODE] Failed to sync upload status: {e}"
+        _log_error(logger, error_msg)
+        raise
+
+    # Main processing loop
+    logger.info("[LOCAL_MODE] Starting task processing loop...")
+    tqdm.write("[LOCAL_MODE] Starting task processing loop...")
+
+    try:
+        while True:
+            dataset_uuid = None
+            try:
+                with database.with_session() as session:
+                    # Get next task from database
+                    dataset_uuid = _gen_one_upload_task(
+                        session=session,
+                        specific_uuid=None,
+                        hub_name=hub_name,
+                        logger=logger,
+                    )
+
+                    if dataset_uuid is None:
+                        # No more tasks available
+                        logger.info("[LOCAL_MODE] No more tasks available")
+                        break
+
+                    # Get hardlink path
+                    hardlink_path = _get_hardlink_path_by_uuid(
+                        session=session,
+                        dataset_uuid=dataset_uuid,
+                        logger=logger,
+                    )
+
+                    if hardlink_path is None:
+                        error_msg = f"[LOCAL_MODE] Hardlink path not found for dataset {dataset_uuid}"
+                        _log_error(logger, error_msg)
+                        _mark_upload_failed(
+                            session=session,
+                            dataset_uuid=dataset_uuid,
+                            error_msg=error_msg,
+                            hub_name=hub_name,
+                            logger=logger,
+                        )
+                        tasks_processed += 1
+                        tasks_failed += 1
+                        continue
+
+                    if not hardlink_path.exists():
+                        error_msg = f"[LOCAL_MODE] Hardlink path does not exist: {hardlink_path}"
+                        _log_error(logger, error_msg)
+                        _mark_upload_failed(
+                            session=session,
+                            dataset_uuid=dataset_uuid,
+                            error_msg=error_msg,
+                            hub_name=hub_name,
+                            logger=logger,
+                        )
+                        tasks_processed += 1
+                        tasks_failed += 1
+                        continue
+
+                    # Process upload task
+                    logger.info(f"[LOCAL_MODE] Processing task | UUID: {dataset_uuid} | Path: {hardlink_path}")
+                    _log_url(logger, f"[LOCAL_MODE] Task details | UUID: {dataset_uuid} | Path: {hardlink_path}", logging.DEBUG)
+
+                    # Upload using UploadLocal (handles database status updates internally)
+                    # UploadLocal.upload() will:
+                    # 1. Sync status (mark as PENDING if needed)
+                    # 2. Generate task (mark as PROCESSING)
+                    # 3. Execute upload
+                    # 4. Update status (COMPLETED or FAILED)
+                    uploader.upload(
+                        hardlink_path=hardlink_path,
+                        dataset_uuid=dataset_uuid,
+                        hub_name=hub_name,
+                        pg_session=session,
+                    )
+
+                    # Upload succeeded (status already updated by uploader.upload)
+                    tasks_processed += 1
+                    tasks_succeeded += 1
+                    _log_success(logger, f"[LOCAL_MODE] Task completed | UUID: {dataset_uuid}")
+
+            except KeyboardInterrupt:
+                logger.info("[LOCAL_MODE] Interrupted by user")
+                tqdm.write("\n[LOCAL_MODE] Interrupted by user")
+                break
+            except Exception as e:
+                tasks_processed += 1
+                tasks_failed += 1
+                error_msg = f"[LOCAL_MODE] Task failed | UUID: {dataset_uuid or 'unknown'} | Error: {e}"
+                _log_error(logger, error_msg)
+                logger.debug(f"[LOCAL_MODE] Full traceback:", exc_info=True)
+                
+                # Try to mark as failed in database if we have UUID
+                if dataset_uuid:
+                    try:
+                        with database.with_session() as session:
+                            _mark_upload_failed(
+                                session=session,
+                                dataset_uuid=dataset_uuid,
+                                error_msg=str(e),
+                                hub_name=hub_name,
+                                logger=logger,
+                            )
+                    except Exception as db_error:
+                        logger.error(f"[LOCAL_MODE] Failed to update database status: {db_error}")
+
+                # Continue with next task
+                if config.skip_errors:
+                    logger.info("[LOCAL_MODE] Continuing with next task (skip_errors=True)")
+                    continue
+                else:
+                    # Stop on error if skip_errors is False
+                    raise
+
+    finally:
+        # Print summary
+        logger.info("=" * 80)
+        logger.info("[LOCAL_MODE] SUMMARY")
+        logger.info("=" * 80)
+        logger.info(f"[LOCAL_MODE] Tasks processed: {tasks_processed}")
+        _log_success(logger, f"[LOCAL_MODE] Tasks succeeded: {tasks_succeeded}")
+        _log_error(logger, f"[LOCAL_MODE] Tasks failed: {tasks_failed}")
+        logger.info("=" * 80)
+        tqdm.write("=" * 80)
+        tqdm.write("[LOCAL_MODE] SUMMARY")
+        tqdm.write("=" * 80)
+        tqdm.write(f"[LOCAL_MODE] Tasks processed: {tasks_processed}")
+        tqdm.write(f"[LOCAL_MODE] Tasks succeeded: {tasks_succeeded}")
+        tqdm.write(f"[LOCAL_MODE] Tasks failed: {tasks_failed}")
+        tqdm.write("=" * 80)
+
+
+def run_server_mode(config: UploadConfig, args: argparse.Namespace, logger: logging.Logger) -> None:
     """
     Run the upload server that distributes tasks to clients.
 
     Args:
-        config: Configuration dictionary from YAML
+        config: UploadConfig object containing all configuration parameters
         args: Parsed command line arguments
-        logger: Logger instance
+        logger: Logger instance for audit logging
+
+    Expected Behavior:
+        - Starts WebSocket server for task distribution
+        - Distributes upload tasks to connected clients
+        - Updates database status based on client results
+        - Handles one hub platform per server instance
     """
     from tqdm import tqdm
 
-    from robocoin_dataset.hub_upload.lerobot.hub_upload_server import HubUploadServer
-    from robocoin_dataset.utils.logger import setup_logger
+    # Validate required configuration
+    if not config.pg_cfg_path:
+        raise ValueError("pg_cfg_path is required for server mode")
 
-    # Ensure required config fields for server mode
-    _ensure_required_config_fields(config, ["db_file_path", "token"])
-
-    hub_name = _normalize_hub_name(config.get("hub_name"))
-    db_file_path = _resolve_required_path(
-        config.get("db_file_path"),
-        "db_file_path",
-        must_be_dir=False,
-    )
-
-    # Extract client configuration parameters to be sent with tasks
-    token = config.get("token", "")
-    namespace = config.get("namespace", DS_PLATFORM_NAME)
-    output_path = config.get("output_path", "./dataset_info")
-    force_overwrite = config.get("force_overwrite", False)
-    readme_only = config.get("readme_only", False)
+    hub_name = _normalize_hub_name(config.hub_name)
+    
+    # Get namespace based on hub
+    if hub_name == "modelscope":
+        namespace = config.ms_namespace or DEFAULT_PLATFORM_NAME
+    else:
+        namespace = config.hf_namespace or DEFAULT_PLATFORM_NAME
 
     # Setup logging with timestamped folder for distributed mode
     logger, log_folder = _setup_mode_logging("dist", hub_name, namespace, args, "server.log")
 
-    # Create summary logger for server status updates in the same folder
-    summary_logger = setup_logger(
-        name="hub_upload_server_summary",
-        log_dir=log_folder,
-        level=logging.DEBUG,  # File gets DEBUG level
-        console_output=False,
-    )
-
     logger.info("=" * 80)
-    logger.info("🖥️  STARTING HUB UPLOAD SERVER")
+    logger.info("[SERVER_MODE] Starting hub upload server")
     logger.info("=" * 80)
-    logger.info(f"Host: {args.host}")
-    logger.info(f"Port: {args.port}")
-    logger.info(f"Database: {db_file_path}")
-    logger.info(f"Hub: {hub_name.value}")
-    logger.info(f"Token: {'***' + token[-4:] if len(token) > 4 else 'Not set'}")
-    logger.info(f"Namespace: {namespace}")
-    logger.info(f"Output path: {output_path}")
-    logger.info(f"Force overwrite: {force_overwrite}")
-    logger.info(f"Heartbeat interval: {args.heartbeat_interval}s")
-    logger.info(f"Timeout: {args.timeout}s")
+    logger.info(f"[SERVER_MODE] Host: {args.host}")
+    logger.info(f"[SERVER_MODE] Port: {args.port}")
+    logger.info(f"[SERVER_MODE] Database config: {config.pg_cfg_path}")
+    logger.info(f"[SERVER_MODE] Hub: {hub_name}")
+    logger.info(f"[SERVER_MODE] Namespace: {namespace}")
+    logger.info(f"[SERVER_MODE] Heartbeat interval: {args.heartbeat_interval}s")
+    logger.info(f"[SERVER_MODE] Timeout: {args.timeout}s")
     logger.info("=" * 80)
     tqdm.write("=" * 80)
-    tqdm.write("🖥️  STARTING HUB UPLOAD SERVER")
+    tqdm.write("[SERVER_MODE] Starting hub upload server")
     tqdm.write("=" * 80)
-    tqdm.write(f"Host: {args.host}")
-    tqdm.write(f"Port: {args.port}")
-    tqdm.write(f"Database: {db_file_path}")
-    tqdm.write(f"Hub: {hub_name.value}")
-    tqdm.write(f"Namespace: {namespace}")
+    tqdm.write(f"[SERVER_MODE] Host: {args.host}:{args.port}")
+    tqdm.write(f"[SERVER_MODE] Hub: {hub_name}")
+    tqdm.write(f"[SERVER_MODE] Namespace: {namespace}")
     tqdm.write("=" * 80)
 
-    # Create and run server with client configuration
-    server = HubUploadServer(
-        db_file_path=db_file_path,
-        summary_logger=summary_logger,
-        hub_name=hub_name,
-        token=token,
-        namespace=namespace,
-        output_path=output_path,
-        force_overwrite=force_overwrite,
-        readme_only=readme_only,
-        host=args.host,
-        port=args.port,
-        heartbeat_interval=args.heartbeat_interval,
-        timeout=args.timeout,
+    # Update config with server network settings
+    config.server_host = args.host
+    config.server_port = args.port
+    config.server_heartbeat_interval = args.heartbeat_interval
+    config.server_timeout = args.timeout
+
+    # Create and run server
+    server = UploadServer(
+        cfg=config,
         logger=logger,
     )
 
     try:
-        logger.info("🚀 Server starting...")
-        tqdm.write("🚀 Server starting...")
+        logger.info("[SERVER_MODE] Server starting...")
+        tqdm.write("[SERVER_MODE] Server starting...")
         asyncio.run(server.start())
     except KeyboardInterrupt:
-        logger.info("\n⚠️  Server interrupted by user")
-        tqdm.write("\n⚠️  Server interrupted by user")
+        logger.info("\n[SERVER_MODE] Server interrupted by user")
+        tqdm.write("\n[SERVER_MODE] Server interrupted by user")
     finally:
         stats = server.get_statistics()
         logger.info("=" * 80)
-        logger.info("📊 SERVER SUMMARY")
+        logger.info("[SERVER_MODE] SUMMARY")
         logger.info("=" * 80)
-        logger.info(f"✅ Datasets succeeded: {stats['datasets_succeeded']}")
-        logger.info(f"❌ Datasets failed: {stats['datasets_failed']}")
+        _log_success(logger, f"[SERVER_MODE] Datasets succeeded: {stats['datasets_succeeded']}")
+        _log_error(logger, f"[SERVER_MODE] Datasets failed: {stats['datasets_failed']}")
         logger.info("=" * 80)
         tqdm.write("=" * 80)
-        tqdm.write("📊 SERVER SUMMARY")
+        tqdm.write("[SERVER_MODE] SUMMARY")
         tqdm.write("=" * 80)
-        tqdm.write(f"✅ Datasets succeeded: {stats['datasets_succeeded']}")
-        tqdm.write(f"❌ Datasets failed: {stats['datasets_failed']}")
+        tqdm.write(f"[SERVER_MODE] Datasets succeeded: {stats['datasets_succeeded']}")
+        tqdm.write(f"[SERVER_MODE] Datasets failed: {stats['datasets_failed']}")
         tqdm.write("=" * 80)
 
 
-def run_client_mode(config: dict, args: argparse.Namespace, logger: logging.Logger) -> None:
+def run_client_mode(config: UploadConfig, args: argparse.Namespace, logger: logging.Logger) -> None:
     """
     Run the upload client(s) that connect to the server and process tasks.
 
     Args:
-        config: Configuration dictionary from YAML
+        config: UploadConfig object containing all configuration parameters
         args: Parsed command line arguments
-        logger: Logger instance
+        logger: Logger instance for audit logging
+
+    Expected Behavior:
+        - Connects to server via WebSocket
+        - Requests and processes upload tasks
+        - Reports results back to server
+        - Supports multiple client processes for parallel processing
     """
     from tqdm import tqdm
 
-    from robocoin_dataset.hub_upload.lerobot.hub_upload_client import run_multi_clients
+    hub_name = _normalize_hub_name(config.hub_name)
+    
+    # Get namespace based on hub
+    if hub_name == "modelscope":
+        namespace = config.ms_namespace or DEFAULT_PLATFORM_NAME
+    else:
+        namespace = config.hf_namespace or DEFAULT_PLATFORM_NAME
 
-    hub_name = _normalize_hub_name(config.get("hub_name"))
-    token = config.get("token", "")
-    namespace = config.get("namespace", DS_PLATFORM_NAME)
-    output_path = config.get("output_path", "./dataset_info")
-    force_overwrite = config.get("force_overwrite", False)
-    readme_only = config.get("readme_only", False)
-
-    server_uri = f"ws://{args.host}:{args.port}"
+    # Update config with client network settings
+    config.client_host = args.host
+    config.client_port = args.port
+    config.client_heartbeat_interval = args.heartbeat_interval
+    config.client_timeout = args.timeout
+    config.request_task_timeout = args.request_timeout if args.request_timeout > 0 else None
 
     # Setup logging with timestamped folder for distributed mode (shared by all clients)
     logger, log_folder = _setup_mode_logging("dist", hub_name, namespace, args, "client_main.log")
 
+    server_uri = f"ws://{args.host}:{args.port}"
+
     logger.info("=" * 80)
-    logger.info("🔌 STARTING HUB UPLOAD CLIENT(S)")
+    logger.info("[CLIENT_MODE] Starting hub upload client(s)")
     logger.info("=" * 80)
-    logger.info(f"Server URI: {server_uri}")
-    logger.info(f"Number of clients: {args.num_clients}")
-    logger.info(f"Hub: {hub_name.value}")
-    logger.info(f"Namespace: {namespace}")
-    logger.info(f"Heartbeat interval: {args.heartbeat_interval}s")
-    logger.info(f"Log folder: {log_folder}")
+    _log_url(logger, f"[CLIENT_MODE] Server URI: {server_uri}")
+    logger.info(f"[CLIENT_MODE] Number of clients: {args.num_clients}")
+    logger.info(f"[CLIENT_MODE] Hub: {hub_name}")
+    logger.info(f"[CLIENT_MODE] Namespace: {namespace}")
+    logger.info(f"[CLIENT_MODE] Heartbeat interval: {args.heartbeat_interval}s")
+    logger.info(f"[CLIENT_MODE] Log folder: {log_folder}")
     logger.info("=" * 80)
     tqdm.write("=" * 80)
-    tqdm.write("🔌 STARTING HUB UPLOAD CLIENT(S)")
+    tqdm.write("[CLIENT_MODE] Starting hub upload client(s)")
     tqdm.write("=" * 80)
-    tqdm.write(f"Server URI: {server_uri}")
-    tqdm.write(f"Number of clients: {args.num_clients}")
-    tqdm.write(f"Hub: {hub_name.value}")
-    tqdm.write(f"Namespace: {namespace}")
-    tqdm.write(f"Log folder: {log_folder}")
+    _log_url(logger, f"[CLIENT_MODE] Server URI: {server_uri}")
+    tqdm.write(f"[CLIENT_MODE] Number of clients: {args.num_clients}")
+    tqdm.write(f"[CLIENT_MODE] Hub: {hub_name}")
+    tqdm.write(f"[CLIENT_MODE] Namespace: {namespace}")
+    tqdm.write(f"[CLIENT_MODE] Log folder: {log_folder}")
     tqdm.write("=" * 80)
 
     # Run client(s) - all clients will use the same log folder
     exit_code = run_multi_clients(
-        server_uri=server_uri,
+        config=config,
         num_clients=args.num_clients,
-        hub_name=hub_name,
-        token=token,
-        namespace=namespace,
-        output_path=output_path,
-        force_overwrite=force_overwrite,
-        readme_only=readme_only,
-        heartbeat_interval=args.heartbeat_interval,
         request_timeout=args.request_timeout,
         log_dir=log_folder,
         log_level=args.log_level,
     )
 
     if exit_code != 0:
-        logger.error("❌ Client(s) completed with errors")
-        tqdm.write("❌ Client(s) completed with errors")
+        _log_error(logger, "[CLIENT_MODE] Client(s) completed with errors")
+        tqdm.write("[CLIENT_MODE] Client(s) completed with errors")
         sys.exit(exit_code)
     else:
-        logger.info("✅ Client(s) completed successfully")
-        tqdm.write("✅ Client(s) completed successfully")
-
-
-def run_local_mode(config: dict, args: argparse.Namespace, logger: logging.Logger) -> None:
-    """
-    Run the upload process in local single-machine mode.
-
-    Args:
-        config: Configuration dictionary from YAML
-        args: Parsed command line arguments
-        logger: Logger instance
-    """
-    from tqdm import tqdm
-
-    prepared_config_dict = _prepare_upload_config_dict(config)
-
-    # Ensure required config fields (skip token check for readme-only mode)
-    required_fields = ["db_file_path"]
-    if not prepared_config_dict.get("readme_only", False):
-        required_fields.append("token")
-    _ensure_required_config_fields(config, required_fields)
-
-    # Setup logging with timestamped folder for local mode
-    hub_name = prepared_config_dict.get("hub_name", DatasetsHubEnum.huggingface)
-    namespace = prepared_config_dict.get("namespace", DS_PLATFORM_NAME)
-    logger, log_folder = _setup_mode_logging("local", hub_name, namespace, args, "local.log")
-
-    # Create upload config
-    config_obj = create_upload_config(prepared_config_dict)
-
-    # Note: root_path is now optional for Local mode (not used)
-
-    # Check if we're in readme-only mode
-    if prepared_config_dict.get("readme_only", False):
-        # Log information about readme-only mode
-        logger.info("=" * 80)
-        logger.info("📝 README-ONLY MODE: Only updating README files (no dataset upload)")
-        logger.info("   YAML and README files will be generated on-demand for each dataset")
-        logger.info("=" * 80)
-        tqdm.write("=" * 80)
-        tqdm.write("📝 README-ONLY MODE: Only updating README files (no dataset upload)")
-        tqdm.write("   YAML and README files will be generated on-demand for each dataset")
-        tqdm.write("=" * 80)
-
-        # Start readme-only process
-        logger.info("=" * 80)
-        logger.info("🚀 Starting README-ONLY process with on-demand file generation")
-        tqdm.write("🚀 Starting README-ONLY process with on-demand file generation")
-        logger.info("=" * 80)
-        tqdm.write("=" * 80)
-    else:
-        # Log information about full upload mode
-        logger.info("=" * 80)
-        logger.info("📝 YAML and README files will be generated on-demand for each dataset")
-        logger.info("=" * 80)
-        tqdm.write("=" * 80)
-        tqdm.write("📝 YAML and README files will be generated on-demand for each dataset")
-        tqdm.write("=" * 80)
-
-        # Start upload process
-        logger.info("=" * 80)
-        logger.info("🚀 Starting LOCAL upload process with on-demand file generation")
-        tqdm.write("🚀 Starting LOCAL upload process with on-demand file generation")
-        logger.info("=" * 80)
-        tqdm.write("=" * 80)
-
-    # Upload datasets
-    upload_datasets_main_local(config_obj, logger)
+        _log_success(logger, "[CLIENT_MODE] Client(s) completed successfully")
+        tqdm.write("[CLIENT_MODE] Client(s) completed successfully")
 
 
 def main() -> None:
     """
     Main entry point for the hub upload CLI.
     """
-    import time
-
-    from tqdm import tqdm
-
     # Start timing
     script_start_time = time.time()
 
     # Parse arguments
     args = parse_arguments()
 
-    # Setup logging - will be reconfigured per mode with timestamped folders
+    # Setup initial logging - will be reconfigured per mode with timestamped folders
     logger, _ = setup_logging(args.log_level)
 
     try:
         # Validate mode selection
         modes_selected = sum([args.server, args.client, args.local])
         if modes_selected > 1:
-            logger.error("❌ Cannot specify more than one mode: --server, --client, or --local")
-            tqdm.write("❌ Cannot specify more than one mode: --server, --client, or --local")
+            _log_error(logger, "[MAIN] Cannot specify more than one mode: --server, --client, or --local")
+            print("[MAIN] Cannot specify more than one mode: --server, --client, or --local")
             sys.exit(1)
 
-        # Load configuration
-        config_dict = {}
-        if args.config:
-            logger.info(f"Loading configuration from: {args.config}")
-            config_dict = load_config_from_yaml(args.config)
-        elif args.client:
-            #### client mode don't need to load configuration file #####
-            #### cause server will send the configuration to client ####
-            logger.info("Using default configuration for client mode")
-            config_dict.setdefault("hub_name", args.hub)
-            config_dict.setdefault("namespace", DS_PLATFORM_NAME)
-            config_dict.setdefault("output_path", "./dataset_info")
-            config_dict.setdefault("force_overwrite", False)
-        else:
-            logger.error("❌ --config/-c is required for server and local modes")
-            tqdm.write("❌ --config/-c is required for server and local modes")
+        # Load configuration from YAML file
+        if not args.config:
+            _log_error(logger, "[MAIN] --config/-c is required")
+            print("[MAIN] --config/-c is required")
             sys.exit(1)
 
-        # Override config
-        if args.skip_missing:
-            config_dict["skip_missing"] = True
+        logger.info(f"[MAIN] Loading configuration from: {args.config}")
+        config = create_config(args.config)
+
+        # Override config with command line arguments
         if args.force:
-            config_dict["force_overwrite"] = True
+            config.force_overwrite = True
         if args.readme_only:
-            config_dict["readme_only"] = True
-        if args.db_file_path:
-            config_dict["db_file_path"] = args.db_file_path
-        if args.name_space:
-            config_dict["namespace"] = args.name_space
-        if args.info_output_path:
-            config_dict["output_path"] = args.info_output_path
-        if args.token:
-            config_dict["token"] = args.token
-        if hasattr(args, 'hub') and args.client:
-            # Only set hub_name for client mode from command line
-            config_dict["hub_name"] = args.hub
+            config.readme_only = True
 
         # Handle different modes
         if args.server:
-            run_server_mode(config_dict, args, logger)
+            run_server_mode(config, args, logger)
         elif args.client:
-            run_client_mode(config_dict, args, logger)
+            run_client_mode(config, args, logger)
         else:
             # local mode (default)
-            run_local_mode(config_dict, args, logger)
+            run_local_mode(config, args, logger)
 
         # Calculate total script execution time
         script_elapsed = time.time() - script_start_time
@@ -831,32 +860,33 @@ def main() -> None:
             time_str = f"{seconds}s"
 
         logger.info("=" * 80)
-        logger.info(f"✅ Script completed successfully in {time_str}")
-        logger.info(f"Total execution time: {script_elapsed:.2f}s")
+        _log_success(logger, f"[MAIN] Script completed successfully in {time_str}")
+        logger.info(f"[MAIN] Total execution time: {script_elapsed:.2f}s")
         logger.info("=" * 80)
-        tqdm.write("=" * 80)
-        tqdm.write(f"✅ Script completed successfully in {time_str}")
-        tqdm.write("=" * 80)
+        print("=" * 80)
+        print(f"[MAIN] Script completed successfully in {time_str}")
+        print("=" * 80)
 
     except FileNotFoundError as e:
         script_elapsed = time.time() - script_start_time
-        logger.error(f"❌ File not found: {e} (after {script_elapsed:.2f}s)")
-        tqdm.write(f"❌ File not found: {e}")
+        _log_error(logger, f"[MAIN] File not found: {e} (after {script_elapsed:.2f}s)")
+        print(f"[MAIN] File not found: {e}")
         sys.exit(1)
     except ValueError as e:
         script_elapsed = time.time() - script_start_time
-        logger.error(f"❌ Configuration error: {e} (after {script_elapsed:.2f}s)")
-        tqdm.write(f"❌ Configuration error: {e}")
+        _log_error(logger, f"[MAIN] Configuration error: {e} (after {script_elapsed:.2f}s)")
+        print(f"[MAIN] Configuration error: {e}")
         sys.exit(1)
     except KeyboardInterrupt:
         script_elapsed = time.time() - script_start_time
-        logger.warning(f"\n⚠️  Upload interrupted by user (after {script_elapsed:.2f}s)")
-        tqdm.write("\n⚠️  Upload interrupted by user")
+        logger.warning(f"\n[MAIN] Upload interrupted by user (after {script_elapsed:.2f}s)")
+        print("\n[MAIN] Upload interrupted by user")
         sys.exit(1)
     except Exception as e:
         script_elapsed = time.time() - script_start_time
-        logger.error(f"❌ Unexpected error: {e} (after {script_elapsed:.2f}s)", exc_info=True)
-        tqdm.write(f"❌ Unexpected error: {e}")
+        _log_error(logger, f"[MAIN] Unexpected error: {e} (after {script_elapsed:.2f}s)")
+        logger.debug(f"[MAIN] Full traceback:", exc_info=True)
+        print(f"[MAIN] Unexpected error: {e}")
         sys.exit(1)
 
 
