@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Type
 from sqlalchemy.orm import Session
 
 # Import DatasetDB for runtime use (not just type checking)
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     pass  # Keep TYPE_CHECKING block for future type hints
 
 
-def _get_field(dataset_table: type[DatasetDB], field_suffix: str, hub_name: str) -> str:
+def _get_field(dataset_table: Type[DatasetDB], field_suffix: str, hub_name: str) -> str:
     """
     Get the correct field prefix for the hub, trying short version first, then long version.
     
@@ -215,8 +215,8 @@ def _mark_upload_failed(
         return
 
     # Get the correct field names based on hub_name
-    state_field = _get_field(item, "upload_status", hub_name)
-    err_field = _get_field(item, "upload_err_msg", hub_name)
+    state_field = _get_field(DatasetDB, "upload_status", hub_name)
+    err_field = _get_field(DatasetDB, "upload_err_msg", hub_name)
 
     # Update status and error message
     setattr(item, state_field, TaskStatus.FAILED)
@@ -253,7 +253,7 @@ def _mark_upload_completed(
         return
 
     # Get the correct field name based on hub_name
-    state_field = _get_field(item, "upload_status", hub_name)
+    state_field = _get_field(DatasetDB, "upload_status", hub_name)
 
     # Update status
     setattr(item, state_field, TaskStatus.COMPLETED)
