@@ -84,6 +84,9 @@ class UploadServer(TaskServer):
             raise ValueError(
                 f"Invalid hub_name: {self.cfg.hub_name}. Must be 'huggingface', 'modelscope', 'hf', or 'ms'"
             )
+        
+        # Store hub_name as instance attribute for easy access
+        self.cfg.hub_name = self.cfg.hub_name
 
         # Validate and initialize database connection
         if not self.cfg.pg_cfg_path:
@@ -120,16 +123,17 @@ class UploadServer(TaskServer):
         self.fail_cnt = 0
         
         # Log server initialization
-        self.logger.info(f"[SERVER] Initialized for hub: {self.hub_name}")
+        self.logger.info(f"[SERVER] Initialized for hub: {self.cfg.hub_name}")
         self.logger.info(f"[SERVER] Namespace: {self.hub_config['namespace']}")
         self.logger.info(f"[SERVER] Host: {cfg.server_host}:{cfg.server_port}")
 
     def get_task_category(self) -> str:
         return TASK_CATEGORY
 
-    def gen_task_content(self) -> dict | None:
+    def generate_task_content(self) -> dict | None:
         """
         Generate task content for THIS server's hub platform.
+        named as generate_task_content to avoid conflict with super class.
         
         This method handles tasks for a single hub (no round-robin):
         1. Syncs upload status for this hub
@@ -148,7 +152,7 @@ class UploadServer(TaskServer):
                 with self.database.with_session() as session:
                     # Step 1: Sync status for THIS hub only
                     try:
-                        _sync_upload_status(session, hub_name=self.hub_name, logger=self.logger)
+                        _sync_upload_status(session, hub_name=self.cfg.hub_name, logger=self.logger)
                     except Exception as e:
                         # Sync errors should not block task generation
                         err_msg = f"Status sync error: {e}\n{traceback.format_exc()}"
@@ -158,45 +162,45 @@ class UploadServer(TaskServer):
                     # Step 2: Try to get one task for THIS hub
                     dataset_uuid = None
                     try:
-                        dataset_uuid = _gen_one_upload_task(session, hub_name=self.hub_name, logger=self.logger)
+                        dataset_uuid = _gen_one_upload_task(session, hub_name=self.cfg.hub_name, logger=self.logger)
                         if dataset_uuid:
                             # UUID obtained, now build task config (may raise errors)
-                            return self._build_task_config(dataset_uuid, self.hub_name, session)
+                            return self._build_task_config(dataset_uuid, self.cfg.hub_name, session)
                     except FileNotFoundError as e:
                         # Hardlink validation failed in _build_task_config
                         # UUID is available, mark as failed and continue
                         if dataset_uuid:
                             err_msg = f"Hardlink path error: {e}"
-                            self.logger.error(f"[ERROR] Dataset {dataset_uuid} ({self.hub_name}): {err_msg}")
-                            _mark_upload_failed(session, dataset_uuid, err_msg, self.hub_name, logger=self.logger)
+                            self.logger.error(f"[ERROR] Dataset {dataset_uuid} ({self.cfg.hub_name}): {err_msg}")
+                            _mark_upload_failed(session, dataset_uuid, err_msg, self.cfg.hub_name, logger=self.logger)
                         else:
                             # Unexpected: FileNotFoundError before UUID obtained
-                            self.logger.error(f"[ERROR] Unexpected FileNotFoundError during {self.hub_name} task generation: {e}")
+                            self.logger.error(f"[ERROR] Unexpected FileNotFoundError during {self.cfg.hub_name} task generation: {e}")
                         self.logger.debug("[TASK] Attempting to fetch next task...")
                         continue
                     except ValueError as e:
                         # Invalid configuration or hub_name
                         if dataset_uuid:
                             err_msg = f"Configuration error: {e}"
-                            self.logger.error(f"[ERROR] Dataset {dataset_uuid} ({self.hub_name}): {err_msg}")
-                            _mark_upload_failed(session, dataset_uuid, err_msg, self.hub_name, logger=self.logger)
+                            self.logger.error(f"[ERROR] Dataset {dataset_uuid} ({self.cfg.hub_name}): {err_msg}")
+                            _mark_upload_failed(session, dataset_uuid, err_msg, self.cfg.hub_name, logger=self.logger)
                         else:
-                            self.logger.error(f"[ERROR] Configuration error during {self.hub_name} task generation: {e}")
+                            self.logger.error(f"[ERROR] Configuration error during {self.cfg.hub_name} task generation: {e}")
                         self.logger.debug("[TASK] Attempting to fetch next task...")
                         continue
                     except Exception as e:
                         # Other unexpected errors during task processing
                         err_msg = f"Unexpected error: {e}\n{traceback.format_exc()}"
                         if dataset_uuid:
-                            self.logger.exception(f"[ERROR] Dataset {dataset_uuid} ({self.hub_name}): {err_msg}")
-                            _mark_upload_failed(session, dataset_uuid, err_msg, self.hub_name, logger=self.logger)
+                            self.logger.exception(f"[ERROR] Dataset {dataset_uuid} ({self.cfg.hub_name}): {err_msg}")
+                            _mark_upload_failed(session, dataset_uuid, err_msg, self.cfg.hub_name, logger=self.logger)
                         else:
-                            self.logger.exception(f"[ERROR] {self.hub_name} task generation error: {err_msg}")
+                            self.logger.exception(f"[ERROR] {self.cfg.hub_name} task generation error: {err_msg}")
                         self.logger.debug("[TASK] Attempting to fetch next task...")
                         continue
 
                     # Step 3: No tasks available for this hub
-                    self.logger.debug(f"[TASK] No PENDING tasks found for {self.hub_name}")
+                    self.logger.debug(f"[TASK] No PENDING tasks found for {self.cfg.hub_name}")
                     break
 
             except Exception as e:
@@ -222,7 +226,7 @@ class UploadServer(TaskServer):
 
         Args:
             dataset_uuid: Dataset UUID
-            hub_name: Hub name (should match self.hub_name)
+            hub_name: Hub name (should match self.cfg.hub_name)
             session: Database session instance
 
         Returns:
@@ -237,9 +241,9 @@ class UploadServer(TaskServer):
             ValueError: If hub_name doesn't match server's hub
         """
         # Validate hub_name matches server's hub
-        if hub_name != self.hub_name:
+        if hub_name != self.cfg.hub_name:
             raise ValueError(
-                f"Hub name mismatch: task hub_name={hub_name}, server hub_name={self.hub_name}"
+                f"Hub name mismatch: task hub_name={hub_name}, server hub_name={self.cfg.hub_name}"
             )
 
         # Get hardlink path from database
@@ -259,6 +263,7 @@ class UploadServer(TaskServer):
             "leformat_path": str(hardlink_path),
             "hub_name": hub_name,  # Explicitly identify which hub this task is for
             "client_config": client_config,
+            "token": self.hub_config["token"],
         }
         self.logger.debug(f"[TASK] Sending task for dataset {dataset_uuid} to {hub_name}")
         return task_config
@@ -268,14 +273,14 @@ class UploadServer(TaskServer):
         Handle task result from client and update database status.
         
         This method updates the database status for THIS server's hub.
-        The hub_name should match self.hub_name.
+        The hub_name should match self.cfg.hub_name.
 
         Args:
             task_content: Original task content dictionary containing dataset_uuid and hub_name
             task_result_content: Result dictionary from client containing success status and error message
         """
         dataset_uuid = task_result_content.get("dataset_uuid")
-        hub_name = task_result_content.get("hub_name", self.hub_name)
+        hub_name = task_result_content.get("hub_name", self.cfg.hub_name)
         upload_success = task_result_content.get("success", False)
 
         if not dataset_uuid:
@@ -283,9 +288,9 @@ class UploadServer(TaskServer):
             return
 
         # Validate hub_name matches server's hub
-        if hub_name != self.hub_name:
+        if hub_name != self.cfg.hub_name:
             self.logger.warning(
-                f"[WARNING] Hub name mismatch in result: task hub={hub_name}, server hub={self.hub_name}"
+                f"[WARNING] Hub name mismatch in result: task hub={hub_name}, server hub={self.cfg.hub_name}"
             )
 
         with self.database.with_session() as session:

@@ -26,7 +26,7 @@ import logging
 import multiprocessing as mp
 import time
 import traceback
-from functools import cached_property
+from dataclasses import replace
 from pathlib import Path
 
 from robocoin_dataset.distribution_computation.constant import (
@@ -96,34 +96,32 @@ class UploadClient(TaskClient):
     def generate_task_request_desc(self) -> dict:
         return {}
 
-    @cached_property
-    def upload_util(self) -> UploadUtil:
+    def _create_upload_util(self, task_config: UploadConfig) -> UploadUtil:
         """
-        Get upload utility instance with lazy initialization.
+        Create a new UploadUtil instance for a specific task.
 
-        This property uses @cached_property so that the uploader is created only
-        once per client process, based on configuration that is constant during
-        the whole lifecycle (hub_name, token, namespace, etc.).
-        Per-task dynamic parameters (e.g. dataset metadata) are passed directly
-        into the upload call and are NOT baked into this config.
+        This method creates a fresh UploadUtil instance based on the task-specific
+        configuration. The instance is created for each task and will be automatically
+        garbage collected after the task completes.
 
-        Input:
-            None (uses self.config from instance)
+        Args:
+            task_config: UploadConfig instance containing task-specific configuration
+                       (hub_name, token, namespace, etc.)
 
         Returns:
-            UploadUtil: Upload utility instance (cached or newly created)
+            UploadUtil: New upload utility instance for this task
 
         Usage:
-            Called automatically when first accessing self.upload_util.
-            Subsequent accesses return the cached instance.
+            Called in _sync_process_task to create a task-specific upload utility.
+            The instance is only used within the task processing scope.
         """
-        hub_name = getattr(self.config, "hub_name", "unknown")
-        namespace = getattr(self.config, "ms_namespace", None) or getattr(self.config, "hf_namespace", "unknown")
+        hub_name = getattr(task_config, "hub_name", "unknown")
+        namespace = getattr(task_config, "ms_namespace", None) or getattr(task_config, "hf_namespace", "unknown")
         self.logger.debug(
-            "[HubUploadClient.upload_util] Initializing upload utility "
+            "[UploadClient._create_upload_util] Creating upload utility instance "
             f"| hub={hub_name} | namespace={namespace}"
         )
-        return UploadUtil(self.config)
+        return UploadUtil(task_config)
 
     def _sync_process_task(self, task_content: dict) -> dict:
         """
@@ -153,12 +151,16 @@ class UploadClient(TaskClient):
         # Use server-provided config with fallback to client defaults only for optional params
         namespace = client_config.get("namespace") or getattr(self.config, "ms_namespace", None) or getattr(self.config, "hf_namespace", "unknown")
         hub_name = client_config.get("hub_name") or getattr(self.config, "hub_name", "unknown")
+        
+        # Get token from client_config
+        token = client_config.get("token")
 
-        self.logger.debug(f"[HubUploadClient._sync_process_task] Client config received: {client_config}")
+        self.logger.debug(f"[UploadClient._sync_process_task] Client config received: {client_config}")
+        self.logger.debug(f"[UploadClient._sync_process_task] Using token: {'***' if token else 'EMPTY'}")
 
         if not hardlink_path:
             error_msg = "No hardlink path provided in task content"
-            self.logger.error(f"[HubUploadClient._sync_process_task] {error_msg}")
+            self.logger.error(f"[UploadClient._sync_process_task] {error_msg}")
             return {
                 "dataset_uuid": dataset_uuid,
                 "hub_name": hub_name,
@@ -168,17 +170,35 @@ class UploadClient(TaskClient):
         hardlink_path = Path(hardlink_path)
         dataset_name = hardlink_path.name.removesuffix("_qced_hardlink").removesuffix("_hardlink")
 
-        self.logger.info(f"[HubUploadClient._sync_process_task] Processing task | UUID: {dataset_uuid} | Dataset: {dataset_name}")
-        log_url(self.logger, f"[HubUploadClient._sync_process_task] Task details | UUID: {dataset_uuid} | Path: {hardlink_path} | Hub: {hub_name} | Namespace: {namespace}", logging.DEBUG)
+        self.logger.info(f"[UploadClient._sync_process_task] Processing task | UUID: {dataset_uuid} | Dataset: {dataset_name}")
+        log_url(self.logger, f"[UploadClient._sync_process_task] Task details | UUID: {dataset_uuid} | Path: {hardlink_path} | Hub: {hub_name} | Namespace: {namespace}", logging.DEBUG)
 
+        # Create a task-specific config based on server-provided client_config
+        # This ensures each task uses the correct token and namespace from the server
+        # Use token from client_config if provided and non-empty, otherwise use config token
+        task_config = replace(
+            self.config,
+            hub_name=hub_name,
+            hf_token=token if hub_name in ("huggingface", "hf") else self.config.hf_token,
+            ms_token=token if hub_name in ("modelscope", "ms") else self.config.ms_token,
+            hf_namespace=namespace if hub_name in ("huggingface", "hf") else self.config.hf_namespace,
+            ms_namespace=namespace if hub_name in ("modelscope", "ms") else self.config.ms_namespace,
+        )
+        
+        # Create a new UploadUtil instance for this task
+        # The instance will be automatically garbage collected after the task completes
+        upload_util = self._create_upload_util(task_config)
+        
         try:
-            upload_success, upload_error = self.upload_util.upload(hardlink_path)
+            upload_success, upload_error = upload_util.upload(hardlink_path)
             if upload_success:
-                log_success(self.logger, f"[HubUploadClient._sync_process_task] Task completed | UUID: {dataset_uuid} | Success: True")
+                log_success(self.logger, f"[UploadClient._sync_process_task] Task completed | UUID: {dataset_uuid} | Success: True")
                 return {
+                    "dataset_uuid": dataset_uuid,
+                    "hub_name": hub_name,
                     "success": True
                 }
-            log_error(self.logger, f"[HubUploadClient._sync_process_task] Task failed | UUID: {dataset_uuid} | Error: {upload_error}")
+            log_error(self.logger, f"[UploadClient._sync_process_task] Task failed | UUID: {dataset_uuid} | Error: {upload_error}")
             return {
                 "dataset_uuid": dataset_uuid,
                 "hub_name": hub_name,
@@ -188,14 +208,18 @@ class UploadClient(TaskClient):
         except Exception as e:
             tb = traceback.format_exc()
             error_msg = f"Unexpected error during upload: {e}\n\nFull traceback:\n{tb}"
-            log_error(self.logger, f"[HubUploadClient._sync_process_task] Task exception | UUID: {dataset_uuid} | Error: {e}")
-            self.logger.debug(f"[HubUploadClient._sync_process_task] Full traceback:\n{tb}")
+            log_error(self.logger, f"[UploadClient._sync_process_task] Task exception | UUID: {dataset_uuid} | Error: {e}")
+            self.logger.debug(f"[UploadClient._sync_process_task] Full traceback:\n{tb}")
             return {
                 "dataset_uuid": dataset_uuid,
                 "hub_name": hub_name,
                 "success": False,
                 "error_message": error_msg
             }
+        finally:
+            # UploadUtil instance will be automatically garbage collected
+            # Explicitly clear reference to help with cleanup
+            del upload_util
 
 # ===== Client entry points =====
 
