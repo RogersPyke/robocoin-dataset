@@ -4,13 +4,25 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 from sqlalchemy.orm import Session
+
+# Import DatasetDB for runtime use (not just type checking)
+from robocoin_dataset.database.models import DatasetDB
+
 if TYPE_CHECKING:
-    from robocoin_dataset.database.models import DatasetDB
+    pass  # Keep TYPE_CHECKING block for future type hints
 
 
-def _get_field(dataset_table: DatasetDB, field_suffix: str, hub_name: str) -> str:
+def _get_field(dataset_table: type[DatasetDB], field_suffix: str, hub_name: str) -> str:
     """
     Get the correct field prefix for the hub, trying short version first, then long version.
+    
+    Args:
+        dataset_table: DatasetDB class (not instance)
+        field_suffix: Field suffix (e.g., "upload_status")
+        hub_name: Hub name ("huggingface" or "modelscope")
+        
+    Returns:
+        str: Full field name (e.g., "huggingface_upload_status")
     """
     hf_prefix = "huggingface" if hasattr(dataset_table, "huggingface_upload_status") else "hf"
     ms_prefix = "ms" if hasattr(dataset_table, "ms_upload_status") else "modelscope"
@@ -23,6 +35,7 @@ def _get_field(dataset_table: DatasetDB, field_suffix: str, hub_name: str) -> st
     else:
         raise ValueError(f"Invalid hub name: {hub_name}, must be 'huggingface' or 'modelscope'")
 
+# Initialize field name constants
 HF_STATE = _get_field(DatasetDB, "upload_status", "huggingface")
 MS_STATE = _get_field(DatasetDB, "upload_status", "modelscope")
 HF_VERSION = _get_field(DatasetDB, "upload_version", "huggingface")
@@ -88,6 +101,7 @@ def _sync_upload_status(
             _logger.debug(f"Synced HuggingFace hub for dataset {item.dataset_uuid}")
         else:
             _logger.debug("No datasets to sync for HuggingFace hub")
+            
     # ===== ModelScope Branch: Independent query and update =====
     elif hub_name == "modelscope" or hub_name == "ms":
         if specific_uuid:
@@ -148,9 +162,11 @@ def _gen_one_upload_task(
                 )
             )
         hf_item = query.first()
+        if hf_item is None:
+            return None
         setattr(hf_item, HF_STATE, TaskStatus.PROCESSING)
         session.commit()
-        return hf_item.dataset_uuid if hf_item else None
+        return hf_item.dataset_uuid
     # ===== ModelScope Branch: Independent query and update =====
     elif hub_name == "modelscope" or hub_name == "ms":
         if specific_uuid:
@@ -163,51 +179,88 @@ def _gen_one_upload_task(
                 )
             )
         ms_item = query.first()
+        if ms_item is None:
+            return None
         setattr(ms_item, MS_STATE, TaskStatus.PROCESSING)
         session.commit()
-        return ms_item.dataset_uuid if ms_item else None
+        return ms_item.dataset_uuid
 
 def _mark_upload_failed(
     session: Session,
     dataset_uuid: str,
     error_msg: str,
-    hub_name: str = "huggingface",
+    hub_name: str,
     logger: logging.Logger | None = None,
 ) -> None:
     """
     Mark upload task as failed with error message.
+    Update the corresponding status field based on hub_name.
+
+    Args:
+        session: SQLAlchemy session instance
+        dataset_uuid: Dataset UUID to mark as failed
+        error_msg: Error message describing the failure
+        hub_name: Hub name ("huggingface" or "modelscope"), must be specified
+        logger: Optional logger instance
+
+    Raises:
+        ValueError: If hub_name is invalid
     """
     from robocoin_dataset.database.models import DatasetDB, TaskStatus
     _logger = logger or logging.getLogger(__name__)
 
     item = session.query(DatasetDB).filter(DatasetDB.dataset_uuid == dataset_uuid).first()
+    if not item:
+        _logger.warning(f"Dataset {dataset_uuid} not found in database")
+        return
 
-    if item:
-        setattr(item, HF_STATE, TaskStatus.FAILED)
-        setattr(item, HF_ERR_MSG, error_msg)
-        session.commit()
-        _logger.debug(f"Marked dataset {dataset_uuid} as FAILED: {error_msg}")
+    # Get the correct field names based on hub_name
+    state_field = _get_field(item, "upload_status", hub_name)
+    err_field = _get_field(item, "upload_err_msg", hub_name)
+
+    # Update status and error message
+    setattr(item, state_field, TaskStatus.FAILED)
+    setattr(item, err_field, error_msg)
+    session.commit()
+    _logger.debug(f"Marked dataset {dataset_uuid} ({hub_name}) as FAILED: {error_msg}")
 
 
 def _mark_upload_completed(
     session: Session,
     dataset_uuid: str,
+    hub_name: str,
     logger: logging.Logger | None = None,
 ) -> None:
     """
     Mark upload task as completed.
+    Update the corresponding status field based on hub_name.
+
+    Args:
+        session: SQLAlchemy session instance
+        dataset_uuid: Dataset UUID to mark as completed
+        hub_name: Hub name ("huggingface" or "modelscope"), must be specified
+        logger: Optional logger instance
+
+    Raises:
+        ValueError: If hub_name is invalid
     """
     from robocoin_dataset.database.models import DatasetDB, TaskStatus
     _logger = logger or logging.getLogger(__name__)
 
     item = session.query(DatasetDB).filter(DatasetDB.dataset_uuid == dataset_uuid).first()
+    if not item:
+        _logger.warning(f"Dataset {dataset_uuid} not found in database")
+        return
 
-    if item:
-        setattr(item, HF_STATE, TaskStatus.COMPLETED)
-        session.commit()
-        _logger.debug(f"Marked dataset {dataset_uuid} as COMPLETED")
+    # Get the correct field name based on hub_name
+    state_field = _get_field(item, "upload_status", hub_name)
 
-def _get_hardlink_path(
+    # Update status
+    setattr(item, state_field, TaskStatus.COMPLETED)
+    session.commit()
+    _logger.debug(f"Marked dataset {dataset_uuid} ({hub_name}) as COMPLETED")
+
+def _get_hardlink_path_by_uuid(
     session: Session,
     dataset_uuid: str,
     logger: logging.Logger | None = None,

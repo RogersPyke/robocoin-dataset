@@ -1,14 +1,26 @@
-"""Server component for distributed dataloader detection tasks.
+"""Server component for distributed hub upload tasks.
 
 This module provides the server-side orchestration for:
-- Task distribution to multiple clients
+- Task distribution to multiple clients for a SINGLE hub platform
+- Each server instance handles ONLY ONE hub (HuggingFace OR ModelScope)
 - Hardlink validation before task assignment
 - Database updates based on client results
+
+Architecture Design:
+- One server instance per hub platform (dedicated server approach)
+- To process both hubs, run TWO separate server instances with different hub_name
+- This design ensures complete isolation and better scalability
+
+The server follows the principle of "do one thing and do it well":
+- Server only handles task distribution and status management
+- Metadata collection and file generation are handled by other components
+- Upload execution is handled by clients
 """
 
 import logging
 import traceback
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from robocoin_dataset.database.database import DatasetDatabase
 from robocoin_dataset.database.models import DatasetDB
@@ -17,183 +29,296 @@ from robocoin_dataset.distribution_computation.task_server import TaskServer
 from robocoin_dataset.format_converter.tolerobot.constant import LEFORMAT_PATH
 from .task import (
     _gen_one_upload_task,
+    _get_hardlink_path_by_uuid,
     _mark_upload_completed,
     _mark_upload_failed,
     _sync_upload_status,
 )
-from robocoin_dataset.prepare_metadata.metadata_collect import create_unified_metadata
+
+if TYPE_CHECKING:
+    from .utils import UploadConfig
 
 TASK_CATEGORY = "hub_upload"
 
 class HubUploadServer(TaskServer):
-    """Task distribution server for hub upload."""
+    """Task distribution server for hub upload.
+    
+    This server handles tasks for a SINGLE hub platform (either HuggingFace or ModelScope).
+    To process both hubs, run TWO separate server instances with different hub_name.
+    """
 
     def __init__(
         self,
-        cfg: UploadConfig,
-        host: str = "0.0.0.0",
-        port: int = 2100,
-        heartbeat_interval: float = 30.0,
-        timeout: float = 90.0,
+        cfg: "UploadConfig",
+        hub_name: str,
         logger: logging.Logger | None = None,
     ) -> None:
         """
-        Initialize hub upload server.
-        Parameters that wont change in the whole loop
-        get initialized here, including token, db, and namespace...
+        Initialize hub upload server for a SPECIFIC hub platform.
+
+        Args:
+            cfg: UploadConfig containing all configuration parameters including:
+                - Database path (pg_cfg_path)
+                - HuggingFace configuration (hf_token, hf_namespace)
+                - ModelScope configuration (ms_token, ms_namespace)
+                - Common configuration (force_overwrite, readme_only)
+                - Server network configuration (host, port, heartbeat_interval, timeout)
+            hub_name: Hub platform this server will handle ("huggingface" or "modelscope")
+            logger: Optional logger instance
+
+        Raises:
+            ValueError: If pg_cfg_path is not provided, empty, or hub_name is invalid
+            FileNotFoundError: If database config file does not exist
         """
         super().__init__(
             logger=logger,
-            host=host,
-            port=port,
-            heartbeat_interval=heartbeat_interval,
-            timeout=timeout,
+            host=cfg.server_host,
+            port=cfg.server_port,
+            heartbeat_interval=cfg.server_heartbeat_interval,
+            timeout=cfg.server_timeout,
         )
 
+        # Validate hub_name
+        if hub_name not in ("huggingface", "modelscope", "hf", "ms"):
+            raise ValueError(
+                f"Invalid hub_name: {hub_name}. Must be 'huggingface', 'modelscope', 'hf', or 'ms'"
+            )
+        self.hub_name = hub_name
+
+        # Validate and initialize database connection
         if not cfg.pg_cfg_path:
             raise ValueError("pg_cfg_path is required to specify database and cannot be None or empty")
-        self.cfg.pg_cfg_path: Path = Path(cfg.pg_cfg_path).expanduser().absolute()
-        if not self.cfg.pg_cfg_path.exists():
-            raise FileNotFoundError(f"Database config file not found: {self.cfg.pg_cfg_path}")
+        self.cfg_pg_path: Path = Path(cfg.pg_cfg_path).expanduser().absolute()
+        if not self.cfg_pg_path.exists():
+            raise FileNotFoundError(f"Database config file not found: {self.cfg_pg_path}")
 
-        self.database = DatasetDatabase(self.cfg.pg_cfg_path)
+        self.database = DatasetDatabase(self.cfg_pg_path)
         self.logger = logger or logging.getLogger(__name__)
 
+        # Store common configuration
+        self.common_config = {
+            "force_overwrite": cfg.force_overwrite,
+            "readme_only": cfg.readme_only,
+        }
+
+        # ===== Store hub-specific configuration for THIS server's hub =====
+        if hub_name == "huggingface" or hub_name == "hf":
+            self.hub_config = {
+                "token": cfg.hf_token,
+                "namespace": cfg.hf_namespace,
+                **self.common_config,
+            }
+        elif hub_name == "modelscope" or hub_name == "ms":
+            self.hub_config = {
+                "token": cfg.ms_token,
+                "namespace": cfg.ms_namespace,
+                **self.common_config,
+            }
+
+        # Statistics tracking
         self.succeed_cnt = 0
         self.fail_cnt = 0
+        
+        # Log server initialization
+        self.logger.info(f"[SERVER] Initialized for hub: {self.hub_name}")
+        self.logger.info(f"[SERVER] Namespace: {self.hub_config['namespace']}")
+        self.logger.info(f"[SERVER] Host: {cfg.server_host}:{cfg.server_port}")
 
     def get_task_category(self) -> str:
         return TASK_CATEGORY
 
     def gen_task_content(self) -> dict | None:
-        while True:
-            dataset_uuid = None
+        """
+        Generate task content for THIS server's hub platform.
+        
+        This method handles tasks for a single hub (no round-robin):
+        1. Syncs upload status for this hub
+        2. Tries to get one task for this hub
+        3. Returns task config or None if no tasks available
+        
+        The server only distributes tasks and does NOT collect metadata or generate files.
+        Metadata collection and file generation are handled by other components.
 
-            # Step 1: Sync and claim task with both huggingface and modelscope
+        Returns:
+            dict | None: Task content dictionary containing dataset_uuid, hardlink_path,
+                        hub_name, and client_config. Returns None if no tasks available.
+        """
+        while True:
             try:
                 with self.database.with_session() as session:
-                    _sync_upload_status(session, hub_name="huggingface", logger=self.logger)
-                    _sync_upload_status(session, hub_name="modelscope", logger=self.logger)
+                    # Step 1: Sync status for THIS hub only
+                    try:
+                        _sync_upload_status(session, hub_name=self.hub_name, logger=self.logger)
+                    except Exception as e:
+                        # Sync errors should not block task generation
+                        err_msg = f"Status sync error: {e}\n{traceback.format_exc()}"
+                        self.logger.error(f"[ERROR] {err_msg}")
+                        # Continue to try task generation even if sync fails
 
-                    hf_uuid = _gen_one_upload_task(session, hub_name="huggingface", logger=self.logger)
-                    ms_uuid = _gen_one_upload_task(session, hub_name="modelscope", logger=self.logger)
-                    if hf_uuid is None and ms_uuid is None:
-                        self.logger.debug("No PENDING tasks found")
-                        break
-                    hf_hardlink_path = _get_hardlink_path(session, hf_uuid, logger=self.logger)
-                    ms_hardlink_path = _get_hardlink_path(session, ms_uuid, logger=self.logger)
-                    if hf_hardlink_path is None and ms_hardlink_path is None:
-                        self.logger.debug("No hardlink path found for dataset")
-                        break
+                    # Step 2: Try to get one task for THIS hub
+                    dataset_uuid = None
+                    try:
+                        dataset_uuid = _gen_one_upload_task(session, hub_name=self.hub_name, logger=self.logger)
+                        if dataset_uuid:
+                            # UUID obtained, now build task config (may raise errors)
+                            return self._build_task_config(dataset_uuid, self.hub_name, session)
+                    except FileNotFoundError as e:
+                        # Hardlink validation failed in _build_task_config
+                        # UUID is available, mark as failed and continue
+                        if dataset_uuid:
+                            err_msg = f"Hardlink path error: {e}"
+                            self.logger.error(f"[ERROR] Dataset {dataset_uuid} ({self.hub_name}): {err_msg}")
+                            _mark_upload_failed(session, dataset_uuid, err_msg, self.hub_name, logger=self.logger)
+                        else:
+                            # Unexpected: FileNotFoundError before UUID obtained
+                            self.logger.error(f"[ERROR] Unexpected FileNotFoundError during {self.hub_name} task generation: {e}")
+                        self.logger.debug("[TASK] Attempting to fetch next task...")
+                        continue
+                    except ValueError as e:
+                        # Invalid configuration or hub_name
+                        if dataset_uuid:
+                            err_msg = f"Configuration error: {e}"
+                            self.logger.error(f"[ERROR] Dataset {dataset_uuid} ({self.hub_name}): {err_msg}")
+                            _mark_upload_failed(session, dataset_uuid, err_msg, self.hub_name, logger=self.logger)
+                        else:
+                            self.logger.error(f"[ERROR] Configuration error during {self.hub_name} task generation: {e}")
+                        self.logger.debug("[TASK] Attempting to fetch next task...")
+                        continue
+                    except Exception as e:
+                        # Other unexpected errors during task processing
+                        err_msg = f"Unexpected error: {e}\n{traceback.format_exc()}"
+                        if dataset_uuid:
+                            self.logger.exception(f"[ERROR] Dataset {dataset_uuid} ({self.hub_name}): {err_msg}")
+                            _mark_upload_failed(session, dataset_uuid, err_msg, self.hub_name, logger=self.logger)
+                        else:
+                            self.logger.exception(f"[ERROR] {self.hub_name} task generation error: {err_msg}")
+                        self.logger.debug("[TASK] Attempting to fetch next task...")
+                        continue
 
-                # Step 2: Build unified metadata on the server side so that
-                # clients never need to access the database.
-                try:
-                    unified_metadata = create_unified_metadata(
-                        hardlink_path=hardlink_path,
-                        db_file_path=self.db_file_path,
-                        dataset_uuid=dataset_uuid,
-                    )
-                    metadata_dict = unified_metadata.to_dict()
-                except Exception as e:  # noqa: PERF203
-                    err_msg = (
-                        f"Unified metadata collection failed on server for dataset {dataset_uuid}: {e}\n"
-                        f"{traceback.format_exc()}"
-                    )
-                    self.logger.exception(f"❌ {dataset_uuid}: {err_msg}")
-                    with self.database.with_session() as session:
-                        _mark_upload_failed(session, dataset_uuid, err_msg, self.hub_name, logger=self.logger)
-                    self.summary_logger.debug(f"❌ {dataset_uuid}: {err_msg}")
-                    self.fail_cnt += 1
-                    # Try to fetch next available task
-                    continue
+                    # Step 3: No tasks available for this hub
+                    self.logger.debug(f"[TASK] No PENDING tasks found for {self.hub_name}")
+                    break
 
-                # in case of success:
-                task_config = {
-                    DATASET_UUID: dataset_uuid,
-                    LEFORMAT_PATH: str(hardlink_path),  # Send hardlink path to client
-                    "metadata": metadata_dict,  # Send pre-built unified metadata
-                    # Send client configuration parameters with the task
-                    "client_config": {
-                        "token": self.client_token,
-                        "namespace": self.client_namespace,
-                        "hub_name": self.hub_name.value,
-                        "output_path": self.client_output_path,
-                        "force_overwrite": self.client_force_overwrite,
-                        "readme_only": self.client_readme_only,
-                    },
-                }
-                self.logger.debug(f"Sending task config for dataset {dataset_uuid}")
-                return task_config
-
-                # in case of failure:
-            except FileNotFoundError as e:
-                err_msg = f"Hardlink assertion failed: {e}\n{traceback.format_exc()}"
-                self.logger.exception(f"❌ {dataset_uuid}: {err_msg}")
-                with self.database.with_session() as session:
-                    _mark_upload_failed(session, dataset_uuid, err_msg, self.hub_name, logger=self.logger)
-                self.summary_logger.debug(f"❌ {dataset_uuid}: {err_msg}")
-                self.fail_cnt += 1
-                self.logger.debug("Attempting to fetch next task...")
-                continue
             except Exception as e:
-                if dataset_uuid:
-                    err_msg = f"Unexpected error during task generation: {e}\n{traceback.format_exc()}"
-                    self.logger.exception(f"❌ {dataset_uuid}: {err_msg}")
-                    with self.database.with_session() as session:
-                        _mark_upload_failed(session, dataset_uuid, err_msg, self.hub_name, logger=self.logger)
-                    self.summary_logger.debug(f"❌ {dataset_uuid}: {err_msg}")
-                    self.fail_cnt += 1
-                else:
-                    self.logger.exception(f"❌ Unexpected error before task claimed: {e}")
-                self.logger.debug("Attempting to fetch next task...")
+                # Catch-all for session-level errors (database connection, etc.)
+                err_msg = f"Database session error: {e}\n{traceback.format_exc()}"
+                self.logger.exception(f"[ERROR] {err_msg}")
+                self.logger.debug("[TASK] Attempting to fetch next task...")
                 continue
 
         return None
 
+    def _build_task_config(
+        self,
+        dataset_uuid: str,
+        hub_name: str,
+        session,
+    ) -> dict:
+        """
+        Build task configuration for a specific dataset.
+        
+        This method validates the hardlink path and constructs the task config
+        without collecting metadata (metadata is handled by other components).
+
+        Args:
+            dataset_uuid: Dataset UUID
+            hub_name: Hub name (should match self.hub_name)
+            session: Database session instance
+
+        Returns:
+            dict: Task configuration dictionary containing:
+                - dataset_uuid: Dataset UUID
+                - leformat_path: Hardlink path to the dataset
+                - hub_name: Hub name identifier
+                - client_config: Client configuration (token, namespace, etc.)
+
+        Raises:
+            FileNotFoundError: If hardlink path is not found or does not exist
+            ValueError: If hub_name doesn't match server's hub
+        """
+        # Validate hub_name matches server's hub
+        if hub_name != self.hub_name:
+            raise ValueError(
+                f"Hub name mismatch: task hub_name={hub_name}, server hub_name={self.hub_name}"
+            )
+
+        # Get hardlink path from database
+        hardlink_path = _get_hardlink_path_by_uuid(session, dataset_uuid, logger=self.logger)
+        if hardlink_path is None:
+            raise FileNotFoundError(f"Hardlink path not found for dataset {dataset_uuid}")
+        if not hardlink_path.exists():
+            raise FileNotFoundError(f"Hardlink path does not exist: {hardlink_path}")
+
+        # Build task configuration (NO metadata - handled by other components)
+        # Pass the entire hub_config to avoid hardcoding field names
+        # Add hub_name to the config since client needs it
+        client_config = {**self.hub_config, "hub_name": hub_name}
+        
+        task_config = {
+            "dataset_uuid": dataset_uuid,
+            "leformat_path": str(hardlink_path),
+            "hub_name": hub_name,  # Explicitly identify which hub this task is for
+            "client_config": client_config,
+        }
+        self.logger.debug(f"[TASK] Sending task for dataset {dataset_uuid} to {hub_name}")
+        return task_config
+
     def handle_task_result(self, task_content: dict, task_result_content: dict) -> None:
-        """Handle task result from client and update database."""
+        """
+        Handle task result from client and update database status.
+        
+        This method updates the database status for THIS server's hub.
+        The hub_name should match self.hub_name.
+
+        Args:
+            task_content: Original task content dictionary containing dataset_uuid and hub_name
+            task_result_content: Result dictionary from client containing success status and error message
+        """
         dataset_uuid = task_content.get(DATASET_UUID)
+        hub_name = task_content.get("hub_name", self.hub_name)  # Get hub_name from task content
         upload_result = task_result_content or {}
         upload_success = upload_result.get("success", False)
+
+        if not dataset_uuid:
+            self.logger.error("[ERROR] Task result missing dataset_uuid")
+            return
+
+        # Validate hub_name matches server's hub
+        if hub_name != self.hub_name:
+            self.logger.warning(
+                f"[WARNING] Hub name mismatch in result: task hub={hub_name}, server hub={self.hub_name}"
+            )
 
         with self.database.with_session() as session:
             item = session.query(DatasetDB).filter(DatasetDB.dataset_uuid == dataset_uuid).first()
             if item is None:
-                self.logger.error(f"Dataset {dataset_uuid} not found in dataset DB.")
+                self.logger.error(f"[ERROR] Dataset {dataset_uuid} not found in database")
                 return
 
-            # in case of success:
+            # Update status based on result
             if upload_success:
-                _mark_upload_completed(session, dataset_uuid, self.hub_name, logger=self.logger, item=item)
+                _mark_upload_completed(session, dataset_uuid, hub_name, logger=self.logger)
                 self.succeed_cnt += 1
-                self.logger.info(f"Task result: SUCCESS | UUID: {dataset_uuid}")
-                self.summary_logger.debug(f"✅ {dataset_uuid}: Upload completed successfully")
+                self.logger.info(f"[SUCCESS] Task completed | UUID: {dataset_uuid} | Hub: {hub_name}")
 
                 # Log cumulative statistics
                 total_datasets = self.succeed_cnt + self.fail_cnt
-                self.summary_logger.debug(
-                    f"📊 Cumulative: {total_datasets} datasets "
-                    f"({self.succeed_cnt} ✅, {self.fail_cnt} ❌)"
+                self.logger.debug(
+                    f"[STATS] Cumulative: {total_datasets} datasets "
+                    f"({self.succeed_cnt} succeeded, {self.fail_cnt} failed)"
                 )
-                self.logger.debug(f"Marked {item.convert_path} upload as COMPLETED")
-
-            # in case of failure:
             else:
                 error_message = upload_result.get("error_message") or "Upload failed"
-                _mark_upload_failed(session, dataset_uuid, error_message, self.hub_name, logger=self.logger, item=item)
+                _mark_upload_failed(session, dataset_uuid, error_message, hub_name, logger=self.logger)
                 self.fail_cnt += 1
-                self.logger.info(f"Task result: FAILED | UUID: {dataset_uuid} | Error: {error_message}")
-                self.summary_logger.debug(f"❌ {dataset_uuid}: {error_message}")
+                self.logger.info(f"[FAILED] Task failed | UUID: {dataset_uuid} | Hub: {hub_name} | Error: {error_message}")
 
                 # Log cumulative statistics
                 total_datasets = self.succeed_cnt + self.fail_cnt
-                self.summary_logger.debug(
-                    f"📊 Cumulative: {total_datasets} datasets "
-                    f"({self.succeed_cnt} ✅, {self.fail_cnt} ❌)"
+                self.logger.debug(
+                    f"[STATS] Cumulative: {total_datasets} datasets "
+                    f"({self.succeed_cnt} succeeded, {self.fail_cnt} failed)"
                 )
-
-                self.logger.debug(f"Marked {item.convert_path} upload as FAILED: {error_message}")
 
     def get_statistics(self) -> dict:
         return {

@@ -34,27 +34,77 @@ MAX_RETRIES = 3
 @dataclass
 class UploadConfig():
     """
-    Configuration class for local dataset uploading.
+    Configuration class for dataset uploading.
+
+    This configuration supports both local and distributed upload modes.
+    For distributed mode with dedicated servers per hub, each server instance
+    should be initialized with a specific hub_name parameter.
 
     Args:
-        hub_name: specify which hub to upload to. can be "huggingface" or "modelscope".
-        token: token for authentication with the hub.
-        namespace: namespace (username) on the hub platform.
-        pg_cfg_path: path to the postgresql configuration file.
-        skip_errors: if skip errors and continue uploading.
-        upload_force_overwrite: if force overwrite existing repositories without prompting.
-        upload_readme_only: if only update README files without uploading dataset files.
+        hub_name: Specify which hub to upload to. Can be "huggingface" or "modelscope".
+                  For server mode, this determines which hub the server handles.
+        pg_cfg_path: Path to the postgresql configuration file.
+        skip_errors: If skip errors and continue uploading.
+        upload_force_overwrite: If force overwrite existing repositories without prompting.
+        upload_readme_only: If only update README files without uploading dataset files.
+        max_retries: Maximum number of retries for failed uploads.
+        
+        # HuggingFace configuration
+        hf_token: HuggingFace authentication token
+        hf_namespace: HuggingFace namespace (username)
+        
+        # ModelScope configuration
+        ms_token: ModelScope authentication token
+        ms_namespace: ModelScope namespace (username)
+        
+        # Common configuration
+        force_overwrite: Force overwrite existing repositories
+        readme_only: Only update README files without uploading dataset files
+        
+        # Server network configuration
+        server_host: Server host address (default: 0.0.0.0)
+        server_port: Server port number (default: 2100 for HF, 2101 for MS recommended)
+        server_heartbeat_interval: Heartbeat interval in seconds
+        server_timeout: Connection timeout in seconds
+        
+        # Client network configuration
+        client_host: Client host address (default: 127.0.0.1)
+        client_port: Client port number (default: 2140)
+        client_heartbeat_interval: Heartbeat interval in seconds
+        client_timeout: Connection timeout in seconds
     """
-
-    hub_name: str = "huggingface"
-    token: str = ""
-    namespace: str = ""
+    # ===== Global configuration =====
+    hub_name: str = "huggingface"  # Renamed from 'hub' for clarity
     pg_cfg_path: str = ""
     skip_errors: bool = False
     upload_force_overwrite: bool = False
     upload_readme_only: bool = False
     max_retries: int = MAX_RETRIES
 
+    # ===== Hub-specific configuration =====
+    # HuggingFace configuration
+    hf_token: str = ""
+    hf_namespace: str = ""
+    # ModelScope configuration
+    ms_token: str = ""
+    ms_namespace: str = ""
+    # Common configuration
+    force_overwrite: bool = False
+    readme_only: bool = False
+    # ==== Server network configuration =====
+    server_host: str = "0.0.0.0"
+    server_port: int = 2100
+    server_heartbeat_interval: float = 30.0
+    server_timeout: float = 90.0
+
+    # ==== Client network configuration =====
+    # NOTE: These params are not used in the server mode, only in the client mode when activating clients.
+    # Never be passed while Server is genetarating and passing tasks to clients.
+    # Only used when activating clients.(Init stage)
+    client_host: str = "127.0.0.1"
+    client_port: int = 2140
+    client_heartbeat_interval: float = 30.0
+    client_timeout: float = 90.0
 
 def _load_config_from_yaml(config_path: str | Path) -> dict:
     """
@@ -76,16 +126,41 @@ def _load_config_from_yaml(config_path: str | Path) -> dict:
 def _create_upload_config(config_dict: dict) -> UploadConfig:
     """
     Create UploadConfig from configuration dictionary.
-    should pass yaml cfg dict into this function.
+    
+    This function maps YAML configuration to UploadConfig dataclass.
+    Supports both 'hub' and 'hub_name' keys for backward compatibility.
+    
+    Args:
+        config_dict: Dictionary containing configuration parameters from YAML
+        
+    Returns:
+        UploadConfig: Configuration object for upload operations
     """
     return UploadConfig(
-        hub_name=config_dict.get("hub_name", "huggingface"),
-        token=config_dict.get("token", ""),
-        namespace=config_dict.get("namespace", ""),
+        hub_name=config_dict.get("hub_name", config_dict.get("hub", "huggingface")),
         pg_cfg_path=config_dict.get("pg_cfg_path", ""),
         skip_errors=config_dict.get("skip_errors", False),
         upload_force_overwrite=config_dict.get("upload_force_overwrite", False),
         upload_readme_only=config_dict.get("upload_readme_only", False),
+        # HuggingFace configuration
+        hf_token=config_dict.get("hf_token", ""),
+        hf_namespace=config_dict.get("hf_namespace", ""),
+        # ModelScope configuration
+        ms_token=config_dict.get("ms_token", ""),
+        ms_namespace=config_dict.get("ms_namespace", ""),
+        # Common configuration (use upload_* if available, otherwise use direct keys)
+        force_overwrite=config_dict.get("force_overwrite", config_dict.get("upload_force_overwrite", False)),
+        readme_only=config_dict.get("readme_only", config_dict.get("upload_readme_only", False)),
+        # Server network configuration
+        server_host=config_dict.get("server_host", config_dict.get("host", "0.0.0.0")),
+        server_port=config_dict.get("server_port", config_dict.get("port", 2100)),
+        server_heartbeat_interval=config_dict.get("server_heartbeat_interval", config_dict.get("heartbeat_interval", 30.0)),
+        server_timeout=config_dict.get("server_timeout", config_dict.get("timeout", 90.0)),
+        # Client network configuration
+        client_host=config_dict.get("client_host", "127.0.0.1"),
+        client_port=config_dict.get("client_port", 2140),
+        client_heartbeat_interval=config_dict.get("client_heartbeat_interval", 30.0),
+        client_timeout=config_dict.get("client_timeout", 90.0),
     )
 
 
@@ -101,16 +176,24 @@ class UploadUtil():
     def __init__(self, config: UploadConfig) -> None:
         """
         Initialize the uploader with configuration.
+        
+        Args:
+            config: UploadConfig containing hub_name and authentication tokens
+            
+        Raises:
+            ValueError: If hub_name is not supported
         """
         self.config = config
-        if config.hub_name == "modelscope":
+        hub_name = getattr(config, 'hub_name')
+        
+        if hub_name == "modelscope" or hub_name == "ms":
             from ..hubs.ms_hub import ModelscopeUploadHub
-            self.hub = ModelscopeUploadHub(self.config.token)
-        elif config.hub_name == "huggingface":
+            self.hub = ModelscopeUploadHub(self.config.ms_token)
+        elif hub_name == "huggingface" or hub_name == "hf":
             from ..hubs.hf_hub import HuggingfaceUploadHub
-            self.hub = HuggingfaceUploadHub(self.config.token)
+            self.hub = HuggingfaceUploadHub(self.config.hf_token)
         else:
-            raise ValueError(f"hub {config.hub_name} is not supported or illegal.")
+            raise ValueError(f"hub {hub_name} is not supported or illegal.")
 
         self.logger = self.setup_logger(logger_name=UPLOAD_LOGGER_NAME)
 
@@ -125,8 +208,15 @@ class UploadUtil():
         dataset_name = self._folder_name_to_repo_name(hardlink_path.name)
         self.logger.debug(f"Uploading dataset named: {dataset_name} from path: {hardlink_path}")
 
+        # Get the correct namespace based on hub_name
+        hub_name = getattr(self.config, 'hub_name', 'huggingface')
+        if hub_name == "modelscope" or hub_name == "ms":
+            namespace = self.config.ms_namespace
+        elif hub_name == "huggingface" or hub_name == "hf":
+            namespace = self.config.hf_namespace
+
         # Repository ID uses clean name (without _hardlink suffix)
-        repo_id = f"{self.config.namespace}/{dataset_name}"
+        repo_id = f"{namespace}/{dataset_name}"
 
         # Generate commit message
         commit_msg = (

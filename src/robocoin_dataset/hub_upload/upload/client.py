@@ -39,10 +39,9 @@ class HubUploadClient(TaskClient):
     def __init__(
         self,
         server_uri: str = "ws://localhost:2100",
-        hub_name: DatasetsHubEnum = DatasetsHubEnum.huggingface,
+        hub_name: str = "huggingface",
         token: str = "",
         namespace: str = "",
-        output_path: str | Path = "",
         force_overwrite: bool = False,
         readme_only: bool = False,
         heartbeat_interval: float = 30.0,
@@ -57,7 +56,6 @@ class HubUploadClient(TaskClient):
             hub_name: Target hub platform (huggingface/modelscope)
             token: Authentication token for the hub
             namespace: Username/namespace on the hub platform
-            output_path: Path to output directory for YAML/README generation
             force_overwrite: Force overwrite existing repositories
             heartbeat_interval: Heartbeat interval in seconds
             logger: Logger instance
@@ -75,12 +73,8 @@ class HubUploadClient(TaskClient):
         self.hub_name = hub_name
         self.token = token
         self.namespace = namespace
-        self.output_path = Path(output_path).expanduser().absolute() if output_path else Path("./dataset_info")
         self.force_overwrite = force_overwrite
         self.readme_only = readme_only
-
-        # Create output directory
-        self.output_path.mkdir(parents=True, exist_ok=True)
 
     def get_task_category(self) -> str:
         return TASK_CATEGORY
@@ -95,7 +89,7 @@ class HubUploadClient(TaskClient):
 
         This property uses @cached_property so that the uploader is created only
         once per client process, based on configuration that is constant during
-        the whole lifecycle (hub_name, token, namespace, output_path, etc.).
+        the whole lifecycle (hub_name, token, namespace, etc.).
         Per-task dynamic parameters (e.g. dataset metadata) are passed directly
         into the upload call and are NOT baked into this config.
 
@@ -105,20 +99,38 @@ class HubUploadClient(TaskClient):
         """
         self.logger.debug(
             "Initializing upload utility "
-            f"| hub={self.hub_name.value} | namespace={self.namespace} | output_path={self.output_path}"
+            f"| hub={self.hub_name.value} | namespace={self.namespace}"
         )
 
         # Note: root_path is intentionally omitted here. The client works purely with
         # hardlink paths provided by the server and does not rely on a global root_path.
+        # Determine which token and namespace to use based on hub_name
+        if self.hub_name == DatasetsHubEnum.huggingface:
+            hf_token = self.token
+            ms_token = ""
+            hf_namespace = self.namespace
+            ms_namespace = ""
+        elif self.hub_name == DatasetsHubEnum.modelscope:
+            hf_token = ""
+            ms_token = self.token
+            hf_namespace = ""
+            ms_namespace = self.namespace
+        else:
+            hf_token = ""
+            ms_token = ""
+            hf_namespace = ""
+            ms_namespace = ""
+        
         upload_config = UploadConfig(
-            hub_name=self.hub_name,
-            token=self.token,
-            namespace=self.namespace,
-            output_path=str(self.output_path),
+            hub_name=self.hub_name.value,
             pg_cfg_path="",  # Client never reads DB; metadata is provided by server
-            skip_err=True,
+            skip_errors=True,
             upload_force_overwrite=self.force_overwrite,
             upload_readme_only=self.readme_only,
+            hf_token=hf_token,
+            hf_namespace=hf_namespace,
+            ms_token=ms_token,
+            ms_namespace=ms_namespace,
         )
 
         return LocalDsUploadUtil(upload_config)
@@ -140,7 +152,6 @@ class HubUploadClient(TaskClient):
         effective_token = client_config.get("token") or self.token
         effective_namespace = client_config.get("namespace") or self.namespace
         effective_hub_name_str = client_config.get("hub_name")
-        effective_output_path = client_config.get("output_path") or str(self.output_path)
         effective_force_overwrite = client_config.get("force_overwrite", self.force_overwrite)
         effective_readme_only = client_config.get("readme_only", self.readme_only)
 
@@ -177,7 +188,6 @@ class HubUploadClient(TaskClient):
                 self.hub_name = effective_hub_name
                 self.token = effective_token
                 self.namespace = effective_namespace
-                self.output_path = Path(effective_output_path).expanduser().absolute()
                 self.force_overwrite = effective_force_overwrite
                 self.readme_only = effective_readme_only
 
@@ -211,7 +221,6 @@ async def run_one_client_async(
     hub_name: DatasetsHubEnum,
     token: str,
     namespace: str,
-    output_path: str | Path,
     force_overwrite: bool,
     readme_only: bool,
     heartbeat_interval: float,
@@ -226,7 +235,6 @@ async def run_one_client_async(
         hub_name: Target hub platform
         token: Authentication token
         namespace: Username/namespace
-        output_path: Output path for YAML/README
         force_overwrite: Force overwrite existing repos
         readme_only: Only update README files without uploading dataset files
         heartbeat_interval: Heartbeat interval in seconds
@@ -244,7 +252,6 @@ async def run_one_client_async(
         hub_name=hub_name,
         token=token,
         namespace=namespace,
-        output_path=output_path,
         force_overwrite=force_overwrite,
         readme_only=readme_only,
         heartbeat_interval=heartbeat_interval,
@@ -343,7 +350,6 @@ def run_one_client_process_main(
     hub_name: DatasetsHubEnum,
     token: str,
     namespace: str,
-    output_path: str | Path,
     force_overwrite: bool,
     readme_only: bool,
     heartbeat_interval: float,
@@ -412,7 +418,6 @@ def run_one_client_process_main(
                 hub_name=hub_name,
                 token=token,
                 namespace=namespace,
-                output_path=output_path,
                 force_overwrite=force_overwrite,
                 readme_only=readme_only,
                 heartbeat_interval=heartbeat_interval,
@@ -454,7 +459,6 @@ def run_multi_clients(
     hub_name: DatasetsHubEnum,
     token: str,
     namespace: str,
-    output_path: str | Path,
     force_overwrite: bool,
     readme_only: bool,
     heartbeat_interval: float,
@@ -470,7 +474,6 @@ def run_multi_clients(
         hub_name: Target hub platform
         token: Authentication token
         namespace: Username/namespace
-        output_path: Output path for YAML/README
         force_overwrite: Force overwrite existing repos
         readme_only: Only update README files without uploading dataset files
         heartbeat_interval: Heartbeat interval in seconds
@@ -514,7 +517,6 @@ def run_multi_clients(
                 hub_name=hub_name,
                 token=token,
                 namespace=namespace,
-                output_path=output_path,
                 force_overwrite=force_overwrite,
                 readme_only=readme_only,
                 heartbeat_interval=heartbeat_interval,
