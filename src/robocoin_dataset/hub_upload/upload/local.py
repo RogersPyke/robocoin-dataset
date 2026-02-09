@@ -30,6 +30,7 @@ def upload_datasets_from_database_local(config: UploadConfig, logger: logging.Lo
     from .task import (
         _gen_one_upload_task,
         _get_field,
+        _get_hardlink_path_by_uuid,
         _mark_upload_completed,
         _mark_upload_failed,
         _sync_upload_status,
@@ -46,9 +47,18 @@ def upload_datasets_from_database_local(config: UploadConfig, logger: logging.Lo
     # 验证并解析数据库路径
     db_path = Path(config.pg_cfg_path).expanduser().absolute()
 
+    # Get the correct namespace based on hub_name
+    hub_name = getattr(config, 'hub_name', 'huggingface')
+    if hub_name == "modelscope" or hub_name == "ms":
+        namespace = config.ms_namespace
+        hub_display = "modelscope"
+    else:  # huggingface or hf
+        namespace = config.hf_namespace
+        hub_display = "huggingface"
+
     # 打印初始配置
-    _logger.info(f"🚀 Upload: {config.hub_name.value}/{config.namespace}")
-    tqdm.write(f"🚀 Upload: {config.hub_name.value}/{config.namespace}")
+    _logger.info(f"🚀 Upload: {hub_display}/{namespace}")
+    tqdm.write(f"🚀 Upload: {hub_display}/{namespace}")
 
     # 连接数据库
     db = DatasetDatabase(db_path)
@@ -69,12 +79,13 @@ def upload_datasets_from_database_local(config: UploadConfig, logger: logging.Lo
     try:
         while True:
             # 获取上传状态字段
-            upload_status_field = _get_field(config.hub_name, DatasetDB, "upload_status")
+            hub_name = getattr(config, 'hub_name', 'huggingface')
+            upload_status_field = _get_field(DatasetDB, "upload_status", hub_name)
             upload_status_col = getattr(DatasetDB, upload_status_field)
 
             with db.with_session() as session:
                 # 同步数据集上传状态
-                _sync_upload_status(session, config.hub_name, _logger)
+                _sync_upload_status(session, hub_name=hub_name, logger=_logger)
 
                 # 统计待上传的数据集数量
                 pending_count = session.query(DatasetDB).filter(
@@ -92,13 +103,22 @@ def upload_datasets_from_database_local(config: UploadConfig, logger: logging.Lo
                     pbar.total = pending_count + uploaded_count + failed_count + skipped_count
 
                 # 获取下一个待上传的数据集任务
-                dataset_uuid, hardlink_path = _gen_one_upload_task(
-                    session, config.hub_name, _logger
+                hub_name = getattr(config, 'hub_name', 'huggingface')
+                dataset_uuid = _gen_one_upload_task(
+                    session, hub_name=hub_name, logger=_logger
                 )
 
-            if dataset_uuid is None or hardlink_path is None:
+            if dataset_uuid is None:
                 # 没有更多任务
                 break
+
+            # 获取 hardlink path
+            with db.with_session() as session:
+                hardlink_path = _get_hardlink_path_by_uuid(session, dataset_uuid, logger=_logger)
+            
+            if hardlink_path is None:
+                _logger.warning(f"Hardlink path not found for dataset {dataset_uuid}, skipping")
+                continue
 
             # 获取数据集名称用于日志
             dataset_name = hardlink_path.name.removesuffix("_qced_hardlink").removesuffix("_hardlink")
@@ -113,14 +133,15 @@ def upload_datasets_from_database_local(config: UploadConfig, logger: logging.Lo
             success, error_msg = uploader._upload_one_dataset(hardlink_path)
 
             # 处理结果
+            hub_name = getattr(config, 'hub_name', 'huggingface')
             if success:
                 with db.with_session() as session:
-                    _mark_upload_completed(session, dataset_uuid, config.hub_name, _logger)
+                    _mark_upload_completed(session, dataset_uuid, hub_name, _logger)
                 uploaded_count += 1
                 _logger.info(f"{dataset_name}: ✅ Successfully uploaded")
             else:
                 with db.with_session() as session:
-                    _mark_upload_failed(session, dataset_uuid, error_msg, config.hub_name, _logger)
+                    _mark_upload_failed(session, dataset_uuid, error_msg, hub_name, _logger)
                 failed_count += 1
                 tqdm.write(f"  ❌ Failed: {error_msg}")
                 _logger.error(f"{dataset_name}: {error_msg}")
