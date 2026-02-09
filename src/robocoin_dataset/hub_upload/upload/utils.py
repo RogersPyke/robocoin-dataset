@@ -8,6 +8,7 @@ Do only upload, no other logic, no checking.
 """
 
 import logging
+import os
 import random
 import re
 import shutil
@@ -124,6 +125,34 @@ def _load_config_from_yaml(config_path: str | Path) -> dict:
     return config_dict
 
 
+def _resolve_token_from_env(token: str | None, env_vars: list[str]) -> str:
+    """
+    Resolve token from configuration or environment variables.
+    
+    If token is provided and non-empty, use it. Otherwise, try to read from
+    environment variables in order of preference.
+    
+    Args:
+        token: Token from configuration file (can be None or empty string)
+        env_vars: List of environment variable names to try (in order)
+        
+    Returns:
+        Token string (may be empty if not found)
+    """
+    # If token is provided and non-empty, use it
+    if token and token.strip():
+        return token.strip()
+    
+    # Try environment variables in order
+    for env_var in env_vars:
+        env_token = os.getenv(env_var)
+        if env_token and env_token.strip():
+            return env_token.strip()
+    
+    # Return empty string if not found
+    return ""
+
+
 def _create_upload_config(config_dict: dict) -> UploadConfig:
     """
     Create UploadConfig from configuration dictionary.
@@ -131,12 +160,28 @@ def _create_upload_config(config_dict: dict) -> UploadConfig:
     This function maps YAML configuration to UploadConfig dataclass.
     Supports both 'hub' and 'hub_name' keys for backward compatibility.
     
+    Token resolution priority:
+    1. Token from YAML config file (if provided and non-empty)
+    2. Environment variable (HF_TOKEN or HUGGINGFACE_TOKEN for HF, MS_TOKEN or MODELSCOPE_TOKEN for MS)
+    
     Args:
         config_dict: Dictionary containing configuration parameters from YAML
         
     Returns:
         UploadConfig: Configuration object for upload operations
     """
+    # Resolve HuggingFace token from config or environment
+    hf_token = _resolve_token_from_env(
+        config_dict.get("hf_token"),
+        ["HF_TOKEN", "HUGGINGFACE_TOKEN"]
+    )
+    
+    # Resolve ModelScope token from config or environment
+    ms_token = _resolve_token_from_env(
+        config_dict.get("ms_token"),
+        ["MS_TOKEN", "MODELSCOPE_TOKEN"]
+    )
+    
     return UploadConfig(
         hub_name=config_dict.get("hub_name", config_dict.get("hub", "huggingface")),
         pg_cfg_path=config_dict.get("pg_cfg_path", ""),
@@ -144,10 +189,10 @@ def _create_upload_config(config_dict: dict) -> UploadConfig:
         upload_force_overwrite=config_dict.get("upload_force_overwrite", False),
         upload_readme_only=config_dict.get("upload_readme_only", False),
         # HuggingFace configuration
-        hf_token=config_dict.get("hf_token", ""),
+        hf_token=hf_token,
         hf_namespace=config_dict.get("hf_namespace", ""),
         # ModelScope configuration
-        ms_token=config_dict.get("ms_token", ""),
+        ms_token=ms_token,
         ms_namespace=config_dict.get("ms_namespace", ""),
         # Common configuration (use upload_* if available, otherwise use direct keys)
         force_overwrite=config_dict.get("force_overwrite", config_dict.get("upload_force_overwrite", False)),
@@ -206,7 +251,7 @@ class UploadUtil():
 
         self.logger = logging.getLogger(UPLOAD_LOGGER_NAME)
 
-    def upload(self, hardlink_path: Path) -> tuple[bool]:
+    def upload(self, hardlink_path: Path) -> tuple[bool, str]:
         """
         Upload a single, local dataset folder to the remote hub.
         """
@@ -250,7 +295,7 @@ class UploadUtil():
                 )
 
                 self.logger.debug(f"{dataset_name}: {commit_url}")
-                return True
+                return True, ""
 
             except Exception as e:  # noqa: PERF203
                 # Retry logic: if failed, retry with random delay.
@@ -266,7 +311,7 @@ class UploadUtil():
                     error_msg = f"Failed after {self.config.max_retries} attempts: {e}\n\nFull traceback:\n{tb}"
                     self.logger.debug(f"{dataset_name}: {error_msg}")
                     return False, error_msg
-        return False
+        return False, "Upload failed: max retries exceeded without success"
 
     def upload_readme_only(
         self,
@@ -288,8 +333,7 @@ class UploadUtil():
             shutil.copy2(readme_path, staging_readme)
             self.logger.debug(f"{dataset_name}: Staging README for upload at {staging_readme}")
             return self.upload(
-                hardlink_path=hardlink_path,
-                upload_path=staging_dir,
+                hardlink_path=staging_dir,
             )
 
     # ---- inner helpers -----

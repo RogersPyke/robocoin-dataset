@@ -161,22 +161,23 @@ class UploadLocal(UploadUtil):
             upload_result = super().upload(hardlink_path=hardlink_path)
 
             # Check upload result
-            # Parent class returns True on success, or (False, error_msg) tuple on failure
-            if upload_result is True:
-                # Upload succeeded
-                self.logger.info(
-                    f"[UploadLocal.upload] Upload succeeded for dataset {dataset_uuid} (hub: {hub_name})"
-                )
-                _mark_upload_completed(
-                    session=pg_session,
-                    dataset_uuid=dataset_uuid,
-                    hub_name=hub_name,
-                    logger=self.logger,
-                )
-            elif isinstance(upload_result, tuple) and len(upload_result) == 2:
-                # Upload failed with error message tuple (False, error_msg)
+            # Parent class now always returns (bool, str) tuple: (success, error_msg)
+            # For backward compatibility, also handle the old format where success was just True
+            if isinstance(upload_result, tuple) and len(upload_result) == 2:
                 success, error_msg = upload_result
-                if not success:
+                if success:
+                    # Upload succeeded
+                    self.logger.info(
+                        f"[UploadLocal.upload] Upload succeeded for dataset {dataset_uuid} (hub: {hub_name})"
+                    )
+                    _mark_upload_completed(
+                        session=pg_session,
+                        dataset_uuid=dataset_uuid,
+                        hub_name=hub_name,
+                        logger=self.logger,
+                    )
+                else:
+                    # Upload failed with error message
                     self.logger.error(
                         f"[UploadLocal.upload] Upload failed for dataset {dataset_uuid}: {error_msg}"
                     )
@@ -187,22 +188,20 @@ class UploadLocal(UploadUtil):
                         hub_name=hub_name,
                         logger=self.logger,
                     )
-                    raise RuntimeError(f"Upload failed: {error_msg}")
-                else:
-                    # Unexpected: tuple with success=True
-                    error_msg = f"[UploadLocal.upload] Unexpected upload result tuple: {upload_result}"
-                    self.logger.error(error_msg)
-                    _mark_upload_failed(
-                        session=pg_session,
-                        dataset_uuid=dataset_uuid,
-                        error_msg=error_msg,
-                        hub_name=hub_name,
-                        logger=self.logger,
-                    )
-                    raise RuntimeError(error_msg)
+            elif upload_result is True:
+                # Backward compatibility: handle old format where success was just True
+                self.logger.info(
+                    f"[UploadLocal.upload] Upload succeeded for dataset {dataset_uuid} (hub: {hub_name})"
+                )
+                _mark_upload_completed(
+                    session=pg_session,
+                    dataset_uuid=dataset_uuid,
+                    hub_name=hub_name,
+                    logger=self.logger,
+                )
             else:
-                # Unexpected return value (should be True or (False, str))
-                error_msg = f"[UploadLocal.upload] Unexpected upload result type: {type(upload_result)}, value: {upload_result}"
+                # Unexpected: unknown result format
+                error_msg = f"[UploadLocal.upload] Unexpected upload result format: {upload_result}"
                 self.logger.error(error_msg)
                 _mark_upload_failed(
                     session=pg_session,
@@ -211,7 +210,6 @@ class UploadLocal(UploadUtil):
                     hub_name=hub_name,
                     logger=self.logger,
                 )
-                raise RuntimeError(error_msg)
 
         except Exception as e:
             # Upload failed with exception
