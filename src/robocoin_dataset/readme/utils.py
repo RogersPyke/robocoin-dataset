@@ -256,6 +256,21 @@ def load_jinja2_template(template_path: Path, logger: logging.Logger) -> Any:
         template_name = template_path.name
 
         env = Environment(loader=FileSystemLoader(str(template_dir)))
+
+        # Add a safe YAML dump filter for rendering structured objects (e.g., features)
+        # Notes:
+        # - allow_unicode=False: prefer ASCII output (per repo constraints)
+        # - sort_keys=False: preserve insertion order for readability
+        def to_yaml(obj: Any) -> str:
+            return yaml.safe_dump(
+                obj,
+                sort_keys=False,
+                default_flow_style=False,
+                allow_unicode=False,
+                width=120,
+            )
+
+        env.filters["to_yaml"] = to_yaml
         template = env.get_template(template_name)
 
         logger.info(f"[TEMPLATE_LOAD] Successfully loaded template: {template_path}")
