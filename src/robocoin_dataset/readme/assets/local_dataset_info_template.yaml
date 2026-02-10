@@ -17,18 +17,21 @@ atomic_actions:  # 下面严格根据原子技能库填写
 - open
 objects:   # 下面严格根据物品库填写
 - object_name: table # 涉及到的具体物品
+  color: white
   level1: furniture # 一级类别
   level2: table  #  涉及到的具体物品
   level3:
   level4:
   level5:
 - object_name: basket
+  color: white
   level1: container
   level2: basket
   level3:
   level4:
   level5:
 - object_name: peach
+  color: red
   level1: fruit
   level2: peach
   level3:

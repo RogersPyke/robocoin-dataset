@@ -67,6 +67,38 @@ configs:
 {%- endif -%}
 - **End-Effector Name:** `{{ _eef_name_display }}`
 {% endif -%}
+{% if end_effector_type is defined and end_effector_type -%}
+{%- set _eef_type_display = end_effector_type -%}
+{%- if _eef_type_display is iterable and _eef_type_display is not string -%}
+{%- set _eef_type_display = _eef_type_display | join(', ') -%}
+{%- endif -%}
+- **End-Effector Type:** `{{ _eef_type_display }}`
+{% endif -%}
+{% if tele_type is defined and tele_type -%}
+{%- set _tele_display = tele_type -%}
+{%- if _tele_display is iterable and _tele_display is not string -%}
+{%- set _tele_display = _tele_display | join(', ') -%}
+{%- endif -%}
+- **Teleoperation Type:** `{{ _tele_display }}`
+{% endif -%}
+{% if sensor_list is defined and sensor_list -%}
+- **Sensors:** {% if sensor_list is iterable and sensor_list is not string -%}
+{% for sensor in sensor_list -%}
+`{{ sensor }}`{% if not loop.last %}, {% endif %}
+{% endfor -%}
+{%- else -%}
+`{{ sensor_list }}`
+{%- endif %}
+{% endif -%}
+{% if came_info is defined and came_info -%}
+- **Camera Information:** {% if came_info is iterable and came_info is not string -%}
+{% for cam in came_info -%}
+{{ cam }}{% if not loop.last %}; {% endif %}
+{% endfor -%}
+{%- else -%}
+{{ came_info }}
+{%- endif %}
+{% endif -%}
 {% if scene_type is defined and scene_type -%}
 - **Scene:** {% if scene_type is mapping -%}
 {%- set _scene_parts = [] -%}
@@ -92,7 +124,7 @@ configs:
 - **Task Description:** {{ task_description }}
 {%- elif tasks is defined and tasks -%}
 - **Task Description:** {{ tasks }}
-{% endif -%}
+{% endif %}
 
 {% if tasks is defined and tasks -%}
 ### Primary Task Instruction
