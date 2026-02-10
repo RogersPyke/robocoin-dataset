@@ -4,72 +4,85 @@
 
 # ========== HuggingFace Hub Configuration (README yaml)==========
 # ---------- Start of the Yaml part of README ----------
-########################################################
+# ------------------------------------------------------
 
 task_categories:
   value: null
-  required: null
-  source: null
-# Task category labels
+  required: true
+  source: "fixed"
+# Task category labels, server as a label in huggingface hub.
 
 language:
   value: null
-  required: null
-  source: null
-# Supported languages
+  required: true
+  source: "fixed"
+# Supported languages, server as a label in huggingface hub.
 
 tags:
   value: null
-  required: null
-  source: null
-# Dataset tags
+  required: true
+  source: "fixed"
+# Dataset tags, server as a label in huggingface hub.
 
 license:
   value: null
-  required: null
-  source: null
-# License type
+  required: true
+  source: "fixed"
+# License type, server as a label in huggingface hub.
 
 configs:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "fixed"
 # Data file configuration
 
 # ========== Gated Dataset Configuration ==========
 
 extra_gated_prompt:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "fixed"
 
 extra_gated_fields:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "fixed"
 # Fields to be filled when accessing
 
 # ---------- End of the Yaml part of README ----------
 ######################################################
 
 # ========== Basic Information ==========
+
+codebase_version:
+  value: null
+  required: true
+  source: "fixed"
+# that is codebase_version, get from local_dataset_info.yaml
+
 dataset_name:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "local_dataset_info.yaml"
 # Dataset Name, format: {robot}_{task_name}
 
 dataset_uuid:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "local_dataset_info.yaml"
 # Dataset UUID (usually auto-generated)
 
 # ========== Environment Information ==========
 scene_type:
   value: null
-  required: null
-  source: null
+  # e.g. 
+  #   level1: home
+  #   level2: kitchen
+  #   level3:
+  #   level4:
+  #   level5:
+  required: true
+  source: "local_dataset_info.yaml"
 # Strictly fill in according to the scene library.
 # --- README -----
 # home-kitchen.
@@ -78,8 +91,10 @@ scene_type:
 
 env_type:
   value: null
-  required: null
-  source: null
+  # e.g.
+  #   simulation /real world
+  required: true
+  source: "local_dataset_info.yaml"
 # --- README -----
 # simulation/real.
 # MUST follow the format: simulation/real. one in two choices
@@ -87,8 +102,14 @@ env_type:
 
 objects:
   value: null
-  required: null
-  source: null
+  # e.g.
+  #   level1: furniture
+  #   level2: table
+  #   level3:
+  #   level4:
+  #   level5:
+  required: true
+  source: "local_dataset_info.yaml"
 # that is object_list, get from local_dataset_info.yaml
 # --- README -----
 # furniture-table.
@@ -100,8 +121,10 @@ objects:
 
 task_operation_type:
   value: null
-  required: null
-  source: null
+  # e.g.
+  #   dual_arm /single_arm
+  required: true
+  source: "local_dataset_info.yaml"
 # dual_arm..., that is task_type.
 # --- README -----
 # simgle_arm/dual_arm/othes...
@@ -110,136 +133,117 @@ task_operation_type:
 
 task_result:
   value: null
-  required: null
-  source: null
+  # e.g.
+  #   success/failure
+  required: true
+  source: "annotations/subtask_annotations.jsonl"
 # --- README -----
 # success/failure.
 # MUST follow the format: success/failure. one in two choices
 # ----------------
 
-tasks:
+task_instruction:
   value: null
-  required: null
-  source: null
+  # e.g.
+  #   "put_apple_into_basket"
+  required: true
+  source: "local_dataset_info.yaml"
 # i.e. task_instruction, this is the natural language instruction.
-# --- README -----
-# "instruction_string"
+# NOTE: MUST distinguish the task_instruction from task_descriptions.
+# former is the natural language instruction, latter is the task sub-process description.(How to do the task)
 # ----------------
-
-task_name:
-  value: null
-  required: null
-  source: null
-# From local_dataset_info.yaml, dataset_name, is the standardized task name.
-# --- README -----
-# "Agibot_g1_Pick_apple"
+# However, in the local_dataset_info.yaml, the task_instruction is actually the task_descriptions.
 # ----------------
 
 task_description:
   value: null
-  required: null
-  source: null
+  # e.g.
+  #   - "Grab and lift both the mouse and power cord from the accessory packaging area at the same time"
+  #   - "Place the mouse and power cord into the accessory packaging area"
+  #   - "End"
+  required: ture
+  source: "annotations/subtask_annotations.jsonl"
 # From local_dataset_info.yaml, task_description, is the standardized task description.
 # --- README -----
 # "{Left_arm, Right_arm}+{atomic skill}+{Object}"
 # MUST follow the format: "{Left_arm, Right_arm}+{atomic skill}+{Object}".
 # ----------------
 
+task_name:
+  value: null
+  # e.g.
+  #   "Agibot_g1_pick_apple"
+  required: true
+  source: "local_dataset_info.yaml"
+# From local_dataset_info.yaml, dataset_name, is the standardized task name.
+# format: {Robot_name}+{composite action}+{Object}
+
 sub_tasks:
   value: null
   required: null
   source: null
 # that is subtask_list, get from annotations/subtask_annotations.jsonl
-# --- README -----
-# "Grasp the apple with the left gripper"
-# "Place the apple into the basket with the left gripper"
-# "End"
-# MUST follow the format: "subtask_string". display as a list, iterate through.
+# NOTE: Is redundent with task_description?
+# TODO: Check if it is needed.
 # ----------------
 
 atomic_actions:
   value: null
-  required: null
-  source: null
-# that is skill_list, get from local_dataset_info.yaml
-# --- README -----
-# "pick"
-# "place"
-# "grasp"
-# MUST follow the format: "atomic_action_string". display as a list, iterate through.
-# ----------------
+  # e.g.
+  #   - "pick"
+  #   - "pull"
+  #   - "push"
+  #   - "open"
+  required: true
+  source: "local_dataset_info.yaml"
+# that is so-called skill_list, get from local_dataset_info.yaml
 
 # ========== Robot Configuration Info ==========
 
-robot_type:
-  value: null
-  required: null
-  source: null
-# that is robot_type, get from local_dataset_info.yaml
-
 robot_name:
   value: null
-  required: null
-  source: null
+  # e.g.
+  #   "Agibot_g1"
+  required: true
+  source: "local_dataset_info.yaml"
 # "{Manifacurer}+{robot_type}"
-
-codebase_version:
-  value: null
-  required: null
-  source: null
-# that is codebase_version, get from local_dataset_info.yaml
+# is device_model in local_dataset_info.yaml
 
 end_effector_type:
   value: null
-  required: null
-  source: null
-# --- README -----
-# "two_finger_gripper"
-# MUST follow the format: "end_effector_type_string". display as a list, iterate through.
-# ----------------
-
-end_effector_name:
-  value: null
-  required: null
-  source: null
-# "{manufacturer}+{end_effector_type}"
-# display as a list, iterate through.
-# ----------------
+  # e.g.
+  #   "two_finger_gripper"
+  required: true
+  source: "local_dataset_info.yaml"
 
 tele_type:
   value: null
-  required: null
-  source: null
-# --- README -----
-# "cable"
-# "wireless"
-# display as a list, iterate through.
-# ----------------
-
-came_info:
-  value: null
-  required: null
-  source: null
-# the camera params.
-# --- README -----
-# null
-# display as list(str), iterate through.
-# ----------------
+  # e.g.
+  #   "master_arm"
+  required: true
+  source: "local_dataset_info.yaml"
 
 sensor_list:
   value: null
-  required: null
-  source: null
-# The list of sensors, stored as list of strings.
-# --- README -----
-# "Depth_camera"
-# "RGB_camera"
-# "IMU"
-# "Force_sensor"
-# MUST follow the format: "sensor_string". display as a list, iterate through.
-# ----------------
+  required: true
+  source: "meta/info.json"
+
+came_info:
+  value: null
+  required: true
+  source: "meta/info.json"
+# CANNOT get from data providers usually. backward to resolution of the camera.
+
+depth_enabled:
+  value: null
+  required: true
+  source: "meta/info.json"
+# Whether depth images are included (auto-calculated from features)
 
 # ========== Coordinate Information ==========
+########################################
+# BELOW is to-be-checked if necessary. #
+########################################
 
 coordinate_definition:
   value: null
@@ -257,39 +261,39 @@ origin_xyz:
 
 joint_rotation_dim:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "meta/info.json"
 # choose from: radian, degree.
 # single str. directly display.
 
 end_rotation_dim:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "meta/info.json"
 # choose from: radian, degree.
 # single str. directly display.
 # that is the rotation dimension of the end effector.
 
 end_translation_dim:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "meta/info.json"
 # choose from: meter, millimeter.
 # single str. directly display.
 # that is the translation dimension of the end effector.
 
 base_robtation_dim:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "meta/info.json"
 # choose from: radian, degree.
 # single str. directly display.
 # that is the rotation dimension of the base of the robot.
 
 base_translation_dim:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "meta/info.json"
 # choose from: meter, millimeter.
 # single str. directly display.
 # that is the translation dimension of the base of the robot.
@@ -310,30 +314,39 @@ operation_platform_height:
 # TODO: Define the operation platform height usage.
 # Temporarily keep it as-is.
 
+segment_level_label:
+  value: null
+  required: true
+  source: "annotations/subtask_annotations.jsonl"
+# that is segment_level_label, get from annotations/subtask_annotations.jsonl
+# NOTE: Is redundent with task_description?
+# TODO: Check if it is needed.
+# ----------------
+
 # ========== Dataset Statistics ==========
 
 statistics:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "meta/episodes_stats.jsonl"
 # that is statistics, get from meta/info.json
 
-frame_range:
+frame_num:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "meta/info.json"
 # Frame range label (auto-calculated: <1K, 1K-10K, 10K-100K, 100K-1M, 1M-10M)
 
 dataset_size:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "auto"
 # Dataset file size (auto-calculated)
 
 data_structure:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "auto"
 # that is the data structure of the dataset.
 # value: str, the tree of the dataset.
 # --- README -----
@@ -344,167 +357,121 @@ data_structure:
 
 splits:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "meta/info.json"
 # Data splits (read from meta/info.json)
 
 # ========== File Path Patterns ==========
 data_path:
   value: null
-  required: null
-  source: null
+  required: false
+  source: "auto"
 # Data file path pattern
 
 video_path:
   value: null
-  required: null
-  source: null
+  required: false
+  source: "auto"
 # Video file path pattern
 
 # ========== Feature Definitions ==========
 features:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "meta/info.json"
 # Feature definitions (complete copy from meta/info.json)
 
 # ========== Author and Link Information ==========
 
 authors:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "fixed"
 # Author information
 
 dataset_description:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "fixed"
 
 homepage:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "fixed"
 
 paper:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "fixed"
 
 repository:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "fixed"
 
 # ========== Contact and Support Information ==========
-contact_email:
+contact_detail:
   value: null
-  required: null
-  source: null
-# Contact email (optional)
+  required: true
+  source: "fixed"
+# the contact detail: email, phone, etc.
 
 contact_info:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "fixed"
+# the contact info: explanation str.
 
 support_info:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "fixed"
+# the support info: explanation str.
 
 # ========== License Details ==========
 license_details:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "fixed"
 
 # ========== Citation Information ==========
 
 citation_bibtex:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "fixed"
 
 additional_citations:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "fixed"
 
 # ========== Version Information ==========
 version_info:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "fixed"
 
 # ========== Auto-generated Fields (usually no manual input required) ==========
 # The following fields are usually auto-generated by the system, for reference only
 
 path:
   value: null
-  required: null
-  source: null
+  required: false
+  source: "auto"
 # Dataset path identifier (auto-generated)
 
 video_url:
   value: null
-  required: null
-  source: null
+  required: false
+  source: "auto"
 # Video URL (auto-generated)
 
 thumbnail_url:
   value: null
-  required: null
-  source: null
+  required: false
+  source: "auto"
 # Thumbnail URL (auto-generated)
-
-cameras:
-  value: null
-  required: null
-  source: null
-# Camera count information (auto-statistics from features)
-
-observation_space:
-  value: null
-  required: null
-  source: null
-# Observation space definition (auto-extracted from features)
-
-action_space:
-  value: null
-  required: null
-  source: null
-# Action space definition (auto-extracted from features)
-
-eef_sim_pose:
-  value: null
-  required: null
-  source: null
-# End effector simulation pose feature identifier
-
-gripper_open_scale:
-  value: null
-  required: null
-  source: null
-# Gripper open/close scale feature identifier
-
-depth_enabled:
-  value: null
-  required: null
-  source: null
-# Whether depth images are included (auto-calculated from features)
-
-data_schema:
-  value: null
-  required: null
-  source: null
-# Data schema text description (optional)
-
-structure:
-  value: null
-  required: null
-  source: null
-# Directory structure tree representation (auto-generated)
 
 # ========== Raw Data Retention ==========
 raw:
@@ -518,114 +485,116 @@ raw:
 
 surface_material:
   value: null
-  required: null
+  required: false
   source: null
 # Ground surface material, such as concrete, wood, tile, grass, etc.
 
 light:
   value: null
-  required: null
+  required: false
   source: null
 # Light source information: light intensity, color temperature attributes, shadowless lamp.
 
 noise_level:
   value: null
-  required: null
+  required: false
   source: null
 # Environmental noise level in decibels (dB).
 
 tactile_info:
   value: null
-  required: null
+  required: false
   source: null
 # Tactile sensor information: manufacturer, model, sensing method, etc.
 
 sound_info:
   value: null
-  required: null
+  required: false
   source: null
 # Sound sensor information: manufacturer, model, sensing method, etc.
 
 base_transform:
   value: null
-  required: null
+  required: false
   source: null
 # Spatial transformation relationship of the body coordinate system relative to the base coordinate system.
 
 end_transform:
   value: null
-  required: null
+  required: false
   source: null
 # Spatial transformation relationship of the end effector coordinate system relative to the base coordinate system.
 
 Trajectory-level_label:
   value: null
-  required: null
+  required: false
   source: null
 # Trajectory-level label describing overall scene and object attributes.
 
 Segment-level_label:
   value: null
-  required: null
+  required: false
   source: null
 # Segment-level label: subtask description and timestamp annotation.
 
 Frame-level_label:
   value: null
-  required: null
+  required: false
   source: null
 # Frame-level label: frame-by-frame annotation of end effector motion state (velocity, acceleration, gripper opening/closing).
 
 data_collector:
   value: null
-  required: null
+  required: false
   source: null
 # Name of the data collector.
+# CANNOT get from data providers usually. thus set to false.
 
 daba_annotator:
   value: null
   required: null
   source: null
 # Name of the data annotator.
+# CANNOT get from data providers usually. thus set to false.
 
 data_modifier:
   value: null
-  required: null
+  required: false
   source: null
 # Name of the data modifier.
 
 modify_logo:
   value: null
-  required: null
+  required: false
   source: null
 # Record of dataset modification information.
 
 data_dowload:
   value: null
-  required: null
+  required: false
   source: null
 # Dataset download method description.
 
 field_definiton:
   value: null
-  required: null
+  required: false
   source: null
 # Standard field definition description.
 
 dataset_organization:
   value: null
-  required: null
+  required: false
   source: null
 # Submitting organization, e.g., BAAI.
 
 dataset_email:
   value: null
-  required: null
+  required: false
   source: null
 # Contact email, e.g., robocoin@baai.ac.cn.
 
 dataset_license:
   value: null
-  required: null
+  required: false
   source: null
 # Open source license type: Apache License 2.0, CC BY 4.0, MIT license, Unsure.
