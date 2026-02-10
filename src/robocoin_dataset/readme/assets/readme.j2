@@ -27,8 +27,6 @@ tags:
   - {{ tag }}
 {%- endfor %}
 
-frame_range: {{ frame_range | default("Unknown") }}
-
 license: {{ license | default("Unknown") }}
 
 {% if configs is defined and configs -%}
@@ -40,57 +38,61 @@ configs:
 
 # {{ dataset_name if dataset_name else "RoboCOIN Dataset" }}
 
-{% if dataset_uuid is defined and dataset_uuid -%}
-**UUID:** `{{ dataset_uuid }}`
-{%- endif %}
-
-{% if video_url is defined and video_url -%}
-![Dataset Preview]({{ thumbnail_url | default("") }})
-[Watch Video]({{ video_url }})
-{%- endif %}
-
 ### Overview
 
-{%- set _has_key_stats = false %}
-{%- if statistics is defined %}
-  {%- if statistics.total_frames is defined or statistics.fps is defined or statistics.total_episodes is defined or statistics.total_tasks is defined %}
-    {%- set _has_key_stats = true %}
-  {%- endif %}
-{%- elif total_frames is defined or fps is defined or total_episodes is defined or total_tasks is defined %}
-  {%- set _has_key_stats = true %}
-{%- endif %}
+{% set _total_episodes = statistics.total_episodes if statistics is defined and statistics.total_episodes is defined else (total_episodes if total_episodes is defined else None) -%}
+{% set _total_frames = statistics.total_frames if statistics is defined and statistics.total_frames is defined else (total_frames if total_frames is defined else None) -%}
+{% set _fps = statistics.fps if statistics is defined and statistics.fps is defined else (fps if fps is defined else None) -%}
+{% set _dataset_size = dataset_size if dataset_size is defined else (statistics.dataset_size if statistics is defined and statistics.dataset_size is defined else None) -%}
 
-{% if _has_key_stats -%}
-| Metric | Value |
-|--------|-------|
-{% if statistics is defined -%}
-{% if statistics.total_frames is defined -%}
-| **Total Frames** | {{ statistics.total_frames }} |
+{% if _total_episodes is defined -%}
+- **Total Episodes:** {{ _total_episodes }}
 {% endif -%}
-{% if statistics.fps is defined -%}
-| **Frame Rate (FPS)** | {{ statistics.fps }} |
+{% if _total_frames is defined -%}
+- **Total Frames:** {{ _total_frames }}
 {% endif -%}
-{% if statistics.total_episodes is defined -%}
-| **Total Episodes** | {{ statistics.total_episodes }} |
+{% if _fps is defined -%}
+- **FPS:** {{ _fps }}
 {% endif -%}
-{% if statistics.total_tasks is defined -%}
-| **Total Tasks** | {{ statistics.total_tasks }} |
+{% if _dataset_size is defined -%}
+- **Dataset Size:** {{ _dataset_size }}
 {% endif -%}
+{% if robot_name is defined and robot_name -%}
+- **Robot Name:** `{{ robot_name }}`
+{% endif -%}
+{% if end_effector_name is defined and end_effector_name -%}
+{%- set _eef_name_display = end_effector_name -%}
+{%- if _eef_name_display is iterable and _eef_name_display is not string -%}
+{%- set _eef_name_display = _eef_name_display | join(', ') -%}
+{%- endif -%}
+- **End-Effector Name:** `{{ _eef_name_display }}`
+{% endif -%}
+{% if scene_type is defined and scene_type -%}
+- **Scene:** {% if scene_type is mapping -%}
+{%- set _scene_parts = [] -%}
+{%- for i in range(1, 6) -%}
+  {%- set _level_key = "level" ~ i -%}
+  {%- if scene_type[_level_key] is defined and scene_type[_level_key] -%}
+    {%- set _void = _scene_parts.append(scene_type[_level_key]) -%}
+  {%- endif -%}
+{%- endfor -%}
+`{{ _scene_parts | join('-') }}`
 {%- else -%}
-{% if total_frames is defined -%}
-| **Total Frames** | {{ total_frames }} |
-{% endif -%}
-{% if fps is defined -%}
-| **Frame Rate (FPS)** | {{ fps }} |
-{% endif -%}
-{% if total_episodes is defined -%}
-| **Total Episodes** | {{ total_episodes }} |
-{% endif -%}
-{% if total_tasks is defined -%}
-| **Total Tasks** | {{ total_tasks }} |
-{% endif -%}
+{%- for scene in scene_type -%}
+`{{ scene }}`{% if not loop.last %}, {% endif %}
+{%- endfor %}
 {%- endif %}
-{%- endif %}
+{% endif -%}
+{% if objects is defined and objects -%}
+- **Objects:** {% for obj in objects -%}
+`{{ obj.object_name }}{% for i in range(1, 6) %}{% set l = "level" ~ i %}{% if obj[l] %}-{{ obj[l] }}{% endif %}{% endfor %}`{% if not loop.last %}, {% endif %}
+{% endfor %}
+{% endif -%}
+{% if task_description is defined and task_description -%}
+- **Task Description:** {{ task_description }}
+{%- elif tasks is defined and tasks -%}
+- **Task Description:** {{ tasks }}
+{% endif -%}
 
 {% if tasks is defined and tasks -%}
 ### Primary Task Instruction
@@ -110,7 +112,11 @@ configs:
 - **Codebase Version:** `{{ codebase_version }}`
 {%- endif %}
 {% if end_effector_name is defined and end_effector_name -%}
-- **End-Effector Name:** `{{ end_effector_name }}`
+{%- set _eef_name_display = end_effector_name -%}
+{%- if _eef_name_display is iterable and not _eef_name_display is string -%}
+{%- set _eef_name_display = _eef_name_display | join(', ') -%}
+{%- endif -%}
+- **End-Effector Name:** `{{ _eef_name_display }}`
 {%- endif %}
 {% if end_effector_type is defined and end_effector_type -%}
 {%- set _eef_display = end_effector_type -%}
@@ -128,7 +134,7 @@ configs:
 {%- endif %}
 {%- endif %}
 
-## 🏠 Scene and Objects
+## Scene and Objects
 
 {% if scene_type is defined and scene_type -%}
 ### Scene Type
@@ -155,7 +161,7 @@ configs:
 {% endfor %}
 {%- endif %}
 
-## 🎯 Task Descriptions
+## Task Descriptions
 
 {% if task_name is defined and task_name -%}
 - **Standardized Task Name:** `{{ task_name }}`
@@ -165,6 +171,12 @@ configs:
 {%- endif %}
 {% if task_operation_type is defined and task_operation_type -%}
 - **Operation Type:** `{{ task_operation_type }}`
+{%- endif %}
+{% if task_result is defined and task_result -%}
+- **Task Result:** `{{ task_result }}`
+{%- endif %}
+{% if env_type is defined and env_type -%}
+- **Environment Type:** `{{ env_type }}`
 {%- endif %}
 
 {% if sub_tasks is defined and sub_tasks -%}
@@ -187,7 +199,7 @@ This dataset includes {{ sub_tasks | length }} distinct subtasks:
 {% endfor %}
 {%- endif %}
 
-## 🛠️ Hardware & Sensors
+## Hardware and Sensors
 
 {% if sensor_list is defined and sensor_list -%}
 ### Sensors
@@ -198,7 +210,13 @@ This dataset includes {{ sub_tasks | length }} distinct subtasks:
 
 {% if came_info is defined and came_info -%}
 ### Camera Information
+{%- if came_info is iterable and came_info is not string -%}
+{% for cam in came_info -%}
+- {{ cam }}
+{% endfor -%}
+{%- else -%}
 {{ came_info }}
+{%- endif -%}
 {%- endif %}
 
 {% if coordinate_definition is defined or origin_xyz is defined -%}
@@ -217,7 +235,7 @@ This dataset includes {{ sub_tasks | length }} distinct subtasks:
 {% if operation_platform_height -%}- **Operation Platform Height:** `{{ operation_platform_height }} cm`{%- endif %}
 {%- endif %}
 
-## 📊 Dataset Statistics
+## Dataset Statistics
 
 | Metric | Value |
 |--------|-------|
@@ -284,9 +302,16 @@ This dataset includes {{ sub_tasks | length }} distinct subtasks:
 | **FPS** | {{ fps }} |
 {% endif -%}
 {%- endif %}
+{% if frame_range is defined and frame_range -%}
+
+- **Frame Range Label:** `{{ frame_range }}`
+{%- endif %}
+{% if data_schema is defined and data_schema -%}
+- **Data Schema:** {{ data_schema }}
+{%- endif %}
 
 {% if splits is defined -%}
-## 📂 Data Splits
+## Data Splits
 
 The dataset is organized into the following splits:
 
@@ -301,7 +326,7 @@ The dataset is organized into the following splits:
 {% endif -%}
 {%- endif %}
 
-## 📁 Dataset Structure
+## Dataset Structure
 
 This dataset follows the LeRobot format and contains the following components:
 
@@ -325,8 +350,16 @@ This dataset follows the LeRobot format and contains the following components:
 - **Chunking**: Data is organized into {{ statistics.total_chunks }} chunk(s)
 {% if statistics.chunks_size is defined -%} of size {{ statistics.chunks_size }}{% endif %}
 {% endif %}
+{% if data_structure is defined and data_structure -%}
 
-## 🎥 Camera Views
+### Data Structure (Tree)
+
+```
+{{ data_structure }}
+```
+{%- endif %}
+
+## Camera Views
 
 {% if cameras is defined and cameras != "auto_generated" -%}
 This dataset includes {{ cameras | length }} camera views.
@@ -337,155 +370,25 @@ This dataset includes {{ camera_count }} camera views.
 {%- endif -%}
 {%- endif %}
 
-### Features Schema
+## Features (Full YAML)
 
-{% if features is defined -%}
-The dataset includes the following features:
-
-#### Visual Observations
-{% for key, value in features.items() if key.startswith('observation.images.') -%}
-{%- if value.dtype is defined and value.info is defined -%}
-- **{{ key }}**: {{ value.dtype }}
-  - FPS: {{ value.info['video.fps'] }}
-  - Codec: {{ value.info['video.codec'] }}
-{%- endif -%}
-{% endfor %}
-
-#### State and Action
-{% if features['observation.state'] is defined %}
-- **observation.state**: {{ features['observation.state'].dtype }}
-{% endif %}
-{% if features.action is defined %}
-- **action**: {{ features.action.dtype }}
-{% endif %}
-
-#### Temporal Information
-{% if features.timestamp is defined %}
-- **timestamp**: {{ features.timestamp.dtype }}
-{% endif %}
-{% if features.frame_index is defined %}
-- **frame_index**: {{ features.frame_index.dtype }}
-{% endif %}
-{% if features.episode_index is defined %}
-- **episode_index**: {{ features.episode_index.dtype }}
-{% endif %}
-{% if features.index is defined %}
-- **index**: {{ features.index.dtype }}
-{% endif %}
-{% if features.task_index is defined %}
-- **task_index**: {{ features.task_index.dtype }}
-{% endif %}
-
-#### Annotations
-{% if features.subtask_annotation is defined %}
-- **subtask_annotation**: {{ features.subtask_annotation.dtype }}
-{% endif %}
-{% if features.scene_annotation is defined %}
-- **scene_annotation**: {{ features.scene_annotation.dtype }}
-{% endif %}
-
-#### Motion Features
-{% if features.eef_sim_pose_state is defined %}
-- **eef_sim_pose_state**: {{ features.eef_sim_pose_state.dtype }}
-{%- if features.eef_sim_pose_state.names is defined %}
-  - Dimensions: {{ features.eef_sim_pose_state.names | join(', ') }}
-{%- endif %}
-{% endif %}
-{% if features.eef_sim_pose_action is defined %}
-- **eef_sim_pose_action**: {{ features.eef_sim_pose_action.dtype }}
-{%- if features.eef_sim_pose_action.names is defined %}
-  - Dimensions: {{ features.eef_sim_pose_action.names | join(', ') }}
-{%- endif %}
-{% endif %}
-{% if features.eef_direction_state is defined %}
-- **eef_direction_state**: {{ features.eef_direction_state.dtype }}
-{%- if features.eef_direction_state.names is defined %}
-  - Dimensions: {{ features.eef_direction_state.names | join(', ') }}
-{%- endif %}
-{% endif %}
-{% if features.eef_direction_action is defined %}
-- **eef_direction_action**: {{ features.eef_direction_action.dtype }}
-{%- if features.eef_direction_action.names is defined %}
-  - Dimensions: {{ features.eef_direction_action.names | join(', ') }}
-{%- endif %}
-{% endif %}
-{% if features.eef_velocity_state is defined %}
-- **eef_velocity_state**: {{ features.eef_velocity_state.dtype }}
-{%- if features.eef_velocity_state.names is defined %}
-  - Dimensions: {{ features.eef_velocity_state.names | join(', ') }}
-{%- endif %}
-{% endif %}
-{% if features.eef_velocity_action is defined %}
-- **eef_velocity_action**: {{ features.eef_velocity_action.dtype }}
-{%- if features.eef_velocity_action.names is defined %}
-  - Dimensions: {{ features.eef_velocity_action.names | join(', ') }}
-{%- endif %}
-{% endif %}
-{% if features.eef_acc_mag_state is defined %}
-- **eef_acc_mag_state**: {{ features.eef_acc_mag_state.dtype }}
-{%- if features.eef_acc_mag_state.names is defined %}
-  - Dimensions: {{ features.eef_acc_mag_state.names | join(', ') }}
-{%- endif %}
-{% endif %}
-{% if features.eef_acc_mag_action is defined %}
-- **eef_acc_mag_action**: {{ features.eef_acc_mag_action.dtype }}
-{%- if features.eef_acc_mag_action.names is defined %}
-  - Dimensions: {{ features.eef_acc_mag_action.names | join(', ') }}
-{%- endif %}
-{% endif %}
-
-#### Gripper Features
-{% if features.gripper_open_scale_state is defined %}
-- **gripper_open_scale_state**: {{ features.gripper_open_scale_state.dtype }}
-{%- if features.gripper_open_scale_state.names is defined %}
-  - Dimensions: {{ features.gripper_open_scale_state.names | join(', ') }}
-{%- endif %}
-{% endif %}
-{% if features.gripper_open_scale_action is defined %}
-- **gripper_open_scale_action**: {{ features.gripper_open_scale_action.dtype }}
-{%- if features.gripper_open_scale_action.names is defined %}
-  - Dimensions: {{ features.gripper_open_scale_action.names | join(', ') }}
-{%- endif %}
-{% endif %}
-{% if features.gripper_mode_state is defined %}
-- **gripper_mode_state**: {{ features.gripper_mode_state.dtype }}
-{%- if features.gripper_mode_state.names is defined %}
-  - Dimensions: {{ features.gripper_mode_state.names | join(', ') }}
-{%- endif %}
-{% endif %}
-{% if features.gripper_mode_action is defined %}
-- **gripper_mode_action**: {{ features.gripper_mode_action.dtype }}
-{%- if features.gripper_mode_action.names is defined %}
-  - Dimensions: {{ features.gripper_mode_action.names | join(', ') }}
-{%- endif %}
-{% endif %}
-{% if features.gripper_activity_state is defined %}
-- **gripper_activity_state**: {{ features.gripper_activity_state.dtype }}
-{%- if features.gripper_activity_state.names is defined %}
-  - Dimensions: {{ features.gripper_activity_state.names | join(', ') }}
-{%- endif %}
-{% endif %}
-{% if features.gripper_activity_action is defined %}
-- **gripper_activity_action**: {{ features.gripper_activity_action.dtype }}
-{%- if features.gripper_activity_action.names is defined %}
-  - Dimensions: {{ features.gripper_activity_action.names | join(', ') }}
-{%- endif %}
-{% endif %}
+{% if features is defined and features -%}
+```yaml
+{{ features | to_yaml }}
+```
 {%- endif %}
 
-### Meta Information
+## Meta Information
 
+{% if get_meta_info_content is defined -%}
 The complete dataset metadata is available in [meta/info.json](meta/info.json):
 
 ```json
-{% if get_meta_info_content is defined -%}
 {{get_meta_info_content()}}
-{%- else -%}
-{
-  "info": "Complete metadata available in meta/info.json"
-}
-{%- endif %}
 ```
+{%- else -%}
+The complete dataset metadata is available in [meta/info.json](meta/info.json).
+{%- endif %}
 
 {% if structure is defined and structure -%}
 ### Directory Structure
@@ -497,107 +400,86 @@ The dataset is organized as follows (showing leaf directories with first 5 files
 ```
 {%- endif %}
 
-## 🏷️ Available Annotations
+## Available Annotations
 
 This dataset includes rich annotations to support diverse learning approaches:
 
-{% if annotations is defined -%}
-{% if annotations.subtask_annotation is defined -%}
-### Subtask Annotations
-- **Subtask Segmentation**: Fine-grained subtask segmentation and labeling
-{% endif -%}
-
-{% if annotations.scene_annotation is defined -%}
-### Scene Annotations
-- **Scene-level Descriptions**: Semantic scene classifications and descriptions
-{% endif -%}
-
-{% if annotations.eef_direction is defined or annotations.eef_velocity is defined or annotations.eef_acc_mag is defined -%}
-### End-Effector Annotations
-{% if annotations.eef_direction is defined -%}
-- **Direction**: Movement direction classifications for robot end-effectors
-{% endif -%}
-{% if annotations.eef_velocity is defined -%}
-- **Velocity**: Velocity magnitude categorizations during manipulation
-{% endif -%}
-{% if annotations.eef_acc_mag is defined -%}
-- **Acceleration**: Acceleration magnitude classifications for motion analysis
-{% endif -%}
-{%- endif %}
-
-{% if annotations.gripper_mode is defined or annotations.gripper_activity is defined -%}
-### Gripper Annotations
-{% if annotations.gripper_mode is defined -%}
-- **Gripper Mode**: Open/close state annotations for gripper control
-{% endif -%}
-{% if annotations.gripper_activity is defined -%}
-- **Gripper Activity**: Activity state classifications (active/inactive)
-{% endif -%}
-{%- endif %}
+{% if annotations is defined and annotations -%}
+{% if annotations is iterable and annotations is not string -%}
+{% for ann in annotations -%}
+- `{{ ann }}`
+{% endfor -%}
 {%- else -%}
-{% if features is defined -%}
-### Feature-based Annotations
-{% if features.scene_annotation is defined -%}
-- **Scene Annotations**: Scene-level semantic descriptions and classifications
-{% endif -%}
-{% if features.subtask_annotation is defined -%}
-- **Subtask Annotations**: Fine-grained subtask segmentation and labeling
-{% endif -%}
-{%- endif %}
+- {{ annotations }}
+{%- endif -%}
 {%- endif %}
 
-{% if eef_sim_pose is defined and eef_sim_pose != "auto_generated" -%}
-### Additional Features
-- **End-Effector Simulation Pose**: 6D pose information for end-effectors in simulation space
-  - Available for both state and action
-{% endif -%}
-{% if gripper_open_scale is defined and gripper_open_scale != "auto_generated" -%}
-- **Gripper Opening Scale**: Continuous gripper opening measurements
-  - Available for both state and action
-{% endif %}
-
-## 🏷️ Dataset Tags
+## Dataset Tags
 
 {% for tag in tags -%}
 - `{{ tag }}`
 {% endfor %}
 
-## 👥 Authors
+## Authors
 
 ### Contributors
 {% if authors.contributed_by is defined -%}
 This dataset is contributed by:
-{% for author in authors.contributed_by -%}
-{%- if author is mapping -%}
-- {% if author.name %}{% if author.url %}[{{ author.name }}]({{ author.url }}){% else %}{{ author.name }}{% endif %}{% elif author.url %}[{{ author.url }}]({{ author.url }}){% elif author.affiliation %}{{ author.affiliation }}{% endif %}{% if author.affiliation and author.name %} - {{ author.affiliation }}{% endif %}
-{%- else -%}
-- {{ author }}
-{%- endif %}
-{% endfor %}
+{%- set _people = [] -%}
+{%- set _cur = {"name": None, "url": None, "affiliation": None} -%}
+{%- for item in authors.contributed_by -%}
+  {%- if item is mapping -%}
+    {%- if item.name is defined -%}{%- set _ = _cur.update({"name": item.name}) -%}{%- endif -%}
+    {%- if item.url is defined -%}{%- set _ = _cur.update({"url": item.url}) -%}{%- endif -%}
+    {%- if item.affiliation is defined -%}{%- set _ = _cur.update({"affiliation": item.affiliation}) -%}{%- endif -%}
+  {%- else -%}
+    {%- set _ = _cur.update({"name": item}) -%}
+  {%- endif -%}
+{%- endfor -%}
+{%- if _cur.name or _cur.url or _cur.affiliation -%}
+  {%- set _ = _people.append(_cur) -%}
+{%- endif -%}
+{%- for p in _people -%}
+- {%- if p.name and p.url -%}[{{ p.name }}]({{ p.url }}){%- elif p.name -%}{{ p.name }}{%- elif p.url -%}[{{ p.url }}]({{ p.url }}){%- endif -%}{% if p.affiliation %} - {{ p.affiliation }}{% endif %}
+{%- endfor -%}
 {%- else -%}
 No contributor information available.
 {%- endif %}
 
-## 🔗 Links
+### Annotators
+{% if authors.annotated_by is defined -%}
+This dataset is annotated by:
+{%- for item in authors.annotated_by -%}
+  {%- if item is mapping -%}
+- {% if item.name is defined and item.url is defined %}[{{ item.name }}]({{ item.url }}){% elif item.name is defined %}{{ item.name }}{% elif item.url is defined %}[{{ item.url }}]({{ item.url }}){% endif %}{% if item.affiliation is defined and item.affiliation %} - {{ item.affiliation }}{% endif %}
+  {%- else -%}
+- {{ item }}
+  {%- endif -%}
+{%- endfor -%}
+{%- else -%}
+No annotator information available.
+{%- endif %}
+
+## Links
 
 {% if homepage is defined -%}
-- **🏠 Homepage:** [{{ homepage }}]({{ homepage }})
+- **Homepage:** [{{ homepage }}]({{ homepage }})
 {% endif -%}
 {% if paper is defined and paper -%}
-- **📄 Paper:** [{{ paper }}]({{ paper }})
+- **Paper:** [{{ paper }}]({{ paper }})
 {% endif -%}
 {% if repository is defined -%}
-- **💻 Repository:** [{{ repository }}]({{ repository }})
+- **Repository:** [{{ repository }}]({{ repository }})
 {% endif -%}
 {% if project_page is defined -%}
-- **🌐 Project Page:** [{{ project_page }}]({{ project_page }})
+- **Project Page:** [{{ project_page }}]({{ project_page }})
 {% endif -%}
 {% if issues_url is defined -%}
-- **🐛 Issues:** [{{ issues_url }}]({{ issues_url }})
+- **Issues:** [{{ issues_url }}]({{ issues_url }})
 {% endif -%}
-- **📜 License:** {{ license | default("apache-2.0") }}
+- **License:** {{ license | default("apache-2.0") }}
 
-## 📞 Contact and Support
+## Contact and Support
 
 {% if contact_email is defined and contact_email -%}
 For questions, issues, or feedback regarding this dataset, please contact:
@@ -614,7 +496,7 @@ For questions, issues, or feedback regarding this dataset, please contact:
 For technical issues or questions, please open an issue on the repository or contact the dataset authors.
 {%- endif %}
 
-## 📄 License
+## License
 
 This dataset is released under the **{{ license | default("apache-2.0") }}** license.
 
@@ -624,7 +506,7 @@ This dataset is released under the **{{ license | default("apache-2.0") }}** lic
 Please refer to the LICENSE file for full license terms and conditions.
 {%- endif %}
 
-## 📚 Citation
+## Citation
 
 If you use this dataset in your research, please cite:
 
@@ -638,11 +520,17 @@ If you use this dataset in your research, please cite:
 {{ additional_citations }}
 {%- endif %}
 
-## 📌 Version Information
+## Version Information
 
 {% if version_info is defined -%}
 {{ version_info }}
 {%- else -%}
 ## Version History
 - v1.0.0 (2025-11): Initial release
+{%- endif %}
+
+{% if dataset_description is defined and dataset_description -%}
+## Dataset Description
+
+{{ dataset_description }}
 {%- endif %}
