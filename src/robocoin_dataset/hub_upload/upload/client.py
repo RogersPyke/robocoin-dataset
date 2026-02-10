@@ -37,7 +37,7 @@ from robocoin_dataset.distribution_computation.constant import (
     TASK_RESULT,
 )
 from robocoin_dataset.distribution_computation.task_client import TaskClient
-from .log_config import (
+from robocoin_dataset.utils.log_config import (
     ANSI_GREEN,
     ANSI_RED,
     colorize,
