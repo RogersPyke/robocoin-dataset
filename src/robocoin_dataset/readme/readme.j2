@@ -1,0 +1,648 @@
+---
+task_categories:
+{%- for task in task_categories %}
+  - {{ task }}
+{%- endfor %}
+
+language:
+{%- for lang in language %}
+  - {{ lang }}
+{%- endfor %}
+
+{% if extra_gated_prompt is defined and extra_gated_prompt %}
+extra_gated_prompt: '{{ extra_gated_prompt | replace("'", "''") }}'
+
+{% endif %}
+{% if extra_gated_fields is defined and extra_gated_fields %}
+extra_gated_fields:
+{% for field_name, field_config in extra_gated_fields.items() %}
+  {{ field_name }}:
+    type: '{{ field_config.type | replace("'", "''") }}'
+    description: '{{ field_config.description | replace("'", "''") }}'
+{% endfor %}
+
+{% endif %}
+tags:
+{%- for tag in tags %}
+  - {{ tag }}
+{%- endfor %}
+
+frame_range: {{ frame_range | default("Unknown") }}
+
+license: {{ license | default("Unknown") }}
+
+{% if configs is defined and configs -%}
+configs:
+- config_name: {{ configs[0].config_name }}
+  data_files: {{ configs[0].data_files }}
+{%- endif %}
+---
+
+# {{ dataset_name if dataset_name else "RoboCOIN Dataset" }}
+
+{% if dataset_uuid is defined and dataset_uuid -%}
+**UUID:** `{{ dataset_uuid }}`
+{%- endif %}
+
+{% if video_url is defined and video_url -%}
+![Dataset Preview]({{ thumbnail_url | default("") }})
+[Watch Video]({{ video_url }})
+{%- endif %}
+
+### Overview
+
+{%- set _has_key_stats = false %}
+{%- if statistics is defined %}
+  {%- if statistics.total_frames is defined or statistics.fps is defined or statistics.total_episodes is defined or statistics.total_tasks is defined %}
+    {%- set _has_key_stats = true %}
+  {%- endif %}
+{%- elif total_frames is defined or fps is defined or total_episodes is defined or total_tasks is defined %}
+  {%- set _has_key_stats = true %}
+{%- endif %}
+
+{% if _has_key_stats -%}
+| Metric | Value |
+|--------|-------|
+{% if statistics is defined -%}
+{% if statistics.total_frames is defined -%}
+| **Total Frames** | {{ statistics.total_frames }} |
+{% endif -%}
+{% if statistics.fps is defined -%}
+| **Frame Rate (FPS)** | {{ statistics.fps }} |
+{% endif -%}
+{% if statistics.total_episodes is defined -%}
+| **Total Episodes** | {{ statistics.total_episodes }} |
+{% endif -%}
+{% if statistics.total_tasks is defined -%}
+| **Total Tasks** | {{ statistics.total_tasks }} |
+{% endif -%}
+{%- else -%}
+{% if total_frames is defined -%}
+| **Total Frames** | {{ total_frames }} |
+{% endif -%}
+{% if fps is defined -%}
+| **Frame Rate (FPS)** | {{ fps }} |
+{% endif -%}
+{% if total_episodes is defined -%}
+| **Total Episodes** | {{ total_episodes }} |
+{% endif -%}
+{% if total_tasks is defined -%}
+| **Total Tasks** | {{ total_tasks }} |
+{% endif -%}
+{%- endif %}
+{%- endif %}
+
+{% if tasks is defined and tasks -%}
+### Primary Task Instruction
+> {{ tasks }}
+{%- endif %}
+
+{% if robot_type is defined or robot_name is defined or codebase_version is defined or end_effector_type is defined -%}
+### Robot Configuration
+
+{% if robot_name is defined and robot_name -%}
+- **Robot Name:** `{{ robot_name }}`
+{%- endif %}
+{% if robot_type is defined -%}
+- **Robot Type:** `{{ robot_type }}`
+{%- endif %}
+{% if codebase_version is defined -%}
+- **Codebase Version:** `{{ codebase_version }}`
+{%- endif %}
+{% if end_effector_name is defined and end_effector_name -%}
+- **End-Effector Name:** `{{ end_effector_name }}`
+{%- endif %}
+{% if end_effector_type is defined and end_effector_type -%}
+{%- set _eef_display = end_effector_type -%}
+{%- if _eef_display is iterable and not _eef_display is string -%}
+{%- set _eef_display = _eef_display | join(', ') -%}
+{%- endif -%}
+- **End-Effector Type:** `{{ _eef_display }}`
+{%- endif %}
+{% if tele_type is defined and tele_type -%}
+{%- set _tele_display = tele_type -%}
+{%- if _tele_display is iterable and not _tele_display is string -%}
+{%- set _tele_display = _tele_display | join(', ') -%}
+{%- endif -%}
+- **Teleoperation Type:** `{{ _tele_display }}`
+{%- endif %}
+{%- endif %}
+
+## 🏠 Scene and Objects
+
+{% if scene_type is defined and scene_type -%}
+### Scene Type
+{% if scene_type is mapping -%}
+{%- set _scene_parts = [] -%}
+{%- for i in range(1, 6) -%}
+  {%- set _level_key = "level" ~ i -%}
+  {%- if scene_type[_level_key] is defined and scene_type[_level_key] -%}
+    {%- set _void = _scene_parts.append(scene_type[_level_key]) -%}
+  {%- endif -%}
+{%- endfor -%}
+`{{ _scene_parts | join('-') }}`
+{%- else -%}
+{%- for scene in scene_type -%}
+- `{{ scene }}`
+{%- endfor %}
+{%- endif %}
+{%- endif %}
+
+{% if objects is defined and objects -%}
+### Objects
+{% for obj in objects -%}
+- `{{ obj.object_name }}{% for i in range(1, 6) %}{% set l = "level" ~ i %}{% if obj[l] %}-{{ obj[l] }}{% endif %}{% endfor %}`
+{% endfor %}
+{%- endif %}
+
+## 🎯 Task Descriptions
+
+{% if task_name is defined and task_name -%}
+- **Standardized Task Name:** `{{ task_name }}`
+{%- endif %}
+{% if task_description is defined and task_description -%}
+- **Standardized Task Description:** `{{ task_description }}`
+{%- endif %}
+{% if task_operation_type is defined and task_operation_type -%}
+- **Operation Type:** `{{ task_operation_type }}`
+{%- endif %}
+
+{% if sub_tasks is defined and sub_tasks -%}
+### Sub-Tasks
+{% if sub_tasks is iterable and sub_tasks is not string -%}
+This dataset includes {{ sub_tasks | length }} distinct subtasks:
+
+{% for subtask in sub_tasks -%}
+{{ loop.index }}. **{{ subtask.subtask if subtask.subtask is defined else subtask }}** {% if subtask.subtask_index is defined %}(Index: {{ subtask.subtask_index }}){% endif %}
+{% endfor %}
+{%- else -%}
+{{ sub_tasks }}
+{%- endif %}
+{%- endif %}
+
+{% if atomic_actions is defined and atomic_actions -%}
+### Atomic Actions
+{% for action in atomic_actions -%}
+- `{{ action }}`
+{% endfor %}
+{%- endif %}
+
+## 🛠️ Hardware & Sensors
+
+{% if sensor_list is defined and sensor_list -%}
+### Sensors
+{% for sensor in sensor_list -%}
+- `{{ sensor }}`
+{% endfor %}
+{%- endif %}
+
+{% if came_info is defined and came_info -%}
+### Camera Information
+{{ came_info }}
+{%- endif %}
+
+{% if coordinate_definition is defined or origin_xyz is defined -%}
+### Coordinate System
+{% if coordinate_definition -%}- **Definition:** `{{ coordinate_definition }}`{%- endif %}
+{% if origin_xyz -%}- **Origin (XYZ):** `{{ origin_xyz }}`{%- endif %}
+{%- endif %}
+
+{% if joint_rotation_dim is defined or end_rotation_dim is defined or end_translation_dim is defined -%}
+### Dimensions & Units
+{% if joint_rotation_dim -%}- **Joint Rotation:** `{{ joint_rotation_dim }}`{%- endif %}
+{% if end_rotation_dim -%}- **End-Effector Rotation:** `{{ end_rotation_dim }}`{%- endif %}
+{% if end_translation_dim -%}- **End-Effector Translation:** `{{ end_translation_dim }}`{%- endif %}
+{% if base_robtation_dim -%}- **Base Rotation:** `{{ base_robtation_dim }}`{%- endif %}
+{% if base_translation_dim -%}- **Base Translation:** `{{ base_translation_dim }}`{%- endif %}
+{% if operation_platform_height -%}- **Operation Platform Height:** `{{ operation_platform_height }} cm`{%- endif %}
+{%- endif %}
+
+## 📊 Dataset Statistics
+
+| Metric | Value |
+|--------|-------|
+{% if statistics is defined -%}
+{% if statistics.total_episodes is defined -%}
+| **Total Episodes** | {{ statistics.total_episodes }} |
+{% endif -%}
+{% if statistics.total_frames is defined -%}
+| **Total Frames** | {{ statistics.total_frames }} |
+{% endif -%}
+{% if statistics.total_tasks is defined -%}
+| **Total Tasks** | {{ statistics.total_tasks }} |
+{% endif -%}
+{% if statistics.total_videos is defined -%}
+| **Total Videos** | {{ statistics.total_videos }} |
+{% endif -%}
+{% if statistics.total_chunks is defined -%}
+| **Total Chunks** | {{ statistics.total_chunks }} |
+{% endif -%}
+{% if statistics.chunks_size is defined -%}
+| **Chunk Size** | {{ statistics.chunks_size }} |
+{% endif -%}
+{% if statistics.fps is defined -%}
+| **FPS** | {{ statistics.fps }} |
+{% endif -%}
+{% if statistics.total_duration is defined -%}
+| **Total Duration** | {{ statistics.total_duration }} |
+{% endif -%}
+{% if statistics.video_resolution is defined -%}
+| **Video Resolution** | {{ statistics.video_resolution }} |
+{% endif -%}
+{% if statistics.state_dim is defined -%}
+| **State Dimensions** | {{ statistics.state_dim }} |
+{% endif -%}
+{% if statistics.action_dim is defined -%}
+| **Action Dimensions** | {{ statistics.action_dim }} |
+{% endif -%}
+{% if statistics.camera_views is defined -%}
+| **Camera Views** | {{ statistics.camera_views }} |
+{% endif -%}
+{% if dataset_size is defined and dataset_size -%}
+| **Dataset Size** | {{ dataset_size }} |
+{% endif -%}
+{%- else -%}
+{% if total_episodes is defined -%}
+| **Total Episodes** | {{ total_episodes }} |
+{% endif -%}
+{% if total_frames is defined -%}
+| **Total Frames** | {{ total_frames }} |
+{% endif -%}
+{% if total_tasks is defined -%}
+| **Total Tasks** | {{ total_tasks }} |
+{% endif -%}
+{% if total_chunks is defined -%}
+| **Total Chunks** | {{ total_chunks }} |
+{% endif -%}
+{% if total_videos is defined -%}
+| **Total Videos** | {{ total_videos }} |
+{% endif -%}
+{% if chunks_size is defined -%}
+| **Chunk Size** | {{ chunks_size }} |
+{% endif -%}
+{% if fps is defined -%}
+| **FPS** | {{ fps }} |
+{% endif -%}
+{%- endif %}
+
+{% if splits is defined -%}
+## 📂 Data Splits
+
+The dataset is organized into the following splits:
+
+{% if splits.train is defined -%}
+- **Training**: Episodes {{ splits.train }}
+{% endif -%}
+{% if splits.val is defined -%}
+- **Validation**: Episodes {{ splits.val }}
+{% endif -%}
+{% if splits.test is defined -%}
+- **Test**: Episodes {{ splits.test }}
+{% endif -%}
+{%- endif %}
+
+## 📁 Dataset Structure
+
+This dataset follows the LeRobot format and contains the following components:
+
+### Data Files
+- **Videos**: Compressed video files containing RGB camera observations
+{% if depth_enabled is defined and depth_enabled -%}
+- **Depth Maps**: Depth information from depth cameras
+{% endif -%}
+- **State Data**: Robot joint positions, velocities, and other state information
+- **Action Data**: Robot action commands and trajectories
+- **Metadata**: Episode metadata, timestamps, and annotations
+
+### File Organization
+{% if data_path is defined -%}
+- **Data Path Pattern**: `{{ data_path }}`
+{% endif -%}
+{% if video_path is defined -%}
+- **Video Path Pattern**: `{{ video_path }}`
+{% endif -%}
+{% if statistics is defined and statistics.total_chunks is defined -%}
+- **Chunking**: Data is organized into {{ statistics.total_chunks }} chunk(s)
+{% if statistics.chunks_size is defined -%} of size {{ statistics.chunks_size }}{% endif %}
+{% endif %}
+
+## 🎥 Camera Views
+
+{% if cameras is defined and cameras != "auto_generated" -%}
+This dataset includes {{ cameras | length }} camera views.
+{%- elif features is defined -%}
+{%- set camera_count = features.items() | selectattr('0', 'match', '^observation\\.images\\.') | list | length -%}
+{%- if camera_count > 0 -%}
+This dataset includes {{ camera_count }} camera views.
+{%- endif -%}
+{%- endif %}
+
+### Features Schema
+
+{% if features is defined -%}
+The dataset includes the following features:
+
+#### Visual Observations
+{% for key, value in features.items() if key.startswith('observation.images.') -%}
+{%- if value.dtype is defined and value.info is defined -%}
+- **{{ key }}**: {{ value.dtype }}
+  - FPS: {{ value.info['video.fps'] }}
+  - Codec: {{ value.info['video.codec'] }}
+{%- endif -%}
+{% endfor %}
+
+#### State and Action
+{% if features['observation.state'] is defined %}
+- **observation.state**: {{ features['observation.state'].dtype }}
+{% endif %}
+{% if features.action is defined %}
+- **action**: {{ features.action.dtype }}
+{% endif %}
+
+#### Temporal Information
+{% if features.timestamp is defined %}
+- **timestamp**: {{ features.timestamp.dtype }}
+{% endif %}
+{% if features.frame_index is defined %}
+- **frame_index**: {{ features.frame_index.dtype }}
+{% endif %}
+{% if features.episode_index is defined %}
+- **episode_index**: {{ features.episode_index.dtype }}
+{% endif %}
+{% if features.index is defined %}
+- **index**: {{ features.index.dtype }}
+{% endif %}
+{% if features.task_index is defined %}
+- **task_index**: {{ features.task_index.dtype }}
+{% endif %}
+
+#### Annotations
+{% if features.subtask_annotation is defined %}
+- **subtask_annotation**: {{ features.subtask_annotation.dtype }}
+{% endif %}
+{% if features.scene_annotation is defined %}
+- **scene_annotation**: {{ features.scene_annotation.dtype }}
+{% endif %}
+
+#### Motion Features
+{% if features.eef_sim_pose_state is defined %}
+- **eef_sim_pose_state**: {{ features.eef_sim_pose_state.dtype }}
+{%- if features.eef_sim_pose_state.names is defined %}
+  - Dimensions: {{ features.eef_sim_pose_state.names | join(', ') }}
+{%- endif %}
+{% endif %}
+{% if features.eef_sim_pose_action is defined %}
+- **eef_sim_pose_action**: {{ features.eef_sim_pose_action.dtype }}
+{%- if features.eef_sim_pose_action.names is defined %}
+  - Dimensions: {{ features.eef_sim_pose_action.names | join(', ') }}
+{%- endif %}
+{% endif %}
+{% if features.eef_direction_state is defined %}
+- **eef_direction_state**: {{ features.eef_direction_state.dtype }}
+{%- if features.eef_direction_state.names is defined %}
+  - Dimensions: {{ features.eef_direction_state.names | join(', ') }}
+{%- endif %}
+{% endif %}
+{% if features.eef_direction_action is defined %}
+- **eef_direction_action**: {{ features.eef_direction_action.dtype }}
+{%- if features.eef_direction_action.names is defined %}
+  - Dimensions: {{ features.eef_direction_action.names | join(', ') }}
+{%- endif %}
+{% endif %}
+{% if features.eef_velocity_state is defined %}
+- **eef_velocity_state**: {{ features.eef_velocity_state.dtype }}
+{%- if features.eef_velocity_state.names is defined %}
+  - Dimensions: {{ features.eef_velocity_state.names | join(', ') }}
+{%- endif %}
+{% endif %}
+{% if features.eef_velocity_action is defined %}
+- **eef_velocity_action**: {{ features.eef_velocity_action.dtype }}
+{%- if features.eef_velocity_action.names is defined %}
+  - Dimensions: {{ features.eef_velocity_action.names | join(', ') }}
+{%- endif %}
+{% endif %}
+{% if features.eef_acc_mag_state is defined %}
+- **eef_acc_mag_state**: {{ features.eef_acc_mag_state.dtype }}
+{%- if features.eef_acc_mag_state.names is defined %}
+  - Dimensions: {{ features.eef_acc_mag_state.names | join(', ') }}
+{%- endif %}
+{% endif %}
+{% if features.eef_acc_mag_action is defined %}
+- **eef_acc_mag_action**: {{ features.eef_acc_mag_action.dtype }}
+{%- if features.eef_acc_mag_action.names is defined %}
+  - Dimensions: {{ features.eef_acc_mag_action.names | join(', ') }}
+{%- endif %}
+{% endif %}
+
+#### Gripper Features
+{% if features.gripper_open_scale_state is defined %}
+- **gripper_open_scale_state**: {{ features.gripper_open_scale_state.dtype }}
+{%- if features.gripper_open_scale_state.names is defined %}
+  - Dimensions: {{ features.gripper_open_scale_state.names | join(', ') }}
+{%- endif %}
+{% endif %}
+{% if features.gripper_open_scale_action is defined %}
+- **gripper_open_scale_action**: {{ features.gripper_open_scale_action.dtype }}
+{%- if features.gripper_open_scale_action.names is defined %}
+  - Dimensions: {{ features.gripper_open_scale_action.names | join(', ') }}
+{%- endif %}
+{% endif %}
+{% if features.gripper_mode_state is defined %}
+- **gripper_mode_state**: {{ features.gripper_mode_state.dtype }}
+{%- if features.gripper_mode_state.names is defined %}
+  - Dimensions: {{ features.gripper_mode_state.names | join(', ') }}
+{%- endif %}
+{% endif %}
+{% if features.gripper_mode_action is defined %}
+- **gripper_mode_action**: {{ features.gripper_mode_action.dtype }}
+{%- if features.gripper_mode_action.names is defined %}
+  - Dimensions: {{ features.gripper_mode_action.names | join(', ') }}
+{%- endif %}
+{% endif %}
+{% if features.gripper_activity_state is defined %}
+- **gripper_activity_state**: {{ features.gripper_activity_state.dtype }}
+{%- if features.gripper_activity_state.names is defined %}
+  - Dimensions: {{ features.gripper_activity_state.names | join(', ') }}
+{%- endif %}
+{% endif %}
+{% if features.gripper_activity_action is defined %}
+- **gripper_activity_action**: {{ features.gripper_activity_action.dtype }}
+{%- if features.gripper_activity_action.names is defined %}
+  - Dimensions: {{ features.gripper_activity_action.names | join(', ') }}
+{%- endif %}
+{% endif %}
+{%- endif %}
+
+### Meta Information
+
+The complete dataset metadata is available in [meta/info.json](meta/info.json):
+
+```json
+{% if get_meta_info_content is defined -%}
+{{get_meta_info_content()}}
+{%- else -%}
+{
+  "info": "Complete metadata available in meta/info.json"
+}
+{%- endif %}
+```
+
+{% if structure is defined and structure -%}
+### Directory Structure
+
+The dataset is organized as follows (showing leaf directories with first 5 files only):
+
+```
+{{ structure }}
+```
+{%- endif %}
+
+## 🏷️ Available Annotations
+
+This dataset includes rich annotations to support diverse learning approaches:
+
+{% if annotations is defined -%}
+{% if annotations.subtask_annotation is defined -%}
+### Subtask Annotations
+- **Subtask Segmentation**: Fine-grained subtask segmentation and labeling
+{% endif -%}
+
+{% if annotations.scene_annotation is defined -%}
+### Scene Annotations
+- **Scene-level Descriptions**: Semantic scene classifications and descriptions
+{% endif -%}
+
+{% if annotations.eef_direction is defined or annotations.eef_velocity is defined or annotations.eef_acc_mag is defined -%}
+### End-Effector Annotations
+{% if annotations.eef_direction is defined -%}
+- **Direction**: Movement direction classifications for robot end-effectors
+{% endif -%}
+{% if annotations.eef_velocity is defined -%}
+- **Velocity**: Velocity magnitude categorizations during manipulation
+{% endif -%}
+{% if annotations.eef_acc_mag is defined -%}
+- **Acceleration**: Acceleration magnitude classifications for motion analysis
+{% endif -%}
+{%- endif %}
+
+{% if annotations.gripper_mode is defined or annotations.gripper_activity is defined -%}
+### Gripper Annotations
+{% if annotations.gripper_mode is defined -%}
+- **Gripper Mode**: Open/close state annotations for gripper control
+{% endif -%}
+{% if annotations.gripper_activity is defined -%}
+- **Gripper Activity**: Activity state classifications (active/inactive)
+{% endif -%}
+{%- endif %}
+{%- else -%}
+{% if features is defined -%}
+### Feature-based Annotations
+{% if features.scene_annotation is defined -%}
+- **Scene Annotations**: Scene-level semantic descriptions and classifications
+{% endif -%}
+{% if features.subtask_annotation is defined -%}
+- **Subtask Annotations**: Fine-grained subtask segmentation and labeling
+{% endif -%}
+{%- endif %}
+{%- endif %}
+
+{% if eef_sim_pose is defined and eef_sim_pose != "auto_generated" -%}
+### Additional Features
+- **End-Effector Simulation Pose**: 6D pose information for end-effectors in simulation space
+  - Available for both state and action
+{% endif -%}
+{% if gripper_open_scale is defined and gripper_open_scale != "auto_generated" -%}
+- **Gripper Opening Scale**: Continuous gripper opening measurements
+  - Available for both state and action
+{% endif %}
+
+## 🏷️ Dataset Tags
+
+{% for tag in tags -%}
+- `{{ tag }}`
+{% endfor %}
+
+## 👥 Authors
+
+### Contributors
+{% if authors.contributed_by is defined -%}
+This dataset is contributed by:
+{% for author in authors.contributed_by -%}
+{%- if author is mapping -%}
+- {% if author.name %}{% if author.url %}[{{ author.name }}]({{ author.url }}){% else %}{{ author.name }}{% endif %}{% elif author.url %}[{{ author.url }}]({{ author.url }}){% elif author.affiliation %}{{ author.affiliation }}{% endif %}{% if author.affiliation and author.name %} - {{ author.affiliation }}{% endif %}
+{%- else -%}
+- {{ author }}
+{%- endif %}
+{% endfor %}
+{%- else -%}
+No contributor information available.
+{%- endif %}
+
+## 🔗 Links
+
+{% if homepage is defined -%}
+- **🏠 Homepage:** [{{ homepage }}]({{ homepage }})
+{% endif -%}
+{% if paper is defined and paper -%}
+- **📄 Paper:** [{{ paper }}]({{ paper }})
+{% endif -%}
+{% if repository is defined -%}
+- **💻 Repository:** [{{ repository }}]({{ repository }})
+{% endif -%}
+{% if project_page is defined -%}
+- **🌐 Project Page:** [{{ project_page }}]({{ project_page }})
+{% endif -%}
+{% if issues_url is defined -%}
+- **🐛 Issues:** [{{ issues_url }}]({{ issues_url }})
+{% endif -%}
+- **📜 License:** {{ license | default("apache-2.0") }}
+
+## 📞 Contact and Support
+
+{% if contact_email is defined and contact_email -%}
+For questions, issues, or feedback regarding this dataset, please contact:
+- **Email:** {{ contact_email }}
+{% endif -%}
+{% if contact_info is defined and contact_info -%}
+{{ contact_info }}
+{% endif -%}
+
+{% if support_info is defined and support_info -%}
+### Support
+{{ support_info }}
+{%- else -%}
+For technical issues or questions, please open an issue on the repository or contact the dataset authors.
+{%- endif %}
+
+## 📄 License
+
+This dataset is released under the **{{ license | default("apache-2.0") }}** license.
+
+{% if license_details is defined -%}
+{{ license_details }}
+{%- else -%}
+Please refer to the LICENSE file for full license terms and conditions.
+{%- endif %}
+
+## 📚 Citation
+
+If you use this dataset in your research, please cite:
+
+```bibtex
+{{ citation_bibtex }}
+```
+
+{% if additional_citations is defined -%}
+### Additional References
+
+{{ additional_citations }}
+{%- endif %}
+
+## 📌 Version Information
+
+{% if version_info is defined -%}
+{{ version_info }}
+{%- else -%}
+## Version History
+- v1.0.0 (2025-11): Initial release
+{%- endif %}
