@@ -10,30 +10,37 @@ task_categories:
   value: null
   required: true
   source: "fixed"
+  default: "robotics"
 # Task category labels, server as a label in huggingface hub.
 
 language:
   value: null
   required: true
   source: "fixed"
+  default: "en"
 # Supported languages, server as a label in huggingface hub.
 
 tags:
   value: null
   required: true
   source: "fixed"
+  default:
+    - "RoboCOIN"
+    - "LeRobot"
 # Dataset tags, server as a label in huggingface hub.
 
 license:
   value: null
   required: true
   source: "fixed"
+  default: "apache-2.0"
 # License type, server as a label in huggingface hub.
 
 configs:
   value: null
   required: true
   source: "fixed"
+  default: "default"
 # Data file configuration
 
 # ========== Gated Dataset Configuration ==========
@@ -42,11 +49,22 @@ extra_gated_prompt:
   value: null
   required: true
   source: "fixed"
+  default: >-
+    By accessing this dataset, you agree to cite the associated paper in your
+    research/publications—see the "Citation" section for details. You agree to not
+    use the dataset to conduct experiments that cause harm to human subjects.
 
 extra_gated_fields:
   value: null
   required: true
   source: "fixed"
+  default:
+    Company/Organization:
+      type: text
+      description: e.g., "ETH Zurich", "Boston Dynamics", "Independent Researcher"
+    Country:
+      type: country
+      description: e.g., "Germany", "China", "United States"
 # Fields to be filled when accessing
 
 # ---------- End of the Yaml part of README ----------
@@ -58,31 +76,34 @@ codebase_version:
   value: null
   required: true
   source: "fixed"
+  default: "v2.1"
 # that is codebase_version, get from local_dataset_info.yaml
 
 dataset_name:
   value: null
   required: true
   source: "local_dataset_info.yaml"
+  default: "{robot_name}_{action}_{object}"
 # Dataset Name, format: {robot}_{task_name}
 
 dataset_uuid:
   value: null
   required: true
   source: "local_dataset_info.yaml"
+  default: "00000000-0000-0000-0000-000000000000"
 # Dataset UUID (usually auto-generated)
 
 # ========== Environment Information ==========
 scene_type:
   value: null
-  # e.g. 
-  #   level1: home
-  #   level2: kitchen
-  #   level3:
-  #   level4:
-  #   level5:
   required: true
   source: "local_dataset_info.yaml"
+  default:
+    level1: "scene_type"
+    level2: "scene_type"
+    level3: null
+    level4: null
+    level5: null
 # Strictly fill in according to the scene library.
 # --- README -----
 # home-kitchen.
@@ -91,25 +112,26 @@ scene_type:
 
 env_type:
   value: null
-  # e.g.
-  #   simulation /real world
   required: true
   source: "local_dataset_info.yaml"
+  default: "env_type"
 # --- README -----
 # simulation/real.
-# MUST follow the format: simulation/real. one in two choices
+# MUST follow the format: simulation/real_world. one in two choices
 # ----------------
 
 objects:
   value: null
-  # e.g.
-  #   level1: furniture
-  #   level2: table
-  #   level3:
-  #   level4:
-  #   level5:
   required: true
   source: "local_dataset_info.yaml"
+  default:
+    object_name: "object_name"
+    color: "color"
+    level1: "object"
+    level2: "object"
+    level3: null
+    level4: null
+    level5: null
 # that is object_list, get from local_dataset_info.yaml
 # --- README -----
 # furniture-table.
@@ -121,10 +143,9 @@ objects:
 
 task_operation_type:
   value: null
-  # e.g.
-  #   dual_arm /single_arm
   required: true
   source: "local_dataset_info.yaml"
+  default: "task_operation_type"
 # dual_arm..., that is task_type.
 # --- README -----
 # simgle_arm/dual_arm/othes...
@@ -137,6 +158,7 @@ task_result:
   #   success/failure
   required: true
   source: "annotations/subtask_annotations.jsonl"
+  default: "task_result"
 # --- README -----
 # success/failure.
 # MUST follow the format: success/failure. one in two choices
@@ -148,54 +170,37 @@ task_instruction:
   #   "put_apple_into_basket"
   required: true
   source: "local_dataset_info.yaml"
+  default: "task_instruction"
 # i.e. task_instruction, this is the natural language instruction.
 # NOTE: MUST distinguish the task_instruction from task_descriptions.
 # former is the natural language instruction, latter is the task sub-process description.(How to do the task)
 # ----------------
-# However, in the local_dataset_info.yaml, the task_instruction is actually the task_descriptions.
+# NOW, the task_instruction is the MAIN instruction in local_dataset_info.yaml,
+# which is aligned to this yaml template. Here only use the first instruction as the MAIN instruction.
+# bucause task_description is redundant with sub_tasks and deprecated, so we don't need to use it.
 # ----------------
-
-task_description:
-  value: null
-  # e.g.
-  #   - "Grab and lift both the mouse and power cord from the accessory packaging area at the same time"
-  #   - "Place the mouse and power cord into the accessory packaging area"
-  #   - "End"
-  required: ture
-  source: "annotations/subtask_annotations.jsonl"
-# From local_dataset_info.yaml, task_description, is the standardized task description.
-# --- README -----
-# "{Left_arm, Right_arm}+{atomic skill}+{Object}"
-# MUST follow the format: "{Left_arm, Right_arm}+{atomic skill}+{Object}".
-# ----------------
-
-task_name:
-  value: null
-  # e.g.
-  #   "Agibot_g1_pick_apple"
-  required: true
-  source: "local_dataset_info.yaml"
-# From local_dataset_info.yaml, dataset_name, is the standardized task name.
-# format: {Robot_name}+{composite action}+{Object}
 
 sub_tasks:
   value: null
-  required: null
-  source: null
+  required: true
+  source: "annotations/subtask_annotations.jsonl"
+  default:
+    - "sub_task_1"
+    - "sub_task_2"
+    - "sub_task_3"
 # that is subtask_list, get from annotations/subtask_annotations.jsonl
-# NOTE: Is redundent with task_description?
-# TODO: Check if it is needed.
+# NOTE: Is redundent with task_description, but here we keep it for compatibility.
+# ONLY used as a reference for the task description.
 # ----------------
 
 atomic_actions:
   value: null
-  # e.g.
-  #   - "pick"
-  #   - "pull"
-  #   - "push"
-  #   - "open"
   required: true
   source: "local_dataset_info.yaml"
+  default:
+    - "atomic_action_1"
+    - "atomic_action_2"
+    - "atomic_action_3"
 # that is so-called skill_list, get from local_dataset_info.yaml
 
 # ========== Robot Configuration Info ==========
@@ -206,6 +211,7 @@ robot_name:
   #   "Agibot_g1"
   required: true
   source: "local_dataset_info.yaml"
+  default: "{manufacturer}+{robot_type}"
 # "{Manifacurer}+{robot_type}"
 # is device_model in local_dataset_info.yaml
 
@@ -215,6 +221,7 @@ end_effector_type:
   #   "two_finger_gripper"
   required: true
   source: "local_dataset_info.yaml"
+  default: "end_effector_type"
 
 tele_type:
   value: null
@@ -222,22 +229,33 @@ tele_type:
   #   "master_arm"
   required: true
   source: "local_dataset_info.yaml"
+  default: "tele_type"
 
 sensor_list:
   value: null
   required: true
   source: "meta/info.json"
+  default: 
+    - "sensor_1"
+    - "sensor_2"
+    - "sensor_3"
+# Read from meta/info.json, from features.observation.<sensor_name,Iter items here.>
+# usually have images and state.
 
 came_info:
   value: null
   required: true
   source: "meta/info.json"
+  default:
+    observation.images.cam_name_1: "resolution_1"
+    observation.images.cam_name_2: "resolution_2"
 # CANNOT get from data providers usually. backward to resolution of the camera.
 
 depth_enabled:
   value: null
   required: true
   source: "meta/info.json"
+  default: "depth_enabled"
 # Whether depth images are included (auto-calculated from features)
 
 # ========== Coordinate Information ==========
@@ -249,13 +267,19 @@ coordinate_definition:
   value: null
   required: null
   source: null
+  default: "coordinate_definition"
 # single str. directly display.
 
 origin_xyz:
   value: null
   required: null
   source: null
+  default: "origin_xyz"
 # list of 3 floats. directly display.
+
+#####################################
+# UP is to-be-checked if necessary. #
+#####################################
 
 # ========== Dimension Information ==========
 
@@ -263,6 +287,7 @@ joint_rotation_dim:
   value: null
   required: true
   source: "meta/info.json"
+  default: "joint_rotation_dim"
 # choose from: radian, degree.
 # single str. directly display.
 
@@ -270,6 +295,7 @@ end_rotation_dim:
   value: null
   required: true
   source: "meta/info.json"
+  default: "end_rotation_dim"
 # choose from: radian, degree.
 # single str. directly display.
 # that is the rotation dimension of the end effector.
@@ -278,6 +304,7 @@ end_translation_dim:
   value: null
   required: true
   source: "meta/info.json"
+  default: "end_translation_dim"
 # choose from: meter, millimeter.
 # single str. directly display.
 # that is the translation dimension of the end effector.
@@ -286,6 +313,7 @@ base_robtation_dim:
   value: null
   required: true
   source: "meta/info.json"
+  default: "base_rotation_dim"
 # choose from: radian, degree.
 # single str. directly display.
 # that is the rotation dimension of the base of the robot.
@@ -294,6 +322,7 @@ base_translation_dim:
   value: null
   required: true
   source: "meta/info.json"
+  default: "base_translation_dim"
 # choose from: meter, millimeter.
 # single str. directly display.
 # that is the translation dimension of the base of the robot.
@@ -304,6 +333,11 @@ annotations:
   value: null
   required: null
   source: null
+  default:
+    - "annotation_1"
+    - "annotation_2"
+    - "annotation_3"
+# Iter through the file names in annotations/
 # declaration of the annotations.
 
 operation_platform_height:
@@ -314,39 +348,41 @@ operation_platform_height:
 # TODO: Define the operation platform height usage.
 # Temporarily keep it as-is.
 
-segment_level_label:
-  value: null
-  required: true
-  source: "annotations/subtask_annotations.jsonl"
-# that is segment_level_label, get from annotations/subtask_annotations.jsonl
-# NOTE: Is redundent with task_description?
-# TODO: Check if it is needed.
-# ----------------
-
 # ========== Dataset Statistics ==========
 
 statistics:
   value: null
   required: true
   source: "meta/episodes_stats.jsonl"
-# that is statistics, get from meta/info.json
+  default:
+    total_episodes: "total_episodes"
+    total_frames: "total_frames"
+    total_tasks: "total_tasks"
+    total_videos: "total_videos"
+    total_chunks: "total_chunks"
+    fps: "fps"
+    dataset_size: "dataset_size"
+    
+# that is statistics, get from meta/info.json and calculation of file usage.
 
 frame_num:
   value: null
   required: true
   source: "meta/info.json"
-# Frame range label (auto-calculated: <1K, 1K-10K, 10K-100K, 100K-1M, 1M-10M)
+  default: "frame_num"
 
 dataset_size:
   value: null
   required: true
   source: "auto"
+  default: "dataset_size"
 # Dataset file size (auto-calculated)
 
 data_structure:
   value: null
   required: true
   source: "auto"
+  default: "data_structure_str"
 # that is the data structure of the dataset.
 # value: str, the tree of the dataset.
 # --- README -----
@@ -359,6 +395,8 @@ splits:
   value: null
   required: true
   source: "meta/info.json"
+  default:
+    train: "train"
 # Data splits (read from meta/info.json)
 
 # ========== File Path Patterns ==========
@@ -366,12 +404,14 @@ data_path:
   value: null
   required: false
   source: "auto"
+  default: "data_path"
 # Data file path pattern
 
 video_path:
   value: null
   required: false
   source: "auto"
+  default: "video_path"
 # Video file path pattern
 
 # ========== Feature Definitions ==========
@@ -379,6 +419,8 @@ features:
   value: null
   required: true
   source: "meta/info.json"
+  default: 
+    features_placeholder: "features_placeholder"
 # Feature definitions (complete copy from meta/info.json)
 
 # ========== Author and Link Information ==========
@@ -387,45 +429,53 @@ authors:
   value: null
   required: true
   source: "fixed"
+  default: "RoboCOIN Team"
 # Author information
 
 dataset_description:
   value: null
   required: true
   source: "fixed"
+  default: "This dataset uses an extended format based on LeRobot and is fully compatible with LeRobot."
 
 homepage:
   value: null
   required: true
   source: "fixed"
+  default: "https://flagopen.github.io/RoboCOIN/"
 
 paper:
   value: null
   required: true
   source: "fixed"
+  default: "https://arxiv.org/abs/2511.17441"
 
 repository:
   value: null
   required: true
   source: "fixed"
+  default: "https://github.com/FlagOpen/RoboCOIN"
 
 # ========== Contact and Support Information ==========
 contact_detail:
   value: null
   required: true
   source: "fixed"
+  default: "robocoin@baai.ac.cn"
 # the contact detail: email, phone, etc.
 
 contact_info:
   value: null
   required: true
   source: "fixed"
+  default: "For questions, issues, or feedback regarding this dataset, please contact us."
 # the contact info: explanation str.
 
 support_info:
   value: null
   required: true
   source: "fixed"
+  default: "For technical support, please open an issue on our GitHub repository."
 # the support info: explanation str.
 
 # ========== License Details ==========
@@ -433,6 +483,7 @@ license_details:
   value: null
   required: true
   source: "fixed"
+  default: "This dataset is released under the license:"
 
 # ========== Citation Information ==========
 
@@ -440,17 +491,29 @@ citation_bibtex:
   value: null
   required: true
   source: "fixed"
+  default: |
+    @article{robocoin,
+      title={RoboCOIN: An Open-Sourced Bimanual Robotic Data Collection for Integrated Manipulation},
+      author={Shihan Wu, Xuecheng Liu, Shaoxuan Xie, Pengwei Wang, Xinghang Li, Bowen Yang, Zhe Li, Kai Zhu, Hongyu Wu, Yiheng Liu, Zhaoye Long, Yue Wang, Chong Liu, Dihan Wang, Ziqiang Ni, Xiang Yang, You Liu, Ruoxuan Feng, Runtian Xu, Lei Zhang, Denghang Huang, Chenghao Jin, Anlan Yin, Xinlong Wang, Zhenguo Sun, Junkai Zhao, Mengfei Du, Mingyu Cao, Xiansheng Chen, Hongyang Cheng, Xiaojie Zhang, Yankai Fu, Ning Chen, Cheng Chi, Sixiang Chen, Huaihai Lyu, Xiaoshuai Hao, Yequan Wang, Bo Lei, Dong Liu, Xi Yang, Yance Jiao, Tengfei Pan, Yunyan Zhang, Songjing Wang, Ziqian Zhang, Xu Liu, Ji Zhang, Caowei Meng, Zhizheng Zhang, Jiyang Gao, Song Wang, Xiaokun Leng, Zhiqiang Xie, Zhenzhen Zhou, Peng Huang, Wu Yang, Yandong Guo, Yichao Zhu, Suibing Zheng, Hao Cheng, Xinmin Ding, Yang Yue, Huanqian Wang, Chi Chen, Jingrui Pang, YuXi Qian, Haoran Geng, Lianli Gao, Haiyuan Li, Bin Fang, Gao Huang, Yaodong Yang, Hao Dong, He Wang, Hang Zhao, Yadong Mu, Di Hu, Hao Zhao, Tiejun Huang, Shanghang Zhang, Yonghua Lin, Zhongyuan Wang and Guocai Yao},
+      journal={arXiv preprint arXiv:2511.17441},
+      url = {https://arxiv.org/abs/2511.17441},
+      year={2025},
+      }
 
 additional_citations:
   value: null
   required: true
   source: "fixed"
+  default: |
+    If you use this dataset, please also consider citing:
+    LeRobot Framework: https://github.com/huggingface/lerobot
 
 # ========== Version Information ==========
 version_info:
   value: null
   required: true
   source: "fixed"
+  default: "Initial Release"
 
 # ========== Auto-generated Fields (usually no manual input required) ==========
 # The following fields are usually auto-generated by the system, for reference only
@@ -482,6 +545,15 @@ raw:
 
 # ========== Deactivated ==========
 # The following fields are defined but are not currently active in this dataset configuration.
+
+segment_level_label:
+  value: null
+  required: false
+  source: "annotations/subtask_annotations.jsonl"
+# that is segment_level_label, get from annotations/subtask_annotations.jsonl
+# NOTE: Is redundent with task_description, but here we keep it for compatibility.
+# SHOULD NOT be used, because we have the task_description now.
+# ----------------
 
 surface_material:
   value: null
@@ -598,3 +670,29 @@ dataset_license:
   required: false
   source: null
 # Open source license type: Apache License 2.0, CC BY 4.0, MIT license, Unsure.
+
+# ========== Deprecated Fields ==========
+# DEPRECATED. ONLY used as a reference for the sub_tasks.
+task_description:
+  value: ${sub_tasks.value}
+  # e.g.
+  #   - "Grab and lift both the mouse and power cord from the accessory packaging area at the same time"
+  #   - "Place the mouse and power cord into the accessory packaging area"
+  #   - "End"
+  required: false
+  source: "annotations/subtask_annotations.jsonl"
+  default:
+    - "sub_task_1"
+    - "sub_task_2"
+    - "sub_task_3"
+
+task_name:
+  value: ${dataset_name.value}
+  required: false
+  source: "local_dataset_info.yaml"
+# From local_dataset_info.yaml, dataset_name, is the standardized dataset name.
+# format: {Robot_name}+{composite action}+{Object}
+######################################################
+# NOTE: redundant with dataset_name. Thus DEPRECATED.#
+######################################################
+# ONLY used as a reference for the dataset_name.
