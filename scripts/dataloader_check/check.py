@@ -166,34 +166,34 @@ def main() -> None:
         epilog="""
 Examples:
   # Local mode
-  python scripts/dataloader_check/dataloader_check.py local \\
-    --config_path ./db/postgresql_config.yaml \\
-    --log_dir ./logs/dataloader_check \\
-    --num_workers 8 \\
+  python scripts/dataloader_check/check.py local \
+    --config_path ./db/postgresql_config.yaml \
+    --log_dir ./logs/dataloader_check \
+    --num_workers 8 \
     --sample_rate 0.1
 
   # Server mode
-  python scripts/dataloader_check/dataloader_check.py server \\
-    --config_path ./db/postgresql_config.yaml \\
-    --host 0.0.0.0 \\
-    --port 2010 \\
-    --log_dir ./logs/dataloader_check_server \\
-    --num_workers 8 \\
+  python scripts/dataloader_check/check.py server \
+    --config_path ./db/postgresql_config.yaml \
+    --host 0.0.0.0 \
+    --port 2010 \
+    --log_dir ./logs/dataloader_check_server \
+    --num_workers 8 \
     --sample_rate 0.1
 
   # Client mode
-  python scripts/dataloader_check/dataloader_check.py client \\
-    --host 172.16.13.140 \\
-    --port 2010 \\
-    --log_dir ./logs/dataloader_check_client \\
-    --num_clients 4 \\
+  python scripts/dataloader_check/check.py client \
+    --host 172.16.13.140 \
+    --port 2010 \
+    --log_dir ./logs/dataloader_check_client \
+    --num_clients 4 \
     --heartbeat-interval 10.0
         """,
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # ====== LOCAL SUBCOMMAND ======
+    # LOCAL SUBCOMMAND
     local_parser = subparsers.add_parser(
         "local", help="Run sequential dataloader checker locally"
     )
@@ -222,7 +222,7 @@ Examples:
         help="Sample rate for dataset checking (0.0-1.0)",
     )
 
-    # ====== SERVER SUBCOMMAND ======
+    # SERVER SUBCOMMAND
     server_parser = subparsers.add_parser(
         "server", help="Run distributed dataloader checker server"
     )
@@ -269,7 +269,7 @@ Examples:
         help="Target dataset UUID to check (if empty, check all eligible datasets)",
     )
 
-    # ====== CLIENT SUBCOMMAND ======
+    # CLIENT SUBCOMMAND
     client_parser = subparsers.add_parser(
         "client", help="Run distributed dataloader checker clients"
     )

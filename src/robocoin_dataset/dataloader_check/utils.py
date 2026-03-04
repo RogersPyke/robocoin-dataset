@@ -5,8 +5,9 @@ This module provides:
 - load_repo: A function to load a LeRobot dataset and iterate through its dataloader.
 """
 
+import os
 import random
-import logging
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -14,6 +15,16 @@ import torch
 import torch.utils.data
 import tqdm
 from lerobot.datasets.lerobot_dataset import LeRobotDataset  # type: ignore
+
+
+def _silence_dataloader_worker_output(_: int) -> None:
+    """Silence stdout/stderr in dataloader worker processes."""
+    devnull_fd = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull_fd, 1)
+    os.dup2(devnull_fd, 2)
+    os.close(devnull_fd)
+    sys.stdout = open(os.devnull, "w", encoding="utf-8")
+    sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
 class EpisodeSampler(torch.utils.data.Sampler):
     """
@@ -67,6 +78,14 @@ def load_repo(
     - Validates that the dataset structure is correct and videos can be decoded.
     Used by both local and distributed dataloader checking.
     """
+    # Reduce PyAV/FFmpeg stderr noise (e.g., repetitive video file path lines).
+    try:
+        import av  # type: ignore
+
+        av.logging.set_level(av.logging.PANIC)
+    except Exception:
+        pass
+
     repo_hardlink = Path(repo_hardlink).expanduser().absolute()
     dataset = LeRobotDataset(
         repo_id="test/test_repo",
@@ -80,6 +99,7 @@ def load_repo(
         batch_size=32,
         sampler=sampler,
         num_workers=num_workers,
+        worker_init_fn=_silence_dataloader_worker_output if num_workers > 0 else None,
     )
     for _ in tqdm.tqdm(dataloader, total=len(dataloader), desc=f"Checking {Path(repo_hardlink).name}"):
         pass
