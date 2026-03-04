@@ -36,17 +36,20 @@ SAMPLE_RATE = "sample_rate"
 HARD_LINK_PATH = "hard_link_path"
 
 
-# 🔴 新增：修改函数，增加target_dataset_uuid参数
 def _sync_dataloader_check_tasks(session: Session, target_dataset_uuid: str = "") -> None:
+    """
+    Synchronize dataloader check tasks based on visualization completion status.
+    Mark tasks as PENDING if visualization is completed and dataloader check is pending or outdated.
+    """
     query = session.query(DatasetDB).filter(
         and_(
-            # 前置条件：可视化校验完成
+            # Pre-condition: Visualization check must be completed.
             DatasetDB.visualize_check_status == TaskStatus.COMPLETED,
-            # 两个触发分支
+            # Two trigger conditions:
             or_(
-                # 分支1: 正在排队
+                # 1. Task is currently pending.
                 DatasetDB.data_loader_detection_status == TaskStatus.PENDING,
-                # 分支2: 已完成但版本过期
+                # 2. Task is completed but the version is outdated.
                 and_(
                     DatasetDB.data_loader_detection_status == TaskStatus.COMPLETED,
                     DatasetDB.data_loader_detection_version_ps != DatasetDB.visualize_check_version,
@@ -55,7 +58,7 @@ def _sync_dataloader_check_tasks(session: Session, target_dataset_uuid: str = ""
         )
     )
 
-    # 🔴 新增：如果指定了UUID，过滤该UUID
+    # Filter by specific dataset UUID if provided.
     if target_dataset_uuid:
         query = query.filter(DatasetDB.dataset_uuid == target_dataset_uuid)
 
@@ -71,19 +74,21 @@ def _sync_dataloader_check_tasks(session: Session, target_dataset_uuid: str = ""
     session.commit()
 
 
-# 🔴 新增：修改函数，增加target_dataset_uuid参数
 def _gen_one_dataloader_check_task(
     session: Session, target_dataset_uuid: str = ""
 ) -> tuple[str | None, str | None]:
+    """
+    Claim one dataloader check task from the database for processing.
+    """
     query = session.query(DatasetDB).filter(
         and_(
-            # 前置条件：可视化校验完成
+            # Pre-condition: Visualization check must be completed.
             DatasetDB.visualize_check_status == TaskStatus.COMPLETED,
             DatasetDB.data_loader_detection_status == TaskStatus.PENDING,
         )
     )
 
-    # 🔴 新增：如果指定了UUID，过滤该UUID
+    # Filter by specific dataset UUID if provided.
     if target_dataset_uuid:
         query = query.filter(DatasetDB.dataset_uuid == target_dataset_uuid)
 
@@ -98,7 +103,7 @@ def _gen_one_dataloader_check_task(
     hard_link_item = query.first()
     if not hard_link_item:
         return None, None
-    hard_link_path = Path(hard_link_item.hard_link_path)
+    hard_link_path = Path(hard_link_item.hard_link_path).expanduser()
     ds_item.data_loader_detection_status = TaskStatus.PROCESSING
 
     ds_item.data_loader_detection_version = ds_item.data_loader_detection_version + 1
@@ -126,6 +131,7 @@ def load_repo(
     num_workers: int = 8,
     sample_rate: float = 0.1,
 ) -> None:
+    repo_hardlink = Path(repo_hardlink).expanduser().absolute()
     dataset = LeRobotDataset(
         repo_id="test/test_repo",
         root=repo_hardlink,
@@ -144,26 +150,27 @@ def load_repo(
 
 
 class DataLoaderChecker:
+    """Local execution class for dataloader checking tasks against PostgreSQL."""
     def __init__(
         self,
         db_file_path: str | Path,
         sample_rate: float = 0.1,
         num_workers: int = 8,
         logger: logging.Logger | None = None,
-        target_dataset_uuid: str = "",  # 🔴 新增参数
+        target_dataset_uuid: str = "",
     ) -> None:
-        self.db_file_path: Path = Path(db_file_path).expanduser().absolute()
-        self.db = DatasetDatabase(self.db_file_path)
+        # db_file_path is actually the path to PostgreSQL configuration file (YAML)
+        self.config_path: Path = Path(db_file_path).expanduser().absolute()
+        self.db = DatasetDatabase(self.config_path)
         self.sample_rate = sample_rate
         self.num_workers = num_workers
         self.logger = logger or logging.getLogger(__name__)
-        self.target_dataset_uuid = target_dataset_uuid  # 🔴 保存UUID参数
+        self.target_dataset_uuid = target_dataset_uuid
 
     def check_one_repo(self) -> None:
+        """Process a single repository from the database."""
         with self.db.with_session() as session:
-            # 🔴 传递UUID参数
             _sync_dataloader_check_tasks(session=session, target_dataset_uuid=self.target_dataset_uuid)
-            # 🔴 传递UUID参数
             dataset_uuid, hardlink = _gen_one_dataloader_check_task(session=session, target_dataset_uuid=self.target_dataset_uuid)
             if dataset_uuid is None:
                 return
@@ -194,17 +201,18 @@ class DataLoaderChecker:
 
 
 class DataLoaderCheckerServer(TaskServer):
+    """Distributed server for dataloader checking tasks against PostgreSQL."""
     def __init__(
         self,
         db_file_path: str | Path,
         host: str = "0.0.0.0",
         port: int = 2010,
-        heartbeat_interval: float = 30.0,  # 服务端每30秒发一次 ping
-        timeout: float = 15.0,  # 等待 pong 超过15秒则断开
+        heartbeat_interval: float = 30.0,
+        timeout: float = 15.0,
         logger: logging.Logger | None = None,
         sample_rate: float = 0.1,
         num_workers: int = 8,
-        target_dataset_uuid: str = "",  # 🔴 新增参数
+        target_dataset_uuid: str = "",
     ) -> None:
         super().__init__(
             logger=logger,
@@ -213,23 +221,20 @@ class DataLoaderCheckerServer(TaskServer):
             heartbeat_interval=heartbeat_interval,
             timeout=timeout,
         )
-        db_file_path = Path(db_file_path).expanduser().absolute()
-
-        self.db_file_path: Path = Path(db_file_path).expanduser().absolute()
-        self.db = DatasetDatabase(self.db_file_path)
+        # db_file_path is actually the path to PostgreSQL configuration file (YAML)
+        self.config_path: Path = Path(db_file_path).expanduser().absolute()
+        self.db = DatasetDatabase(self.config_path)
         self.sample_rate = sample_rate
         self.num_workers = num_workers
         self.logger = logger or logging.getLogger(__name__)
-        self.target_dataset_uuid = target_dataset_uuid  # 🔴 保存UUID参数
+        self.target_dataset_uuid = target_dataset_uuid
 
     def get_task_category(self) -> str:
         return "dataset dataloader checker"
 
     def generate_task_content(self) -> dict | None:
         with self.db.with_session() as session:
-            # 🔴 传递UUID参数
             _sync_dataloader_check_tasks(session=session, target_dataset_uuid=self.target_dataset_uuid)
-            # 🔴 传递UUID参数
             dataset_uuid, hardlink_path = _gen_one_dataloader_check_task(session=session, target_dataset_uuid=self.target_dataset_uuid)
 
         if not dataset_uuid:
@@ -275,6 +280,7 @@ class DataLoaderCheckerServer(TaskServer):
 
 
 class DataLoaderCheckerClient(TaskClient):
+    """Distributed client for dataloader checking tasks from the server."""
     def __init__(
         self,
         server_uri: str = "ws://localhost:2010",
@@ -291,7 +297,7 @@ class DataLoaderCheckerClient(TaskClient):
         return "dataset dataloader checker"
 
     def generate_task_request_desc(self) -> dict:
-        """客户端可自定义任务请求参数"""
+        """Client can customize task request parameters."""
         return {}
 
     def _sync_process_task(self, task_content: dict) -> dict:
