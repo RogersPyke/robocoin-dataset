@@ -266,14 +266,14 @@ depth_enabled:
 coordinate_definition:
   value: null
   required: null
-  source: null
+  source: "fixed"
   default: "coordinate_definition"
 # single str. directly display.
 
 origin_xyz:
   value: null
   required: null
-  source: null
+  source: "urdf"
   default: "origin_xyz"
 # list of 3 floats. directly display.
 
