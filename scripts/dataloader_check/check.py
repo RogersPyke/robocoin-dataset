@@ -6,9 +6,9 @@ Three modes:
   - client: Client processes that connect to the server
 
 Usage:
-  python scripts/dataloader_check/check.py local --config_path ./db/postgresql_config.yaml
-  python scripts/dataloader_check/check.py server --config_path ./db/postgresql_config.yaml --host 0.0.0.0 --port 2010
-  python scripts/dataloader_check/check.py client --host 172.16.13.140 --port 2010 --num_clients 4
+  python scripts/dataloader_check/check.py local --config-path ./db/postgresql_config.yaml
+  python scripts/dataloader_check/check.py server --config-path ./db/postgresql_config.yaml --host 0.0.0.0 --port 2010
+  python scripts/dataloader_check/check.py client --host 172.16.13.140 --port 2010 --num-clients 4
 
 Run `python scripts/dataloader_check/dataloader_check.py <mode> --help` for detailed options.
 """
@@ -94,7 +94,7 @@ async def run_client_process(
     logger = setup_logger(
         name=f"dataloader_check_client{process_id}",
         log_dir=log_path,
-        level=logging.ERROR,
+        level=logging.DEBUG,
     )
 
     client = DataLoaderCheckerClient(
@@ -112,20 +112,35 @@ def client_process_main(
     process_id: int,
 ) -> None:
     """Multiprocessing entry function for client."""
-    asyncio.run(
-        run_client_process(
-            server_uri=server_uri,
-            heartbeat_interval=heartbeat_interval,
-            log_path=log_path,
-            process_id=process_id,
+    try:
+        asyncio.run(
+            run_client_process(
+                server_uri=server_uri,
+                heartbeat_interval=heartbeat_interval,
+                log_path=log_path,
+                process_id=process_id,
+            )
         )
-    )
+    except Exception as e:
+        error_msg = f"[CLIENT_{process_id}_FATAL] {type(e).__name__}: {str(e)}"
+        print(f"\n{error_msg}", flush=True)
+        raise
 
 
 def run_client(args) -> None:
     """Run distributed dataloader checker clients."""
     server_uri = f"ws://{args.host}:{args.port}"
     num_clients = max(1, min(args.num_clients, 8))
+
+    print(f"\n{'='*70}")
+    print("[CLIENT_START] DataLoader Checker Client Mode")
+    print(f"{'='*70}")
+    print(f"[CONFIG] Server URI: {server_uri}")
+    print(f"[CONFIG] Number of clients: {num_clients}")
+    print(f"[CONFIG] Heartbeat interval: {args.heartbeat_interval}s")
+    print(f"[CONFIG] Log directory: {args.log_dir}")
+    print(f"[HINT] Ensure server is running at {server_uri}")
+    print(f"{'='*70}\n")
 
     processes = []
     for i in range(num_clients):
@@ -140,17 +155,26 @@ def run_client(args) -> None:
         )
         proc.start()
         processes.append(proc)
+        print(f"[SPAWN] Started client process {i} (PID: {proc.pid})")
 
-    print(f"Started {num_clients} client processes. Waiting for them to finish...")
+    print(f"\n[STATUS] Started {num_clients} client processes. Waiting for them to finish...\n")
 
+    exit_codes = []
     try:
-        for proc in processes:
+        for i, proc in enumerate(processes):
             proc.join()
+            exit_codes.append(proc.exitcode)
+            print(f"[EXIT] Client process {i} (PID: {proc.pid}) exited with code: {proc.exitcode}")
     except KeyboardInterrupt:
-        print("\nShutting down clients...")
+        print("\n[SIGNAL] Shutting down clients...")
         for proc in processes:
             proc.terminate()
             proc.join(timeout=2)
+    
+    if any(code != 0 for code in exit_codes):
+        print(f"\n[WARNING] Some client processes exited with non-zero codes: {exit_codes}")
+        print(f"[HINT] Check log files in {args.log_dir} for detailed error information")
+    print(f"\n[COMPLETE] All client processes finished")
 
 
 # ============================================================================
@@ -167,26 +191,26 @@ def main() -> None:
 Examples:
   # Local mode
   python scripts/dataloader_check/check.py local \
-    --config_path ./db/postgresql_config.yaml \
-    --log_dir ./logs/dataloader_check \
-    --num_workers 8 \
-    --sample_rate 0.1
+    --config-path ./db/postgresql_config.yaml \
+    --log-dir ./logs/dataloader_check \
+    --num-workers 8 \
+    --sample-rate 0.1
 
   # Server mode
   python scripts/dataloader_check/check.py server \
-    --config_path ./db/postgresql_config.yaml \
+    --config-path ./db/postgresql_config.yaml \
     --host 0.0.0.0 \
     --port 2010 \
-    --log_dir ./logs/dataloader_check_server \
-    --num_workers 8 \
-    --sample_rate 0.1
+    --log-dir ./logs/dataloader_check_server \
+    --num-workers 8 \
+    --sample-rate 0.1
 
   # Client mode
   python scripts/dataloader_check/check.py client \
-    --host 172.16.13.140 \
+    --host localhost \
     --port 2010 \
-    --log_dir ./logs/dataloader_check_client \
-    --num_clients 4 \
+    --log-dir ./logs/dataloader_check_client \
+    --num-clients 1 \
     --heartbeat-interval 10.0
         """,
     )
@@ -198,25 +222,25 @@ Examples:
         "local", help="Run sequential dataloader checker locally"
     )
     local_parser.add_argument(
-        "--config_path",
+        "--config-path",
         type=str,
         required=True,
         help="Path to PostgreSQL configuration file (YAML format)",
     )
     local_parser.add_argument(
-        "--log_dir",
+        "--log-dir",
         type=str,
         default="",
         help="Path to the log directory",
     )
     local_parser.add_argument(
-        "--num_workers",
+        "--num-workers",
         type=int,
         default=8,
         help="Number of workers for dataloader",
     )
     local_parser.add_argument(
-        "--sample_rate",
+        "--sample-rate",
         type=float,
         default=0.1,
         help="Sample rate for dataset checking (0.0-1.0)",
@@ -227,13 +251,13 @@ Examples:
         "server", help="Run distributed dataloader checker server"
     )
     server_parser.add_argument(
-        "--config_path",
+        "--config-path",
         type=str,
         required=True,
         help="Path to PostgreSQL configuration file (YAML format)",
     )
     server_parser.add_argument(
-        "--log_dir",
+        "--log-dir",
         type=str,
         default="",
         help="Path to the log directory",
@@ -251,19 +275,19 @@ Examples:
         help="Port to run the server",
     )
     server_parser.add_argument(
-        "--num_workers",
+        "--num-workers",
         type=int,
         default=8,
         help="Number of workers for dataloader",
     )
     server_parser.add_argument(
-        "--sample_rate",
+        "--sample-rate",
         type=float,
         default=0.1,
         help="Sample rate for dataset checking (0.0-1.0)",
     )
     server_parser.add_argument(
-        "--target_dataset_uuid",
+        "--target-dataset-uuid",
         type=str,
         default="",
         help="Target dataset UUID to check (if empty, check all eligible datasets)",
@@ -286,7 +310,7 @@ Examples:
         help="Server port to connect to",
     )
     client_parser.add_argument(
-        "--log_dir",
+        "--log-dir",
         type=str,
         default="",
         help="Path to the log directory",
