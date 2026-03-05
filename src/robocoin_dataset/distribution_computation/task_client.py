@@ -68,20 +68,39 @@ class TaskClient(ABC):
     async def connect_to_server(self, max_retries: int = 5, delay: float = 3.0) -> None:
         for attempt in range(max_retries):
             try:
+                if self.logger:
+                    self.logger.debug(f"[CONNECT_ATTEMPT] Connecting to {self.server_uri} (attempt {attempt + 1}/{max_retries})")
                 self.websocket = await connect(self.server_uri)
                 self.connected = True
                 if self.logger:
-                    self.logger.info(f"Connected to server: {self.server_uri}")
+                    self.logger.info(f"[CONNECT_SUCCESS] Connected to server: {self.server_uri}")
                 return
             except Exception as e:  # noqa: PERF203
+                error_type = type(e).__name__
+                error_detail = str(e)
                 if self.logger:
-                    self.logger.warning(f"Connection failed ({attempt + 1}/{max_retries}): {e}")
+                    self.logger.warning(
+                        f"[CONNECT_FAILED] Attempt {attempt + 1}/{max_retries} failed | "
+                        f"Error Type: {error_type} | Detail: {error_detail} | "
+                        f"Server URI: {self.server_uri}"
+                    )
                 if attempt < max_retries - 1:
+                    if self.logger:
+                        self.logger.debug(f"[CONNECT_RETRY] Retrying in {delay}s...")
                     await asyncio.sleep(delay)
                 else:
-                    raise ConnectionError(
-                        f"❌ All retries failed, unable to connect to server {self.server_uri}"
+                    error_msg = (
+                        f"[CONNECT_FATAL] All {max_retries} retries failed, unable to connect to server\n"
+                        f"  Server URI: {self.server_uri}\n"
+                        f"  Last Error: {error_type}: {error_detail}\n"
+                        f"  Diagnosis Hints:\n"
+                        f"    - Ensure server is running on {self.server_uri}\n"
+                        f"    - Check firewall/network connectivity\n"
+                        f"    - Verify host and port are correct"
                     )
+                    if self.logger:
+                        self.logger.error(error_msg)
+                    raise ConnectionError(error_msg)
 
     async def _start_heartbeat(self) -> None:
         async def send_ping() -> None:
@@ -119,7 +138,7 @@ class TaskClient(ABC):
                     msg = json.loads(message)
                     msg_type = msg.get(MSG_TYPE)
                     if self.logger:
-                        self.logger.debug(f"📩 Message received: {msg}")
+                        self.logger.debug(f"[MSG_RECV] Message received: {msg}")
                     msg_content = msg.get(MSG_CONTENT, {})
 
                     if msg_type == REGISTERED:
@@ -133,7 +152,12 @@ class TaskClient(ABC):
                     elif msg_type == PING:
                         await self.websocket.send(json.dumps({MSG_TYPE: PONG}))
                         if self.logger:
-                            self.logger.debug("🔁 Client reply PONG")
+                            self.logger.debug("[PING_REPLY] Client reply PONG")
+
+                    elif msg_type == PONG:
+                        # Server heartbeat response acknowledged
+                        if self.logger:
+                            self.logger.debug("[PONG_RECV] Server heartbeat response received")
 
                     elif msg_type in (TASK, NO_TASK):
                         if self._response_future is not None and not self._response_future.done():
@@ -141,19 +165,19 @@ class TaskClient(ABC):
                         else:
                             if self.logger:
                                 self.logger.warning(
-                                    f"⚠️ Received task response but no pending request: {msg_type}"
+                                    f"[WARN] Received task response but no pending request: {msg_type}"
                                 )
 
                     # elif msg_type == ACK:
-                    #     self._logger.info(f"✅ Server acknowledged: {msg}")
+                    #     self._logger.info(f"[ACK] Server acknowledged: {msg}")
 
                     elif msg_type == ERROR:
                         if self.logger:
-                            self.logger.error(f"❌ Server error: {msg.get(ERROR_MSG)}")
+                            self.logger.error(f"[ERROR] Server error: {msg.get(ERROR_MSG)}")
 
                     else:
                         if self.logger:
-                            self.logger.debug(f"📩 Unknown message type: {msg_type}")
+                            self.logger.debug(f"[MSG_UNKNOWN] Unknown message type: {msg_type}")
 
                 except Exception as e:
                     if self.logger:
@@ -161,7 +185,7 @@ class TaskClient(ABC):
 
         except ConnectionClosed as e:
             if self.logger:
-                self.logger.warning(f"⚠️ The connection to the server has been closed: {e}")
+                self.logger.warning(f"[CONN_CLOSED] The connection to the server has been closed: {e}")
             self.connected = False
             if self._response_future is not None and not self._response_future.done():
                 self._response_future.set_exception(e)
@@ -179,7 +203,7 @@ class TaskClient(ABC):
 
         if self.client_id:
             if self.logger:
-                self.logger.info("ℹ️ Client already registered, skipping")
+                self.logger.info("[INFO] Client already registered, skipping")
             return True
 
         # Use Future to wait for registration response
@@ -198,7 +222,7 @@ class TaskClient(ABC):
             }
             await self.websocket.send(json.dumps(register_msg))
             if self.logger:
-                self.logger.info(f"📤 Registration request sent | IP: {self.local_ip}")
+                self.logger.info(f"[REGISTER_SENT] Registration request sent | IP: {self.local_ip}")
 
             try:
                 result = await asyncio.wait_for(self._response_future, timeout=10.0)
@@ -206,7 +230,7 @@ class TaskClient(ABC):
             except asyncio.TimeoutError:
                 if self.logger:
                     self.logger.error(
-                        "❌ Registration timeout, no response received from the server"
+                        "[ERROR] Registration timeout, no response received from the server"
                     )
                 if self._response_future and not self._response_future.done():
                     self._response_future.cancel()
@@ -233,13 +257,13 @@ class TaskClient(ABC):
     async def request_task(self) -> dict | None:
         if not self.client_id:
             if self.logger:
-                self.logger.warning("❌ Registration failed")
+                self.logger.warning("[WARN] Registration failed")
             return None
 
-        # ✅ Check and cancel old future (if exists)
+        # Check and cancel old future (if exists)
         if self._response_future is not None and not self._response_future.done():
             if self.logger:
-                self.logger.warning("⚠️ There are unfinished task requests, canceling old request")
+                self.logger.warning("[WARN] There are unfinished task requests, canceling old request")
             self._response_future.set_exception(
                 RuntimeError("Old request overridden by new request")
             )
@@ -298,7 +322,7 @@ class TaskClient(ABC):
                 return None
 
             if self.logger:
-                self.logger.warning(f"⚠️ Unexpected response type: {msg_type}")
+                self.logger.warning(f"[WARN] Unexpected response type: {msg_type}")
             return None
 
         except Exception as e:
@@ -306,18 +330,16 @@ class TaskClient(ABC):
                 self.logger.error(f"Request task failed: {e}")
             return None
 
-        # ✅ Do not set to None here
-
     async def submit_result(self, result: dict) -> None:
         if not self.client_id:
             if self.logger:
-                self.logger.error("❌ Not registered, cannot submit result")
+                self.logger.error("[ERROR] Not registered, cannot submit result")
             return
 
         try:
             await self.websocket.send(json.dumps(result))
             if self.logger:
-                self.logger.info(f"📤 Submitting task result, task_id is: {result.get(TASK_ID)}")
+                self.logger.info(f"[RESULT_SUBMIT] Submitting task result, task_id is: {result.get(TASK_ID)}")
 
         except Exception as e:
             if self.logger:
@@ -351,22 +373,22 @@ class TaskClient(ABC):
                 await self.register()
                 if not self.client_id:
                     if self.logger:
-                        self.logger.error("❌ Registration failed, exiting")
+                        self.logger.error("[ERROR] Registration failed, exiting")
                     return
 
                 await self._start_heartbeat()
                 if self.logger:
-                    self.logger.info(f"✅ Client {self.client_id} is ready, starting task loop")
+                    self.logger.info(f"[SUCCESS] Client {self.client_id} is ready, starting task loop")
 
             while True:
                 task = await self.request_task()
                 if task is None:
                     if self.logger:
-                        self.logger.info("📭 No task from server, client exiting")
+                        self.logger.info("[EXIT] No task from server, client exiting")
                     break
 
                 if self.logger:
-                    self.logger.info(f"🚀 Starting to process task: {task.get(TASK_ID)}")
+                    self.logger.info(f"[START] Starting to process task: {task.get(TASK_ID)}")
                 result_content = await self.process_task(task)
                 result = {
                     MSG_TYPE: TASK_RESULT,
@@ -376,11 +398,15 @@ class TaskClient(ABC):
                 result[CLIENT_ID] = self.client_id
                 await self.submit_result(result)
                 if self.logger:
-                    self.logger.info("📤 Task result submitted, preparing to request next task...")
+                    self.logger.info("[NEXT] Task result submitted, preparing to request next task...")
 
         except Exception as e:
+            error_type = type(e).__name__
             if self.logger:
-                self.logger.error(f"Client runtime exception: {e}")
+                self.logger.error(
+                    f"[CLIENT_RUNTIME_ERROR] {error_type}: {e}\n"
+                    f"Traceback:\n{traceback.format_exc()}"
+                )
         finally:
             await self._cleanup()
 
@@ -391,7 +417,7 @@ class TaskClient(ABC):
         # Clean up response_future
         if self._response_future is not None and not self._response_future.done():
             self._response_future.set_exception(asyncio.CancelledError())
-        self._response_future = None  # ✅ Only set to None here
+        self._response_future = None
 
         # Cancel receiver task
         if self._receiver_task:
@@ -410,7 +436,7 @@ class TaskClient(ABC):
             try:
                 await self.websocket.close()
                 if self.logger:
-                    self.logger.info("🔌 Client connection closed")
+                    self.logger.info("[CLOSED] Client connection closed")
             except Exception as e:
                 if self.logger:
                     self.logger.error(f"Failed to close connection: {e}")
@@ -420,7 +446,7 @@ class TaskClient(ABC):
             await self.run_until_no_task()
         except KeyboardInterrupt:
             if self.logger:
-                self.logger.info("🛑 Client interrupted by user")
+                self.logger.info("[INTERRUPT] Client interrupted by user")
         except Exception as e:
             if self.logger:
                 self.logger.error(f"Client terminated abnormally: {e}")
