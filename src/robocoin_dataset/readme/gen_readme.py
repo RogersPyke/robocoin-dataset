@@ -3,10 +3,10 @@ README Generator Module
 
 This module provides the ReadmeGenerator class for generating README.md files
 from YAML metadata and Jinja2 templates. It orchestrates the README generation
-process by calling underlying utility functions from utils.py.
+process by calling underlying utility functions.
 
 Dependencies:
-    - robocoin_dataset.readme.utils: For underlying implementation functions
+    - robocoin_dataset.readme modules: For implementation functions
     - yaml: For parsing configuration files
     - pathlib: For file path operations
 
@@ -31,15 +31,17 @@ from typing import Optional
 
 import yaml
 
-from robocoin_dataset.readme.utils import (
-    load_jinja2_template,
-    load_yaml_file,
-    locate_yaml_file,
-    render_template,
+from robocoin_dataset.readme.context_utils import build_readme_context_from_schema
+from robocoin_dataset.readme.logging_utils import (
     setup_readme_logger,
     validate_hardlink_directory,
+)
+from robocoin_dataset.readme.template_utils import (
+    load_jinja2_template,
+    render_template,
     write_readme_file,
 )
+from robocoin_dataset.readme.yaml_utils import locate_yaml_file
 from robocoin_dataset.utils.log_config import log_error, log_success  # noqa: F401
 
 
@@ -120,6 +122,7 @@ class ReadmeGenerator:
             FileNotFoundError: If YAML file cannot be located or dataset_path is invalid
         """
         self.dataset_path = Path(dataset_path).expanduser().resolve()
+        module_root = Path(__file__).resolve().parent
 
         # Setup log directory early (needed for logger)
         if log_dir is None:
@@ -161,8 +164,11 @@ class ReadmeGenerator:
         )
 
         # Set other default paths
+        # Schema path is fixed to package assets/info.yaml.
+        self.schema_yaml_path = module_root / "assets" / "info.yaml"
+
         if template_path is None:
-            self.template_path = self.dataset_path / "readme" / "readme.j2"
+            self.template_path = module_root / "assets" / "readme.j2"
         else:
             self.template_path = Path(template_path).expanduser().resolve()
 
@@ -174,7 +180,8 @@ class ReadmeGenerator:
         # Log initialization
         self.logger.info("[INIT] ReadmeGenerator initialized")
         self.logger.info(f"[INIT] Dataset path: {self.dataset_path}")
-        self.logger.info(f"[INIT] Info YAML path: {self.info_yaml_path}")
+        self.logger.info(f"[INIT] Local dataset info path: {self.info_yaml_path}")
+        self.logger.info(f"[INIT] Schema YAML path: {self.schema_yaml_path}")
         self.logger.info(f"[INIT] Template path: {self.template_path}")
         self.logger.info(f"[INIT] Output path: {self.output_path}")
         self.logger.info(f"[INIT] Log directory: {self.log_dir}")
@@ -215,10 +222,26 @@ class ReadmeGenerator:
         try:
             self.logger.info("[GENERATE] Starting README generation process")
 
-            # Step 1: Load YAML metadata
-            self.logger.info("[GENERATE] Step 1: Loading YAML metadata")
-            yaml_data = load_yaml_file(self.info_yaml_path, self.logger)
-            self.logger.info(f"[GENERATE] Loaded {len(yaml_data)} fields from YAML")
+            # Step 1: Build context from schema + source-scoped metadata.
+            self.logger.info("[GENERATE] Step 1: Building context from schema and source files")
+            yaml_data, source_type_counter = build_readme_context_from_schema(
+                schema_yaml_path=self.schema_yaml_path,
+                dataset_path=self.dataset_path,
+                local_dataset_info_path=self.info_yaml_path,
+                logger=self.logger,
+            )
+            self.logger.info(
+                f"[GENERATE] Built context with {len(yaml_data)} fields from schema"
+            )
+            self.logger.info(
+                "[GENERATE] Source type summary: "
+                + ", ".join(
+                    [
+                        f"{k}={v}"
+                        for k, v in sorted(source_type_counter.items(), key=lambda x: x[0])
+                    ]
+                )
+            )
 
             # Step 2: Load Jinja2 template
             self.logger.info("[GENERATE] Step 2: Loading Jinja2 template")

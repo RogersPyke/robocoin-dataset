@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import Optional
 
 from robocoin_dataset.readme.gen_readme import ReadmeGenerator
-from robocoin_dataset.readme.utils import setup_readme_logger
+from robocoin_dataset.readme.logging_utils import setup_readme_logger
 from robocoin_dataset.utils.log_config import log_error, log_success
 
 
