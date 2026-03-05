@@ -10,6 +10,7 @@ Dependencies:
     - os: For environment variable detection
     - pathlib: For path operations
     - dataclasses: For LogConfig dataclass
+    - datetime: For UTC+8 timestamp generation
 
 Usage:
     Basic usage:
@@ -18,11 +19,18 @@ Usage:
         logger = logging.getLogger(__name__)
         log_success(logger, "Operation completed successfully")
         log_error(logger, "Operation failed")
+    
+    Colored formatter usage:
+        from robocoin_dataset.utils.log_config import ColoredFormatter
+        
+        formatter = ColoredFormatter("%(message)s")
+        handler.setFormatter(formatter)
 """
 
 import logging
 import os
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # Calculate default log path relative to project root
@@ -156,6 +164,79 @@ def log_url(logger: logging.Logger, message: str, level: int = logging.INFO) -> 
         Call this function to log URLs or arguments with blue color.
     """
     logger.log(level, colorize(message, ANSI_BLUE))
+
+
+def get_utc8_timestamp() -> str:
+    """
+    Generate timestamp string in YYYYMMDDHHMMSS format (UTC+8).
+
+    Input:
+        None.
+
+    Output:
+        str: Timestamp string in format YYYYMMDDHHMMSS.
+
+    Logic:
+        1. Create UTC+8 timezone using timedelta(hours=8)
+        2. Get current datetime in UTC+8
+        3. Format as YYYYMMDDHHMMSS
+
+    Usage:
+        Used for log file naming with UTC+8 timestamps.
+    """
+    utc8 = timezone(timedelta(hours=8))
+    now = datetime.now(utc8)
+    return now.strftime("%Y%m%d%H%M%S")
+
+
+class ColoredFormatter(logging.Formatter):
+    """
+    Custom formatter that applies ANSI colors to log records based on message content.
+
+    Input:
+        Inherits from logging.Formatter.
+
+    Output:
+        Formatted log string with optional ANSI color codes.
+
+    Logic:
+        1. Format the log record using parent formatter
+        2. Apply color codes based on log level or message keywords:
+           - ERROR/WARNING: red
+           - SUCCESS in INFO message: green
+           - URL, path, argument keywords: blue
+        3. Return colorized or original message
+
+    Usage:
+        Used to provide colored console output for log messages:
+        
+        formatter = ColoredFormatter(
+            fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        console_handler.setFormatter(formatter)
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        """
+        Format log record with color codes.
+
+        Input:
+            record (logging.LogRecord): Log record to format
+
+        Output:
+            str: Formatted and colorized log string
+        """
+        msg = super().format(record)
+        if record.levelno >= logging.ERROR:
+            return colorize(msg, ANSI_RED)
+        if record.levelno >= logging.WARNING:
+            return colorize(msg, ANSI_RED)
+        if record.levelno == logging.INFO and "SUCCESS" in msg:
+            return colorize(msg, ANSI_GREEN)
+        if "URL" in msg or "path" in msg.lower() or "argument" in msg.lower():
+            return colorize(msg, ANSI_BLUE)
+        return msg
 
 
 @dataclass()

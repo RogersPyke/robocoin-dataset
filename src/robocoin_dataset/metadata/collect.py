@@ -14,8 +14,8 @@ Purpose:
 
 Dependencies:
     - robocoin_dataset.metadata.collect_utils: Field resolution and context building
-    - robocoin_dataset.readme.logging_utils: setup_readme_logger, validate_hardlink_directory
-    - robocoin_dataset.readme.yaml_utils: locate_yaml_file
+    - robocoin_dataset.metadata.logging: Collect stage logger setup
+    - robocoin_dataset.metadata.yaml_utils: YAML file locating and loading
     - robocoin_dataset.utils.log_config: log_error, log_success
     - yaml: YAML serialization
     - pathlib: Path operations
@@ -37,11 +37,11 @@ from typing import Any, Dict, Optional
 import yaml
 
 from robocoin_dataset.metadata.collect_utils import resolve_context_from_schema
-from robocoin_dataset.readme.logging_utils import (
-    setup_readme_logger,
+from robocoin_dataset.metadata.logging import (
+    setup_collect_logger,
     validate_hardlink_directory,
 )
-from robocoin_dataset.readme.yaml_utils import locate_yaml_file
+from robocoin_dataset.metadata.yaml_utils import locate_yaml_file
 from robocoin_dataset.utils.log_config import log_error, log_success
 
 # Filename of the generated output placed in the dataset root directory.
@@ -173,7 +173,7 @@ class InfoCollector:
         else:
             self.log_dir = Path(log_dir).expanduser().resolve()
 
-        self.logger = setup_readme_logger(
+        self.logger = setup_collect_logger(
             log_dir=self.log_dir,
             script_name="collect",
             level=logging.INFO,

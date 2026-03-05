@@ -1,8 +1,21 @@
 """
-README YAML utility functions.
+YAML file utilities for the Collect stage (metadata information collection).
 
 Purpose:
-    Provide YAML locating and loading helpers for README generation.
+    Provide YAML file locating and loading helpers specifically for metadata
+    collection. This module is self-contained and does not depend on readme/ modules.
+
+Dependencies:
+    - logging, pathlib.Path, yaml
+    - robocoin_dataset.utils.log_config (log_error)
+
+Usage example:
+    yaml_path = locate_yaml_file(
+        hardlink_dir="/path/to/dataset_qced_hardlink",
+        yaml_filename="local_dataset_info.yaml",
+        logger=logger,
+    )
+    data = load_yaml_file(yaml_path, logger)
 """
 
 import logging
@@ -31,6 +44,14 @@ def locate_yaml_file(
 
     Output:
         Path: Validated path to the located YAML file.
+
+    Usage:
+        Locates the input metadata file for the Collect stage. Supports both
+        automatic discovery (in hardlink_dir) and explicit user-provided paths.
+
+    Raises:
+        FileNotFoundError: If file not found.
+        ValueError: If path is not a valid file.
     """
     if logger is None:
         logger = logging.getLogger("locate_yaml")
@@ -96,6 +117,10 @@ def _normalize_aliases(alias_value: Any) -> List[str]:
 
     Output:
         List[str]: Normalized alias names.
+
+    Usage:
+        Internal helper for load_yaml_file. Converts various alias formats
+        (string, list, None) into a consistent list representation.
     """
     if alias_value is None:
         return []
@@ -108,7 +133,7 @@ def _normalize_aliases(alias_value: Any) -> List[str]:
 
 def load_yaml_file(yaml_path: Path, logger: logging.Logger) -> Dict[str, Any]:
     """
-    Load and parse YAML file into dictionary.
+    Load and parse YAML file into dictionary with alias support.
 
     Input:
         yaml_path (Path): Path to the YAML file to load.
@@ -116,6 +141,20 @@ def load_yaml_file(yaml_path: Path, logger: logging.Logger) -> Dict[str, Any]:
 
     Output:
         Dict[str, Any]: Parsed YAML content as dictionary.
+                        For schema YAML: raw nested structure with field specs.
+                        For data YAML: flattened key->value mapping.
+
+    Usage:
+        Loads YAML files during metadata collection. Handles:
+        - Missing/empty files (returns empty dict or logs warning)
+        - Schema files with nested field specifications
+        - User data with canonical keys and deprecated aliases
+        - Conflict detection (canonical + alias both set)
+
+    Raises:
+        FileNotFoundError: If yaml_path does not exist.
+        ValueError: If YAML root is not a mapping.
+        yaml.YAMLError: If YAML parsing fails.
     """
     yaml_path = Path(yaml_path)
     if not yaml_path.exists():

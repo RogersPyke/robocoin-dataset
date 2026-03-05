@@ -2,22 +2,30 @@
 README Generator Module
 
 This module provides the ReadmeGenerator class for generating README.md files
-from YAML metadata and Jinja2 templates.
+from pre-collected YAML metadata and Jinja2 templates.
+
+Strict responsibility (Render stage only):
+    ReadmeGenerator ONLY does two things:
+    1. Delegate Phase 1 (Collect) to InfoCollector from metadata.collect
+    2. Execute Phase 2 (Render) by loading template and rendering with collected data
+
+    NO metadata collection/auto-fields/schema resolution logic here.
+    NO input validation beyond file existence.
 
 Generation flow (two-phase pipeline):
-    Phase 1 - Collect:
-        InfoCollector reads local_dataset_info.yaml + all dataset source files
-        (meta/info.json, annotations/, etc.), resolves every schema field, and
-        writes the result as a flat info.yaml inside the dataset directory.
+    Phase 1 - Collect (delegated to metadata.collect.InfoCollector):
+        Reads local_dataset_info.yaml + all dataset source files,
+        resolves every schema field, and writes flat info.yaml.
 
-    Phase 2 - Render:
-        ReadmeGenerator reads the collected info.yaml, loads the Jinja2 template,
-        renders the template, and writes README.md.
+    Phase 2 - Render (executed by ReadmeGenerator):
+        Reads the collected info.yaml, loads Jinja2 template,
+        renders template, and writes README.md.
 
 Dependencies:
-    - robocoin_dataset.metadata.collect: InfoCollector for Phase 1
-    - robocoin_dataset.readme.context_utils: load_collected_info_yaml for Phase 2
-    - robocoin_dataset.readme modules: template and logging utilities
+    - robocoin_dataset.metadata.collect: InfoCollector for Phase 1 delegation
+    - robocoin_dataset.readme.utils: load_collected_info_yaml for Phase 2
+    - robocoin_dataset.readme.logging: Logger setup for Render stage
+    - robocoin_dataset.readme.template_utils: Template operations for Phase 2
     - yaml: For parsing configuration files
     - pathlib: For file path operations
 
@@ -43,11 +51,8 @@ from typing import Optional
 import yaml
 
 from robocoin_dataset.metadata.collect import InfoCollector
-from robocoin_dataset.readme.context_utils import load_collected_info_yaml
-from robocoin_dataset.readme.logging_utils import (
-    setup_readme_logger,
-    validate_hardlink_directory,
-)
+from robocoin_dataset.readme.logging import setup_readme_logger
+from robocoin_dataset.readme.utils import load_collected_info_yaml
 from robocoin_dataset.readme.template_utils import (
     load_jinja2_template,
     render_template,
@@ -173,7 +178,6 @@ class ReadmeGenerator:
             log_error(self.logger, error_msg)
             raise ValueError(error_msg)
 
-        validate_hardlink_directory(self.dataset_path, self.logger)
 
         # Resolve local_dataset_info_path: prefer explicit param, fall back to alias.
         _local_info_param = local_dataset_info_path if local_dataset_info_path is not None else info_yaml_path
