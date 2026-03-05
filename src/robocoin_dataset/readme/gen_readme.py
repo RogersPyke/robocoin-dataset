@@ -34,11 +34,13 @@ import yaml
 from robocoin_dataset.readme.utils import (
     load_jinja2_template,
     load_yaml_file,
+    locate_yaml_file,
     render_template,
     setup_readme_logger,
+    validate_hardlink_directory,
     write_readme_file,
 )
-from robocoin_dataset.utils.log_config import log_error, log_success
+from robocoin_dataset.utils.log_config import log_error, log_success  # noqa: F401
 
 
 # ============================================================================
@@ -83,12 +85,13 @@ class ReadmeGenerator:
         template_path: Optional[str | Path] = None,
         output_path: Optional[str | Path] = None,
         log_dir: Optional[str | Path] = None,
+        local_dataset_info_filename: str = "local_dataset_info.yaml",
     ) -> None:
         """
         Initialize ReadmeGenerator instance.
 
         Input:
-            dataset_path (str | Path): Path to the dataset directory
+            dataset_path (str | Path): Path to the dataset directory (hardlink directory)
             info_yaml_path (Optional[str | Path]): Custom path to info.yaml file.
                 If None, defaults to dataset_path/readme/info.yaml
             template_path (Optional[str | Path]): Custom path to readme.j2 template.
@@ -97,27 +100,67 @@ class ReadmeGenerator:
                 If None, defaults to dataset_path/README.md
             log_dir (Optional[str | Path]): Directory for log files.
                 If None, defaults to dataset_path/logs/gen_readme
+            local_dataset_info_filename (str): Filename to search for at dataset_path first level.
+                If found, used as local metadata file. (default: "local_dataset_info.yaml")
 
         Output:
             None
 
         Logic:
             1. Convert all paths to Path objects
-            2. Set default paths if not provided
-            3. Setup logger using utility function
-            4. Log initialization parameters
+            2. Setup logger using utility function (early to log diagnostics)
+            3. Locate YAML file: search in dataset_path first level, then validate custom path
+            4. Set default paths if not provided
+            5. Log initialization parameters
 
         Usage:
             Called when creating a ReadmeGenerator instance.
+
+        Raises:
+            FileNotFoundError: If YAML file cannot be located or dataset_path is invalid
         """
         self.dataset_path = Path(dataset_path).expanduser().resolve()
 
-        # Set default paths
-        if info_yaml_path is None:
-            self.info_yaml_path = self.dataset_path / "readme" / "info.yaml"
+        # Setup log directory early (needed for logger)
+        if log_dir is None:
+            self.log_dir = self.dataset_path / "logs" / "gen_readme"
         else:
-            self.info_yaml_path = Path(info_yaml_path).expanduser().resolve()
+            self.log_dir = Path(log_dir).expanduser().resolve()
 
+        # Setup logger using utility function (do this early for diagnostics)
+        self.logger = setup_readme_logger(
+            log_dir=self.log_dir,
+            script_name="gen_readme",
+            level=logging.INFO,
+            console_output=True,
+        )
+
+        # Validate dataset_path exists
+        if not self.dataset_path.exists():
+            error_msg = f"[INIT] Dataset directory does not exist: {self.dataset_path}"
+            log_error(self.logger, error_msg)
+            raise FileNotFoundError(error_msg)
+
+        if not self.dataset_path.is_dir():
+            error_msg = f"[INIT] Dataset path is not a directory: {self.dataset_path}"
+            log_error(self.logger, error_msg)
+            raise ValueError(error_msg)
+
+        # Validate that directory appears to be a hardlink directory (soft warning)
+        validate_hardlink_directory(self.dataset_path, self.logger)
+
+        # Locate YAML file using priority-based search:
+        # 1. Search for local_dataset_info_filename in dataset_path's first level
+        # 2. If custom path provided, validate and use it
+        # 3. If not found, error and exit
+        self.info_yaml_path = locate_yaml_file(
+            hardlink_dir=self.dataset_path,
+            yaml_filename=local_dataset_info_filename,
+            custom_yaml_path=info_yaml_path,
+            logger=self.logger,
+        )
+
+        # Set other default paths
         if template_path is None:
             self.template_path = self.dataset_path / "readme" / "readme.j2"
         else:
@@ -127,19 +170,6 @@ class ReadmeGenerator:
             self.output_path = self.dataset_path / "README.md"
         else:
             self.output_path = Path(output_path).expanduser().resolve()
-
-        if log_dir is None:
-            self.log_dir = self.dataset_path / "logs" / "gen_readme"
-        else:
-            self.log_dir = Path(log_dir).expanduser().resolve()
-
-        # Setup logger using utility function
-        self.logger = setup_readme_logger(
-            log_dir=self.log_dir,
-            script_name="gen_readme",
-            level=logging.INFO,
-            console_output=True,
-        )
 
         # Log initialization
         self.logger.info("[INIT] ReadmeGenerator initialized")
@@ -170,8 +200,14 @@ class ReadmeGenerator:
             Main entry point for generating README files.
             Call this method after initializing ReadmeGenerator.
 
+        Note:
+            The info_yaml_path is determined during __init__ using locate_yaml_file,
+            which implements priority-based search: first in dataset_path first level,
+            then validates custom path if provided. FileNotFoundError is raised early
+            during __init__ if no valid YAML file can be located.
+
         Raises:
-            FileNotFoundError: If info.yaml or template file is missing
+            FileNotFoundError: If template file is missing
             yaml.YAMLError: If YAML parsing fails
             jinja2.TemplateError: If template rendering fails
             IOError: If file writing fails

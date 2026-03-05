@@ -1,0 +1,34 @@
+dataset_name: Agilex_Cobot_Magic_pour_water_into_cup
+dataset_uuid: f896a1a2-2888-4044-bfd0-6b115febb733
+task_instruction:
+- Pour water or beverage into the cup using one hand.
+env_type: real_world
+scene_level1: Catering
+scene_level2: Restaurant
+atomic_actions:
+- grasp
+- pour
+- place
+device_model:
+- Agilex_Cobot_Magic
+end_effector_type:
+- two_finger_end_effector
+objects:
+- color: blue
+  object_name: mug
+- color: green
+  object_name: mug
+- color: transparent
+  object_name: plastic cup
+- color: transparent
+  object_name: bottled beverages
+- color: white
+  object_name: paper cup
+- color: transparent
+  object_name: glass cup
+operation_platform_height: 77.2
+task_operation_type: fixed_single_arm
+tele_type: master_arm
+dataset_name_id: 0
+yaml_file_path: /home/liuyou/Documents/data/Agilex_Cobot_Magic_pour_drink_bottle_cup_0/local_dataset_info.yaml
+data_path: /home/liuyou/Documents/data/Agilex_Cobot_Magic_pour_drink_bottle_cup_0

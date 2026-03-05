@@ -55,10 +55,16 @@ def parse_cli_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     Output:
         argparse.Namespace: Parsed arguments object with fields:
             - dataset_path (str, required)
-            - info_yaml_path (Optional[str])
+            - local_dataset_info_path (Optional[str])
 
     Scenario:
         Called by main() as the only CLI input entry.
+
+    Note:
+        The system uses priority-based YAML file location:
+        1. First searches for local_dataset_info.yaml in dataset_path (first level)
+        2. If not found, validates custom path from --local-dataset-info-path
+        3. If neither found, reports detailed error and exits
     """
     parser = argparse.ArgumentParser(
         prog="gen_readme.py",
@@ -67,12 +73,14 @@ def parse_cli_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--dataset-path",
         required=True,
-        help="Dataset directory path. Default internal files: readme/info.yaml and readme/readme.j2.",
+        help="Dataset/hardlink directory path (root directory where data is stored).",
     )
     parser.add_argument(
-        "--info-yaml-path",
+        "--local-dataset-info-path",
         default=None,
-        help="Optional custom info.yaml path. If omitted, use <dataset_path>/readme/info.yaml.",
+        help="Optional custom path to local_dataset_info.yaml. "
+        "If omitted, system searches for 'local_dataset_info.yaml' at dataset_path first level. "
+        "If neither found, error is reported and process exits.",
     )
     return parser.parse_args(argv)
 
@@ -129,6 +137,12 @@ def run_generation(args: argparse.Namespace, logger: logging.Logger) -> Path:
 
     Scenario:
         Main business call path for CLI mode.
+
+    Note:
+        The ReadmeGenerator will automatically locate the YAML file using:
+        1. Search in dataset_path first level for local_dataset_info.yaml
+        2. Validate custom path if provided via --local-dataset-info-path
+        3. Raise error if no valid file found
     """
     project_root = get_project_root()
     dataset_path = Path(args.dataset_path).expanduser().resolve()
@@ -137,14 +151,14 @@ def run_generation(args: argparse.Namespace, logger: logging.Logger) -> Path:
     fixed_log_dir = project_root / "logs" / "gen_readme"
 
     logger.info(f"[CLI] dataset_path={dataset_path}")
-    logger.info(f"[CLI] info_yaml_path={args.info_yaml_path}")
+    logger.info(f"[CLI] local_dataset_info_path={args.local_dataset_info_path}")
     logger.info(f"[CLI] template_path={template_path}")
     logger.info(f"[CLI] output_path={output_path}")
     logger.info(f"[CLI] log_dir={fixed_log_dir}")
 
     generator = ReadmeGenerator(
         dataset_path=dataset_path,
-        info_yaml_path=args.info_yaml_path,
+        info_yaml_path=args.local_dataset_info_path,
         template_path=template_path,
         output_path=output_path,
         log_dir=fixed_log_dir,

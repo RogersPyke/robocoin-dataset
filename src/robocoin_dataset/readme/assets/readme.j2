@@ -40,9 +40,9 @@ configs:
 
 ### Overview
 
-{% set _total_episodes = statistics.total_episodes if statistics is defined and statistics.total_episodes is defined else (total_episodes if total_episodes is defined else None) -%}
-{% set _total_frames = statistics.total_frames if statistics is defined and statistics.total_frames is defined else (total_frames if total_frames is defined else None) -%}
-{% set _fps = statistics.fps if statistics is defined and statistics.fps is defined else (fps if fps is defined else None) -%}
+{% set _total_episodes = statistics.total_episodes if statistics is defined and statistics.total_episodes is defined else None -%}
+{% set _total_frames = statistics.total_frames if statistics is defined and statistics.total_frames is defined else None -%}
+{% set _fps = statistics.fps if statistics is defined and statistics.fps is defined else None -%}
 {% set _dataset_size = dataset_size if dataset_size is defined else (statistics.dataset_size if statistics is defined and statistics.dataset_size is defined else None) -%}
 
 {% if _total_episodes is defined -%}
@@ -59,13 +59,6 @@ configs:
 {% endif -%}
 {% if robot_name is defined and robot_name -%}
 - **Robot Name:** `{{ robot_name }}`
-{% endif -%}
-{% if end_effector_name is defined and end_effector_name -%}
-{%- set _eef_name_display = end_effector_name -%}
-{%- if _eef_name_display is iterable and _eef_name_display is not string -%}
-{%- set _eef_name_display = _eef_name_display | join(', ') -%}
-{%- endif -%}
-- **End-Effector Name:** `{{ _eef_name_display }}`
 {% endif -%}
 {% if end_effector_type is defined and end_effector_type -%}
 {%- set _eef_type_display = end_effector_type -%}
@@ -120,35 +113,23 @@ configs:
 `{{ obj.object_name }}{% for i in range(1, 6) %}{% set l = "level" ~ i %}{% if obj[l] %}-{{ obj[l] }}{% endif %}{% endfor %}`{% if not loop.last %}, {% endif %}
 {% endfor %}
 {% endif -%}
-{% if task_description is defined and task_description -%}
-- **Task Description:** {{ task_description }}
-{%- elif tasks is defined and tasks -%}
-- **Task Description:** {{ tasks }}
+{% if task_instruction is defined and task_instruction -%}
+- **Task Description:** {{ task_instruction }}
 {% endif %}
 
-{% if tasks is defined and tasks -%}
+{% if task_instruction is defined and task_instruction -%}
 ### Primary Task Instruction
-> {{ tasks }}
+> {{ task_instruction }}
 {%- endif %}
 
-{% if robot_type is defined or robot_name is defined or codebase_version is defined or end_effector_type is defined -%}
+{% if robot_name is defined or codebase_version is defined or end_effector_type is defined -%}
 ### Robot Configuration
 
 {% if robot_name is defined and robot_name -%}
 - **Robot Name:** `{{ robot_name }}`
 {%- endif %}
-{% if robot_type is defined -%}
-- **Robot Type:** `{{ robot_type }}`
-{%- endif %}
 {% if codebase_version is defined -%}
 - **Codebase Version:** `{{ codebase_version }}`
-{%- endif %}
-{% if end_effector_name is defined and end_effector_name -%}
-{%- set _eef_name_display = end_effector_name -%}
-{%- if _eef_name_display is iterable and not _eef_name_display is string -%}
-{%- set _eef_name_display = _eef_name_display | join(', ') -%}
-{%- endif -%}
-- **End-Effector Name:** `{{ _eef_name_display }}`
 {%- endif %}
 {% if end_effector_type is defined and end_effector_type -%}
 {%- set _eef_display = end_effector_type -%}
@@ -195,11 +176,8 @@ configs:
 
 ## Task Descriptions
 
-{% if task_name is defined and task_name -%}
-- **Standardized Task Name:** `{{ task_name }}`
-{%- endif %}
-{% if task_description is defined and task_description -%}
-- **Standardized Task Description:** `{{ task_description }}`
+{% if task_instruction is defined and task_instruction -%}
+- **Standardized Task Description:** `{{ task_instruction }}`
 {%- endif %}
 {% if task_operation_type is defined and task_operation_type -%}
 - **Operation Type:** `{{ task_operation_type }}`
@@ -311,35 +289,6 @@ This dataset includes {{ sub_tasks | length }} distinct subtasks:
 {% if dataset_size is defined and dataset_size -%}
 | **Dataset Size** | {{ dataset_size }} |
 {% endif -%}
-{%- else -%}
-{% if total_episodes is defined -%}
-| **Total Episodes** | {{ total_episodes }} |
-{% endif -%}
-{% if total_frames is defined -%}
-| **Total Frames** | {{ total_frames }} |
-{% endif -%}
-{% if total_tasks is defined -%}
-| **Total Tasks** | {{ total_tasks }} |
-{% endif -%}
-{% if total_chunks is defined -%}
-| **Total Chunks** | {{ total_chunks }} |
-{% endif -%}
-{% if total_videos is defined -%}
-| **Total Videos** | {{ total_videos }} |
-{% endif -%}
-{% if chunks_size is defined -%}
-| **Chunk Size** | {{ chunks_size }} |
-{% endif -%}
-{% if fps is defined -%}
-| **FPS** | {{ fps }} |
-{% endif -%}
-{%- endif %}
-{% if frame_range is defined and frame_range -%}
-
-- **Frame Range Label:** `{{ frame_range }}`
-{%- endif %}
-{% if data_schema is defined and data_schema -%}
-- **Data Schema:** {{ data_schema }}
 {%- endif %}
 
 {% if splits is defined -%}
@@ -393,9 +342,7 @@ This dataset follows the LeRobot format and contains the following components:
 
 ## Camera Views
 
-{% if cameras is defined and cameras != "auto_generated" -%}
-This dataset includes {{ cameras | length }} camera views.
-{%- elif features is defined -%}
+{% if features is defined -%}
 {%- set camera_count = features.items() | selectattr('0', 'match', '^observation\\.images\\.') | list | length -%}
 {%- if camera_count > 0 -%}
 This dataset includes {{ camera_count }} camera views.
@@ -412,23 +359,15 @@ This dataset includes {{ camera_count }} camera views.
 
 ## Meta Information
 
-{% if get_meta_info_content is defined -%}
-The complete dataset metadata is available in [meta/info.json](meta/info.json):
-
-```json
-{{get_meta_info_content()}}
-```
-{%- else -%}
 The complete dataset metadata is available in [meta/info.json](meta/info.json).
-{%- endif %}
 
-{% if structure is defined and structure -%}
+{% if data_structure is defined and data_structure -%}
 ### Directory Structure
 
 The dataset is organized as follows (showing leaf directories with first 5 files only):
 
 ```
-{{ structure }}
+{{ data_structure }}
 ```
 {%- endif %}
 
@@ -455,7 +394,7 @@ This dataset includes rich annotations to support diverse learning approaches:
 ## Authors
 
 ### Contributors
-{% if authors.contributed_by is defined -%}
+{% if authors is defined and authors.contributed_by is defined -%}
 This dataset is contributed by:
 {%- set _people = [] -%}
 {%- set _cur = {"name": None, "url": None, "affiliation": None} -%}
@@ -479,7 +418,7 @@ No contributor information available.
 {%- endif %}
 
 ### Annotators
-{% if authors.annotated_by is defined -%}
+{% if authors is defined and authors.annotated_by is defined -%}
 This dataset is annotated by:
 {%- for item in authors.annotated_by -%}
   {%- if item is mapping -%}
@@ -503,19 +442,13 @@ No annotator information available.
 {% if repository is defined -%}
 - **Repository:** [{{ repository }}]({{ repository }})
 {% endif -%}
-{% if project_page is defined -%}
-- **Project Page:** [{{ project_page }}]({{ project_page }})
-{% endif -%}
-{% if issues_url is defined -%}
-- **Issues:** [{{ issues_url }}]({{ issues_url }})
-{% endif -%}
 - **License:** {{ license | default("apache-2.0") }}
 
 ## Contact and Support
 
-{% if contact_email is defined and contact_email -%}
+{% if contact_detail is defined and contact_detail -%}
 For questions, issues, or feedback regarding this dataset, please contact:
-- **Email:** {{ contact_email }}
+- **Email:** {{ contact_detail }}
 {% endif -%}
 {% if contact_info is defined and contact_info -%}
 {{ contact_info }}
