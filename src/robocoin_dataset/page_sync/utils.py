@@ -4,10 +4,9 @@
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy.orm import Session
-
-from robocoin_dataset.prepare_metadata.metadata_service import MetadataSyncService
 
 ######## ACTUAL OPERATION ########
 
@@ -52,22 +51,22 @@ def _get_dataset_name(session: Session, dataset_uuid: str) -> str | None:
 # ------- VALIDATION -------#
 
 
-def _validate_exist(yaml_path: str | None, hardlink_path: str | None) -> bool:
+def _validate_exist(info_yaml_path: str | None, hardlink_path: str | None) -> bool:
     """
-    Validate that both yaml_path and hardlink_path exist.
+    Validate that both info_yaml_path and hardlink_path exist.
 
     Returns:
       bool: True if BOTH exist, False otherwise
     """
     _logger = logging.getLogger(__name__)
     # Check if both paths are provided
-    if not yaml_path or not hardlink_path:
-        _logger.debug(f"Missing paths - yaml_path: {yaml_path}, hardlink_path: {hardlink_path}")
+    if not info_yaml_path or not hardlink_path:
+        _logger.debug(f"Missing paths - info_yaml_path: {info_yaml_path}, hardlink_path: {hardlink_path}")
         return False
-    # Check if yaml_path exists
-    yaml_file = Path(yaml_path)
+    # Check if info_yaml_path exists
+    yaml_file = Path(info_yaml_path)
     if not yaml_file.exists():
-        _logger.debug(f"YAML file does not exist: {yaml_path}")
+        _logger.debug(f"YAML file does not exist: {info_yaml_path}")
         return False
     # Check if hardlink_path exists
     hardlink_dir = Path(hardlink_path)
@@ -78,36 +77,28 @@ def _validate_exist(yaml_path: str | None, hardlink_path: str | None) -> bool:
     return True
 
 
-# ------- YAML / METADATA OPERATION -------#
+# ------- YAML OPERATION -------#
 
 
-def _write_unified_metadata_yaml(
-    metadata_service: MetadataSyncService,
+def _copy_info_yaml(
+    src_info_yaml_path: str,
     dst_yaml_path: str,
-    hardlink_path: str,
-    dataset_uuid: str | None,
 ) -> None:
     """
-    通过共享的 MetadataSyncService 写出 YAML 文件。
-
-    所有页面静态资源依赖的 YAML 均经由该服务生成，以确保与 README 上传
-    使用完全一致的元数据收集逻辑。
+    Copy a pre-generated info.yaml file into page assets/dataset_info.
     """
-    try:
-        metadata_service.write_unified_metadata_yaml(
-            dst_yaml_path=dst_yaml_path,
-            hardlink_path=hardlink_path,
-            dataset_uuid=dataset_uuid,
-        )
-    except Exception as e:  # noqa: PERF203
-        logging.getLogger(__name__).error(
-            "写入统一元数据 YAML 失败: dataset_uuid=%s, dst=%s, err=%s",
-            dataset_uuid,
-            dst_yaml_path,
-            e,
-            exc_info=True,
-        )
-        raise
+    import shutil
+
+    _logger = logging.getLogger(__name__)
+    src_yaml = Path(src_info_yaml_path)
+    dst_yaml = Path(dst_yaml_path)
+
+    if not src_yaml.exists() or not src_yaml.is_file():
+        raise FileNotFoundError(f"Source info.yaml not found: {src_yaml}")
+
+    dst_yaml.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src_yaml, dst_yaml)
+    _logger.debug("Copied info.yaml from %s to %s", src_yaml, dst_yaml)
 
 
 # ------- VIDEO OPERATION -------#
@@ -394,9 +385,18 @@ def _gen_consolidation(dataset_info_dir: str, output_path: str) -> None:
                 with open(yaml_file, encoding="utf-8") as f:
                     data = yaml.safe_load(f)
 
+                if not isinstance(data, dict):
+                    _logger.warning("YAML root is not a mapping in %s, skip", yaml_file)
+                    continue
+
                 # Use the filename (without extension) as the key
                 dataset_name = yaml_file.stem
-                consolidated_data[dataset_name] = data
+                data_with_compat = dict(data)
+                data_with_compat["legacy_compat"] = _build_legacy_compat_payload(
+                    dataset_name=dataset_name,
+                    data=data_with_compat,
+                )
+                consolidated_data[dataset_name] = data_with_compat
                 _logger.debug(f"Added {dataset_name} to consolidated data")
 
             except Exception as e:  # noqa: PERF203
@@ -412,6 +412,34 @@ def _gen_consolidation(dataset_info_dir: str, output_path: str) -> None:
         json.dump(consolidated_data, f, indent=2, ensure_ascii=False)
 
     _logger.info(f"Successfully wrote consolidated datasets to {output_file}")
+
+
+def _build_legacy_compat_payload(dataset_name: str, data: dict[str, Any]) -> dict[str, Any]:
+    """
+    Build legacy-compatible fields for old page consumers.
+    """
+    path_value = data.get("dataset_name") or dataset_name
+    structure_value = data.get("data_structure")
+    if structure_value in (None, ""):
+        structure_value = data.get("structure")
+
+    task_instruction = data.get("task_instruction")
+    if isinstance(task_instruction, list):
+        tasks_value = "\n".join([str(item) for item in task_instruction if str(item).strip()])
+    elif isinstance(task_instruction, str):
+        tasks_value = task_instruction
+    else:
+        tasks_value = ""
+
+    return {
+        "path": path_value,
+        "video_url": f"./assets/videos/{path_value}.mp4",
+        "thumbnail_url": f"./assets/thumbnails/{path_value}.jpg",
+        "robot_type": data.get("robot_name") or data.get("device_model") or "",
+        "structure": structure_value or "",
+        "tasks": tasks_value,
+        "task_descriptions": data.get("sub_tasks") if isinstance(data.get("sub_tasks"), list) else [],
+    }
 
 
 def _gen_data_index(dataset_info_dir: str, output_path: str) -> None:

@@ -16,15 +16,13 @@ to the page project. It coordinates the following workflow:
    - consolidated_datasets.json: All metadata in one file
    - data_index.json: List of all YAML files
 
-The actual business logic is implemented in page_sync_utils.py.
+The actual business logic is implemented in utils.py and task.py.
 """
 
 import logging
 import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING
-
-from robocoin_dataset.prepare_metadata.metadata_service import MetadataSyncService
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -67,14 +65,15 @@ def construce_target_file(
         force_regenerate: If True, ignore existing COMPLETED status and rebuild assets whenever prerequisites are ready
         logger: Optional logger instance
     """
-    from robocoin_dataset.page_sync.page_sync_task import (
+    from robocoin_dataset.page_sync.task import (
         _gen_one_page_sync_task,
         _mark_task_completed,
         _mark_task_failed,
         _sync_page_sync_status,
     )
-    from robocoin_dataset.page_sync.page_sync_utils import (
+    from robocoin_dataset.page_sync.utils import (
         _align_video_name_with_yaml,
+        _copy_info_yaml,
         _compress_video_to_dst,
         _copy_robot_aliases_and_exclude,
         _gen_consolidation,
@@ -83,7 +82,6 @@ def construce_target_file(
         _get_dataset_name,
         _sample_one_video_path,
         _validate_exist,
-        _write_unified_metadata_yaml,
     )
 
     _logger = logger or logging.getLogger(__name__)
@@ -126,13 +124,7 @@ def construce_target_file(
     else:
         _logger.debug(f"Thumbnails directory already exists: {thumbnails_dir}")
 
-    # 2.5 出于性能考虑，复用同一个元数据服务实例，避免重复解析 DB 路径
-    metadata_service = MetadataSyncService(
-        db_file_path=str(db.db_file),
-        logger=_logger,
-    )
-
-    # 3-8. Main loop: sync -> generate task -> copy yaml -> copy & compress videos -> align video name -> mark completed
+    # 3-8. Main loop: sync -> generate task -> copy info yaml -> copy & compress videos -> align video name -> mark completed
     task_count = 0
     while True:
         # 3. Sync the task status
@@ -141,9 +133,9 @@ def construce_target_file(
 
         # 4. Generate one task
         _logger.debug("Generating next task...")
-        yaml_path, hardlink_path, dataset_uuid = _gen_one_page_sync_task(session)
+        info_yaml_path, hardlink_path, dataset_uuid = _gen_one_page_sync_task(session)
 
-        if yaml_path is None:
+        if info_yaml_path is None and hardlink_path is None and dataset_uuid is None:
             _logger.info("No more pending tasks to process")
             break
 
@@ -153,26 +145,26 @@ def construce_target_file(
 
         task_count += 1
         _logger.info(f"Processing task {task_count}: dataset_uuid={dataset_uuid}")
-        _logger.debug(f"  yaml_path: {yaml_path}")
+        _logger.debug(f"  info_yaml_path: {info_yaml_path}")
         _logger.debug(f"  hardlink_path: {hardlink_path}")
 
-        # Validate that both yaml_path and hardlink_path exist
-        if not _validate_exist(yaml_path, hardlink_path):
+        # Validate that both info_yaml_path and hardlink_path exist
+        if not _validate_exist(info_yaml_path, hardlink_path):
             _logger.error(
                 f"Validation failed for dataset {dataset_uuid}: "
-                f"yaml_path={yaml_path}, hardlink_path={hardlink_path}. "
+                f"info_yaml_path={info_yaml_path}, hardlink_path={hardlink_path}. "
                 f"Both paths must exist. Marking as FAILED."
             )
             err_msg = (
-                "Page sync validation failed: yaml_path and hardlink_path must both exist. "
-                f"yaml_path={yaml_path}, hardlink_path={hardlink_path}"
+                "Page sync validation failed: info_yaml_path and hardlink_path must both exist. "
+                f"info_yaml_path={info_yaml_path}, hardlink_path={hardlink_path}"
             )
             _mark_task_failed(session, dataset_uuid, err_msg)
             continue
 
         try:
 
-            # 5. Generate YAML via unified metadata
+            # 5. Copy pre-generated info.yaml into page dataset_info assets
             _logger.debug(f"Getting dataset name for {dataset_uuid}...")
             dataset_name = _get_dataset_name(session, dataset_uuid)
             if not dataset_name:
@@ -182,21 +174,16 @@ def construce_target_file(
                 continue
 
             _logger.info(f"Dataset name: {dataset_name}")
-            yaml_dst = dataset_info_dir / f"{dataset_name}.yml"
+            yaml_dst = dataset_info_dir / f"{dataset_name}.yaml"
 
             _logger.debug(
-                "Generating unified metadata YAML for dataset %s at %s using db %s",
+                "Copying info.yaml for dataset %s from %s to %s",
                 dataset_uuid,
+                info_yaml_path,
                 yaml_dst,
-                db.db_file,
             )
-            _write_unified_metadata_yaml(
-                metadata_service=metadata_service,
-                dst_yaml_path=str(yaml_dst),
-                hardlink_path=str(hardlink_path),
-                dataset_uuid=dataset_uuid,
-            )
-            _logger.info("Generated unified metadata YAML at %s", yaml_dst)
+            _copy_info_yaml(str(info_yaml_path), str(yaml_dst))
+            _logger.info("Copied info YAML to %s", yaml_dst)
 
             # 6. Sample and compress videos
             _logger.debug(f"Sampling video from hardlink path: {hardlink_path}...")

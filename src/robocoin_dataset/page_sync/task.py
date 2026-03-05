@@ -75,9 +75,9 @@ def _sync_page_sync_status(
 
 def _gen_one_page_sync_task(session: "Session"
 ) -> tuple[str | None, str | None, str | None]:
-    '''Mark first PENDING -> PROCESSING, and return the yaml_path, hardlink_path, and dataset_uuid
+    '''Mark first PENDING -> PROCESSING, and return the info_yaml_path, hardlink_path, and dataset_uuid
     I: Database session.
-    O: yaml_path, -> read the metadata.
+    O: info_yaml_path, -> read the metadata.
     hardlink_path, -> the dataset in lerobot foramt.
     dataset_uuid -> to identify which record should be COMPLETED or FAILED.
     '''
@@ -124,10 +124,6 @@ def _gen_one_page_sync_task(session: "Session"
     dataset_uuid = item.dataset_uuid if hasattr(item, 'dataset_uuid') and item.dataset_uuid else None
     _logger.debug(f"Dataset UUID: {dataset_uuid}")
 
-    # Get yaml path from dataset
-    yaml_path = item.yaml_file_path if hasattr(item, 'yaml_file_path') and item.yaml_file_path else None
-    _logger.debug(f"YAML path: {yaml_path}")
-
     # Get hardlink path from dataset_hard_link table using dataset_uuid
     try:
         _logger.debug(f"Querying hardlink path for dataset_uuid: {dataset_uuid}")
@@ -156,7 +152,30 @@ def _gen_one_page_sync_task(session: "Session"
             f"Failed to retrieve or validate hardlink for dataset {dataset_uuid}: {e}"
         ) from e
 
-    return yaml_path, hardlink_path, dataset_uuid
+    info_yaml_path = hardlink_path / "info.yaml"
+    if not info_yaml_path.exists():
+        db_info_yaml_path = (
+            getattr(item, "info_yaml_path", None)
+            if hasattr(item, "info_yaml_path")
+            else None
+        )
+        if db_info_yaml_path:
+            db_path_obj = Path(db_info_yaml_path)
+            if db_path_obj.exists():
+                info_yaml_path = db_path_obj
+            else:
+                _logger.error(
+                    "Dataset %s info.yaml missing. Checked hardlink path: %s, DB info_yaml_path: %s",
+                    dataset_uuid,
+                    hardlink_path / "info.yaml",
+                    db_path_obj,
+                )
+                return None, str(hardlink_path), dataset_uuid
+        else:
+            _logger.error("Dataset %s info.yaml missing at: %s", dataset_uuid, info_yaml_path)
+            return None, str(hardlink_path), dataset_uuid
+
+    return str(info_yaml_path), str(hardlink_path), dataset_uuid
 
 
 def _mark_task_completed(session: "Session", dataset_uuid: str) -> None:
