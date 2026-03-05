@@ -2,11 +2,22 @@
 README Generator Module
 
 This module provides the ReadmeGenerator class for generating README.md files
-from YAML metadata and Jinja2 templates. It orchestrates the README generation
-process by calling underlying utility functions.
+from YAML metadata and Jinja2 templates.
+
+Generation flow (two-phase pipeline):
+    Phase 1 - Collect:
+        InfoCollector reads local_dataset_info.yaml + all dataset source files
+        (meta/info.json, annotations/, etc.), resolves every schema field, and
+        writes the result as a flat info.yaml inside the dataset directory.
+
+    Phase 2 - Render:
+        ReadmeGenerator reads the collected info.yaml, loads the Jinja2 template,
+        renders the template, and writes README.md.
 
 Dependencies:
-    - robocoin_dataset.readme modules: For implementation functions
+    - robocoin_dataset.metadata.collect: InfoCollector for Phase 1
+    - robocoin_dataset.readme.context_utils: load_collected_info_yaml for Phase 2
+    - robocoin_dataset.readme modules: template and logging utilities
     - yaml: For parsing configuration files
     - pathlib: For file path operations
 
@@ -18,7 +29,7 @@ Usage:
     With custom configuration:
         generator = ReadmeGenerator(
             dataset_path="/path/to/dataset",
-            info_yaml_path="/custom/path/info.yaml",
+            local_dataset_info_path="/custom/path/local_dataset_info.yaml",
             template_path="/custom/path/readme.j2",
             output_path="/custom/path/README.md"
         )
@@ -31,7 +42,8 @@ from typing import Optional
 
 import yaml
 
-from robocoin_dataset.readme.context_utils import build_readme_context_from_schema
+from robocoin_dataset.metadata.collect import InfoCollector
+from robocoin_dataset.readme.context_utils import load_collected_info_yaml
 from robocoin_dataset.readme.logging_utils import (
     setup_readme_logger,
     validate_hardlink_directory,
@@ -41,7 +53,6 @@ from robocoin_dataset.readme.template_utils import (
     render_template,
     write_readme_file,
 )
-from robocoin_dataset.readme.yaml_utils import locate_yaml_file
 from robocoin_dataset.utils.log_config import log_error, log_success  # noqa: F401
 
 
@@ -52,18 +63,28 @@ from robocoin_dataset.utils.log_config import log_error, log_success  # noqa: F4
 
 class ReadmeGenerator:
     """
-    README Generator class for generating README.md files from YAML metadata and Jinja2 templates.
+    README Generator class for generating README.md files via a two-phase pipeline.
 
-    This class orchestrates the README generation process by calling underlying utility functions.
-    All actual implementation is delegated to functions in utils.py.
+    Phase 1 - Collect (delegated to InfoCollector):
+        Reads local_dataset_info.yaml + all dataset source files, resolves every
+        schema field, and writes the result as a flat info.yaml inside the dataset
+        directory.  This step is idempotent: running it again overwrites info.yaml
+        with fresh data.
+
+    Phase 2 - Render:
+        Reads the collected info.yaml (flat key->value YAML), loads the Jinja2
+        template, renders the template, and writes README.md.
 
     Attributes:
-        dataset_path (Path): Path to the dataset directory
-        info_yaml_path (Path): Path to info.yaml file (default: dataset_path/readme/info.yaml)
-        template_path (Path): Path to readme.j2 template (default: dataset_path/readme/readme.j2)
-        output_path (Path): Path for output README.md (default: dataset_path/README.md)
-        log_dir (Path): Directory for log files (default: dataset_path/logs/gen_readme)
-        logger (logging.Logger): Logger instance for audit logging
+        dataset_path (Path): Root directory of the dataset (hardlink dir).
+        local_dataset_info_path (Path): Resolved path to local_dataset_info.yaml,
+            used as input to InfoCollector in Phase 1.
+        collected_info_yaml_path (Path): Path where Phase 1 writes info.yaml and
+            Phase 2 reads from (default: dataset_path/info.yaml).
+        template_path (Path): Path to the Jinja2 readme.j2 template.
+        output_path (Path): Output path for README.md.
+        log_dir (Path): Directory for audit log files.
+        logger (logging.Logger): Logger instance.
 
     Usage:
         Basic usage:
@@ -73,9 +94,9 @@ class ReadmeGenerator:
         With custom paths:
             generator = ReadmeGenerator(
                 dataset_path="/path/to/dataset",
-                info_yaml_path="/custom/path/info.yaml",
+                local_dataset_info_path="/custom/path/local_dataset_info.yaml",
                 template_path="/custom/path/readme.j2",
-                output_path="/custom/path/README.md"
+                output_path="/custom/path/README.md",
             )
             generator.generate_readme()
     """
@@ -83,54 +104,58 @@ class ReadmeGenerator:
     def __init__(
         self,
         dataset_path: str | Path,
-        info_yaml_path: Optional[str | Path] = None,
+        local_dataset_info_path: Optional[str | Path] = None,
         template_path: Optional[str | Path] = None,
         output_path: Optional[str | Path] = None,
         log_dir: Optional[str | Path] = None,
         local_dataset_info_filename: str = "local_dataset_info.yaml",
+        # Backward-compat alias kept so existing callers using info_yaml_path= still work.
+        info_yaml_path: Optional[str | Path] = None,
     ) -> None:
         """
-        Initialize ReadmeGenerator instance.
+        Initialize ReadmeGenerator.
 
         Input:
-            dataset_path (str | Path): Path to the dataset directory (hardlink directory)
-            info_yaml_path (Optional[str | Path]): Custom path to info.yaml file.
-                If None, defaults to dataset_path/readme/info.yaml
-            template_path (Optional[str | Path]): Custom path to readme.j2 template.
-                If None, defaults to dataset_path/readme/readme.j2
-            output_path (Optional[str | Path]): Custom path for output README.md.
-                If None, defaults to dataset_path/README.md
-            log_dir (Optional[str | Path]): Directory for log files.
-                If None, defaults to dataset_path/logs/gen_readme
-            local_dataset_info_filename (str): Filename to search for at dataset_path first level.
-                If found, used as local metadata file. (default: "local_dataset_info.yaml")
+            dataset_path (str | Path): Root directory of the dataset (hardlink dir).
+            local_dataset_info_path (Optional[str | Path]): Explicit path to
+                local_dataset_info.yaml (input for Phase 1 InfoCollector).
+                If None, searched at dataset_path first level.
+            template_path (Optional[str | Path]): Path to readme.j2 template.
+                If None, defaults to package assets/readme.j2.
+            output_path (Optional[str | Path]): Output path for README.md.
+                If None, defaults to dataset_path/README.md.
+            log_dir (Optional[str | Path]): Log file directory.
+                If None, defaults to dataset_path/logs/gen_readme.
+            local_dataset_info_filename (str): Filename to locate at dataset_path
+                first level (default: "local_dataset_info.yaml").
+            info_yaml_path (Optional[str | Path]): Backward-compat alias for
+                local_dataset_info_path. Ignored if local_dataset_info_path is set.
 
         Output:
-            None
+            None.
 
         Logic:
-            1. Convert all paths to Path objects
-            2. Setup logger using utility function (early to log diagnostics)
-            3. Locate YAML file: search in dataset_path first level, then validate custom path
-            4. Set default paths if not provided
-            5. Log initialization parameters
-
-        Usage:
-            Called when creating a ReadmeGenerator instance.
+            1. Resolve dataset_path.
+            2. Setup logger (early, for diagnostics).
+            3. Validate dataset_path exists and is a directory.
+            4. Soft-validate that directory name matches hardlink convention.
+            5. Instantiate InfoCollector (which locates local_dataset_info.yaml and
+               validates all inputs for Phase 1).
+            6. Capture the collected info.yaml output path from InfoCollector.
+            7. Set template_path and output_path defaults.
 
         Raises:
-            FileNotFoundError: If YAML file cannot be located or dataset_path is invalid
+            FileNotFoundError: If dataset_path or local_dataset_info.yaml not found.
+            ValueError: If dataset_path is not a directory.
         """
         self.dataset_path = Path(dataset_path).expanduser().resolve()
         module_root = Path(__file__).resolve().parent
 
-        # Setup log directory early (needed for logger)
         if log_dir is None:
             self.log_dir = self.dataset_path / "logs" / "gen_readme"
         else:
             self.log_dir = Path(log_dir).expanduser().resolve()
 
-        # Setup logger using utility function (do this early for diagnostics)
         self.logger = setup_readme_logger(
             log_dir=self.log_dir,
             script_name="gen_readme",
@@ -138,7 +163,6 @@ class ReadmeGenerator:
             console_output=True,
         )
 
-        # Validate dataset_path exists
         if not self.dataset_path.exists():
             error_msg = f"[INIT] Dataset directory does not exist: {self.dataset_path}"
             log_error(self.logger, error_msg)
@@ -149,23 +173,22 @@ class ReadmeGenerator:
             log_error(self.logger, error_msg)
             raise ValueError(error_msg)
 
-        # Validate that directory appears to be a hardlink directory (soft warning)
         validate_hardlink_directory(self.dataset_path, self.logger)
 
-        # Locate YAML file using priority-based search:
-        # 1. Search for local_dataset_info_filename in dataset_path's first level
-        # 2. If custom path provided, validate and use it
-        # 3. If not found, error and exit
-        self.info_yaml_path = locate_yaml_file(
-            hardlink_dir=self.dataset_path,
-            yaml_filename=local_dataset_info_filename,
-            custom_yaml_path=info_yaml_path,
-            logger=self.logger,
+        # Resolve local_dataset_info_path: prefer explicit param, fall back to alias.
+        _local_info_param = local_dataset_info_path if local_dataset_info_path is not None else info_yaml_path
+
+        # Phase 1 delegate: InfoCollector owns source location and schema resolution.
+        # It also locates local_dataset_info.yaml and validates the dataset path.
+        self._info_collector = InfoCollector(
+            dataset_path=self.dataset_path,
+            local_dataset_info_path=_local_info_param,
+            log_dir=self.log_dir,
+            local_dataset_info_filename=local_dataset_info_filename,
         )
 
-        # Set other default paths
-        # Schema path is fixed to package assets/info.yaml.
-        self.schema_yaml_path = module_root / "assets" / "info.yaml"
+        # Phase 2 reads from where Phase 1 writes.
+        self.collected_info_yaml_path = self._info_collector.output_info_yaml_path
 
         if template_path is None:
             self.template_path = module_root / "assets" / "readme.j2"
@@ -177,90 +200,95 @@ class ReadmeGenerator:
         else:
             self.output_path = Path(output_path).expanduser().resolve()
 
-        # Log initialization
         self.logger.info("[INIT] ReadmeGenerator initialized")
         self.logger.info(f"[INIT] Dataset path: {self.dataset_path}")
-        self.logger.info(f"[INIT] Local dataset info path: {self.info_yaml_path}")
-        self.logger.info(f"[INIT] Schema YAML path: {self.schema_yaml_path}")
+        self.logger.info(
+            f"[INIT] Local dataset info path: {self._info_collector.local_dataset_info_path}"
+        )
+        self.logger.info(f"[INIT] Collected info.yaml path: {self.collected_info_yaml_path}")
         self.logger.info(f"[INIT] Template path: {self.template_path}")
         self.logger.info(f"[INIT] Output path: {self.output_path}")
         self.logger.info(f"[INIT] Log directory: {self.log_dir}")
 
     def generate_readme(self) -> Path:
         """
-        Generate README.md file from YAML metadata and Jinja2 template.
+        Generate README.md via two-phase pipeline: check/collect info.yaml -> render.
 
         Input:
-            None (uses instance attributes)
+            None (uses instance attributes).
 
         Output:
-            Path: Path to the generated README.md file
+            Path: Absolute path to the generated README.md file.
 
         Logic:
-            1. Load YAML metadata using utility function
-            2. Load Jinja2 template using utility function
-            3. Render template using utility function
-            4. Write README file using utility function
-            5. Return output file path
+            Phase 1 - Check/Collect info.yaml:
+                1. Check if info.yaml exists at collected_info_yaml_path.
+                2. If not, run InfoCollector.collect() to generate it.
+                3. If yes, log that it already exists (skip regeneration).
+
+            Phase 2 - Render:
+                4. Read the info.yaml using load_collected_info_yaml().
+                5. Load the Jinja2 readme.j2 template.
+                6. Render the template with the loaded context.
+                7. Write README.md to output_path.
+                8. Return output_path.
 
         Usage:
-            Main entry point for generating README files.
-            Call this method after initializing ReadmeGenerator.
-
-        Note:
-            The info_yaml_path is determined during __init__ using locate_yaml_file,
-            which implements priority-based search: first in dataset_path first level,
-            then validates custom path if provided. FileNotFoundError is raised early
-            during __init__ if no valid YAML file can be located.
+            Main entry point after initializing ReadmeGenerator.
 
         Raises:
-            FileNotFoundError: If template file is missing
-            yaml.YAMLError: If YAML parsing fails
-            jinja2.TemplateError: If template rendering fails
-            IOError: If file writing fails
+            FileNotFoundError: If template file or info.yaml is missing.
+            yaml.YAMLError: If YAML parsing fails.
+            jinja2.TemplateError: If template rendering fails.
+            IOError: If file writing fails.
         """
         try:
-            self.logger.info("[GENERATE] Starting README generation process")
+            self.logger.info("[GENERATE] Starting README generation pipeline")
 
-            # Step 1: Build context from schema + source-scoped metadata.
-            self.logger.info("[GENERATE] Step 1: Building context from schema and source files")
-            yaml_data, source_type_counter = build_readme_context_from_schema(
-                schema_yaml_path=self.schema_yaml_path,
-                dataset_path=self.dataset_path,
-                local_dataset_info_path=self.info_yaml_path,
+            # ---- Phase 1: Check/Collect info.yaml ----
+            self.logger.info(
+                "[GENERATE] Phase 1: Check/collect info.yaml"
+            )
+            if not self.collected_info_yaml_path.exists():
+                self.logger.info(
+                    f"[GENERATE] info.yaml not found at {self.collected_info_yaml_path}. "
+                    "Generating via InfoCollector..."
+                )
+                self._info_collector.collect()
+                self.logger.info(
+                    f"[GENERATE] Generated info.yaml: {self.collected_info_yaml_path}"
+                )
+            else:
+                self.logger.info(
+                    f"[GENERATE] info.yaml already exists: {self.collected_info_yaml_path}. "
+                    "Skipping collection."
+                )
+
+            # ---- Phase 2: Render ----
+            self.logger.info("[GENERATE] Phase 2: Rendering README from info.yaml")
+
+            self.logger.info("[GENERATE] Step 2.1: Loading context from info.yaml")
+            context_data = load_collected_info_yaml(
+                info_yaml_path=self.collected_info_yaml_path,
                 logger=self.logger,
             )
             self.logger.info(
-                f"[GENERATE] Built context with {len(yaml_data)} fields from schema"
-            )
-            self.logger.info(
-                "[GENERATE] Source type summary: "
-                + ", ".join(
-                    [
-                        f"{k}={v}"
-                        for k, v in sorted(source_type_counter.items(), key=lambda x: x[0])
-                    ]
-                )
+                f"[GENERATE] Loaded context with {len(context_data)} fields"
             )
 
-            # Step 2: Load Jinja2 template
-            self.logger.info("[GENERATE] Step 2: Loading Jinja2 template")
+            self.logger.info("[GENERATE] Step 2.2: Loading Jinja2 template")
             template = load_jinja2_template(self.template_path, self.logger)
 
-            # Step 3: Render template
-            self.logger.info("[GENERATE] Step 3: Rendering template with data")
-            rendered_content = render_template(template, yaml_data, self.logger)
+            self.logger.info("[GENERATE] Step 2.3: Rendering template with context")
+            rendered_content = render_template(template, context_data, self.logger)
 
-            # Step 4: Write README file
-            self.logger.info("[GENERATE] Step 4: Writing README file")
+            self.logger.info("[GENERATE] Step 2.4: Writing README.md")
             write_readme_file(rendered_content, self.output_path, self.logger)
 
-            # Success
             log_success(
                 self.logger,
                 f"[GENERATE] README generation completed successfully: {self.output_path}",
             )
-
             return self.output_path
 
         except Exception as e:
@@ -274,32 +302,31 @@ class ReadmeGenerator:
 
 def create_from_config_file(config_path: str | Path) -> ReadmeGenerator:
     """
-    Create ReadmeGenerator instance from configuration file.
+    Create ReadmeGenerator instance from a YAML configuration file.
 
     Input:
-        config_path (str | Path): Path to YAML configuration file
+        config_path (str | Path): Path to YAML configuration file.
+            Supported keys:
+                dataset_path (required): Root dataset directory.
+                local_dataset_info_path (optional): Explicit path to
+                    local_dataset_info.yaml.  Also accepted as the legacy key
+                    info_yaml_path for backward compatibility.
+                template_path (optional): Path to readme.j2 template.
+                output_path (optional): Path for output README.md.
+                log_dir (optional): Log file directory.
 
     Output:
-        ReadmeGenerator: Initialized ReadmeGenerator instance
+        ReadmeGenerator: Initialized ReadmeGenerator instance.
 
     Logic:
-        1. Load configuration from YAML file
-        2. Extract configuration parameters
-        3. Create and return ReadmeGenerator instance
-
-    Usage:
-        For future extension: allows creating ReadmeGenerator from config file.
-        Config file format (example):
-            dataset_path: /path/to/dataset
-            info_yaml_path: /custom/path/info.yaml  # optional
-            template_path: /custom/path/readme.j2  # optional
-            output_path: /custom/path/README.md     # optional
-            log_dir: /custom/path/logs              # optional
+        1. Load configuration from YAML file.
+        2. Extract and validate parameters.
+        3. Create and return ReadmeGenerator instance.
 
     Raises:
-        FileNotFoundError: If config file does not exist
-        yaml.YAMLError: If config file parsing fails
-        KeyError: If required 'dataset_path' is missing
+        FileNotFoundError: If config file does not exist.
+        yaml.YAMLError: If config file parsing fails.
+        KeyError: If required 'dataset_path' is missing.
     """
     config_path = Path(config_path).expanduser().resolve()
     if not config_path.exists():
@@ -312,20 +339,20 @@ def create_from_config_file(config_path: str | Path) -> ReadmeGenerator:
         if config is None:
             raise ValueError(f"Configuration file is empty: {config_path}")
 
-        # Extract required parameter
         if "dataset_path" not in config:
             raise KeyError("Required parameter 'dataset_path' is missing in config file")
 
-        # Extract optional parameters
-        info_yaml_path = config.get("info_yaml_path")
+        # Prefer canonical key; fall back to legacy alias.
+        local_dataset_info_path = config.get("local_dataset_info_path") or config.get(
+            "info_yaml_path"
+        )
         template_path = config.get("template_path")
         output_path = config.get("output_path")
         log_dir = config.get("log_dir")
 
-        # Create ReadmeGenerator instance
         return ReadmeGenerator(
             dataset_path=config["dataset_path"],
-            info_yaml_path=info_yaml_path,
+            local_dataset_info_path=local_dataset_info_path,
             template_path=template_path,
             output_path=output_path,
             log_dir=log_dir,
@@ -334,52 +361,58 @@ def create_from_config_file(config_path: str | Path) -> ReadmeGenerator:
     except yaml.YAMLError as e:
         raise ValueError(f"Failed to parse configuration file {config_path}: {e}") from e
     except Exception as e:
-        raise RuntimeError(f"Unexpected error loading configuration file {config_path}: {e}") from e
+        raise RuntimeError(
+            f"Unexpected error loading configuration file {config_path}: {e}"
+        ) from e
 
 
 def create_from_cli_args(
     dataset_path: str | Path,
-    info_yaml_path: Optional[str | Path] = None,
+    local_dataset_info_path: Optional[str | Path] = None,
     template_path: Optional[str | Path] = None,
     output_path: Optional[str | Path] = None,
     log_dir: Optional[str | Path] = None,
+    # Backward-compat alias.
+    info_yaml_path: Optional[str | Path] = None,
 ) -> ReadmeGenerator:
     """
     Create ReadmeGenerator instance from CLI arguments.
 
     Input:
-        dataset_path (str | Path): Path to the dataset directory (required)
-        info_yaml_path (Optional[str | Path]): Custom path to info.yaml file
-        template_path (Optional[str | Path]): Custom path to readme.j2 template
-        output_path (Optional[str | Path]): Custom path for output README.md
-        log_dir (Optional[str | Path]): Directory for log files
+        dataset_path (str | Path): Root dataset directory (required).
+        local_dataset_info_path (Optional[str | Path]): Explicit path to
+            local_dataset_info.yaml. If None, auto-located at dataset_path first level.
+        template_path (Optional[str | Path]): Path to readme.j2 template.
+        output_path (Optional[str | Path]): Path for output README.md.
+        log_dir (Optional[str | Path]): Log file directory.
+        info_yaml_path (Optional[str | Path]): Backward-compat alias for
+            local_dataset_info_path.
 
     Output:
-        ReadmeGenerator: Initialized ReadmeGenerator instance
+        ReadmeGenerator: Initialized ReadmeGenerator instance.
 
     Logic:
-        1. Validate required parameters
-        2. Create and return ReadmeGenerator instance
+        1. Validate required parameters.
+        2. Create and return ReadmeGenerator instance.
 
     Usage:
-        For future extension: allows creating ReadmeGenerator from CLI arguments.
-        Example:
-            generator = create_from_cli_args(
-                dataset_path="/path/to/dataset",
-                info_yaml_path="/custom/path/info.yaml",
-                output_path="/custom/path/README.md"
-            )
-            generator.generate_readme()
+        generator = create_from_cli_args(
+            dataset_path="/path/to/dataset",
+            local_dataset_info_path="/custom/path/local_dataset_info.yaml",
+        )
+        generator.generate_readme()
 
     Raises:
-        ValueError: If required 'dataset_path' is None or empty
+        ValueError: If required 'dataset_path' is None or empty.
     """
     if not dataset_path:
         raise ValueError("Required parameter 'dataset_path' cannot be None or empty")
 
+    _local_info = local_dataset_info_path if local_dataset_info_path is not None else info_yaml_path
+
     return ReadmeGenerator(
         dataset_path=dataset_path,
-        info_yaml_path=info_yaml_path,
+        local_dataset_info_path=_local_info,
         template_path=template_path,
         output_path=output_path,
         log_dir=log_dir,

@@ -1,8 +1,23 @@
 """
-README context assembly utility functions.
+Metadata field resolution and context building utilities.
 
 Purpose:
-    Build Jinja context from schema-defined fields and source-scoped files.
+    Core logic for resolving all schema fields from distributed dataset sources
+    (local_dataset_info.yaml, meta/info.json, annotations/, etc.).
+    
+    This module is the centerpiece of the Collect stage and is used exclusively
+    by metadata/collect.py. It has no dependencies on readme/ modules, ensuring
+    clean separation between Collect (metadata) and Render (README) stages.
+
+Dependencies:
+    - json, re, pathlib: Data loading and manipulation
+    - yaml: YAML parsing
+    - logging: Audit logging
+    - robocoin_dataset.utils.log_config: Colored logging
+
+Usage:
+    Called by InfoCollector.collect() to resolve all fields and build context dict.
+    Not intended for direct use outside metadata/collect.py.
 """
 
 import json
@@ -13,8 +28,55 @@ from typing import Any, Dict, List, Tuple
 
 import yaml
 
-from robocoin_dataset.readme.yaml_utils import load_yaml_file
 from robocoin_dataset.utils.log_config import log_error
+
+
+# ============================================================================
+# YAML Loading (independent of readme module)
+# ============================================================================
+
+
+def load_yaml_file(yaml_path: Path, logger: logging.Logger) -> Dict[str, Any]:
+    """
+    Load and parse YAML file into dictionary.
+
+    Input:
+        yaml_path (Path): Path to the YAML file to load.
+        logger (logging.Logger): Logger instance for error reporting.
+
+    Output:
+        Dict[str, Any]: Parsed YAML content as dictionary.
+    """
+    yaml_path = Path(yaml_path)
+    if not yaml_path.exists():
+        error_msg = f"[YAML_LOAD] YAML file not found: {yaml_path}"
+        log_error(logger, error_msg)
+        raise FileNotFoundError(error_msg)
+
+    try:
+        with open(yaml_path, "r", encoding="utf-8") as f:
+            raw_data = yaml.safe_load(f)
+
+        if raw_data is None:
+            logger.warning(f"[YAML_LOAD] YAML file is empty: {yaml_path}")
+            return {}
+        if not isinstance(raw_data, dict):
+            logger.warning(
+                f"[YAML_LOAD] YAML root is not mapping for {yaml_path}: {type(raw_data)}"
+            )
+            return {}
+
+        logger.info(f"[YAML_LOAD] Successfully loaded YAML file: {yaml_path}")
+        return raw_data
+
+    except yaml.YAMLError as e:
+        error_msg = f"[YAML_LOAD] Failed to parse YAML file {yaml_path}: {e}"
+        log_error(logger, error_msg)
+        raise
+    except Exception as e:
+        error_msg = f"[YAML_LOAD] Unexpected error loading YAML file {yaml_path}: {e}"
+        log_error(logger, error_msg)
+        raise
 
 
 def load_schema_yaml(schema_yaml_path: Path, logger: logging.Logger) -> Dict[str, Any]:
@@ -49,6 +111,11 @@ def load_schema_yaml(schema_yaml_path: Path, logger: logging.Logger) -> Dict[str
         f"[SCHEMA_LOAD] Loaded schema from {schema_yaml_path} with {len(schema)} fields"
     )
     return schema
+
+
+# ============================================================================
+# Field resolution helpers
+# ============================================================================
 
 
 def _normalize_aliases(alias_value: Any) -> List[str]:
@@ -98,8 +165,6 @@ def _extract_scene_type_from_local_dataset_info(local_dataset_info: Dict[str, An
     if has_any_level:
         return scene_levels
 
-    # Backward compatibility:
-    # - scene_level may be a dict/list/string in old metadata.
     legacy_scene_level = local_dataset_info.get("scene_level")
     if isinstance(legacy_scene_level, dict):
         normalized = {f"level{i}": legacy_scene_level.get(f"level{i}") for i in range(1, 6)}
@@ -541,7 +606,6 @@ def _resolve_source_path(dataset_path: Path, source_rel: str) -> Path | None:
     if source_path.exists():
         return source_path
 
-    # Fallback for missing hardcoded annotation file names.
     if source_rel.startswith("annotations/") and source_rel.endswith(".jsonl"):
         annotation_files = sorted((dataset_path / "annotations").glob("*.jsonl"))
         if source_rel.endswith("subtask_annotations.jsonl"):
@@ -703,10 +767,6 @@ def _apply_auto_fields(
             fallback="videos/chunk-{id}/{video_key}/episode_{id}.mp4",
         )
 
-    # NOTE: path, video_url, and thumbnail_url fields have been removed from schema
-    # and are no longer auto-generated. They were previously auto-generated but are now
-    # deprecated to reduce redundant information in the context.
-
     if "annotations" in context_data and context_data.get("annotations") in (
         None,
         "",
@@ -768,14 +828,17 @@ def _apply_template_compatibility(context_data: Dict[str, Any]) -> None:
         context_data["base_rotation_dim"] = context_data["base_robtation_dim"]
 
 
-def build_readme_context_from_schema(
+def resolve_context_from_schema(
     schema_yaml_path: Path,
     dataset_path: Path,
     local_dataset_info_path: Path,
     logger: logging.Logger,
-) -> Tuple[Dict[str, Any], Dict[str, int]]:
+) -> Dict[str, Any]:
     """
-    Build README rendering context from schema and source-scoped data loading.
+    Resolve all schema fields and build a flat context dictionary.
+
+    This is the core context-building function used by InfoCollector to resolve
+    all metadata and prepare it for serialization to info.yaml.
 
     Input:
         schema_yaml_path (Path): Path to schema info.yaml.
@@ -784,9 +847,19 @@ def build_readme_context_from_schema(
         logger (logging.Logger): Logger instance.
 
     Output:
-        Tuple[Dict[str, Any], Dict[str, int]]:
-            - context_data: Final rendering context dictionary.
-            - source_type_counter: Count per source type from schema.
+        Dict[str, Any]: Flat context dict with all resolved fields.
+            This dict includes:
+              - Fields from schema with resolved values
+              - Auto-computed fields (dataset_size, data_structure, etc.)
+              - Template compatibility transformations applied
+
+    Logic:
+        1. Load schema and local_dataset_info.
+        2. Iterate schema fields; for each field, resolve its value:
+           - If source=="fixed": use explicit value or default.
+           - Otherwise: load from source file(s), apply transformations.
+        3. Apply auto-field computation and template compatibility.
+        4. Return flat dict suitable for YAML serialization.
     """
     schema = load_schema_yaml(schema_yaml_path, logger)
     local_dataset_info = load_yaml_file(local_dataset_info_path, logger)
@@ -801,11 +874,10 @@ def build_readme_context_from_schema(
             continue
 
         source = field_spec.get("source")
-        required_status = field_spec.get("required")  # Can be True, False, "optional", or None
+        required_status = field_spec.get("required")
         source_key = str(source)
         source_type_counter[source_key] = source_type_counter.get(source_key, 0) + 1
 
-        # Permission gate: fields with required=False are excluded from template context.
         if required_status is False:
             continue
 
@@ -819,12 +891,8 @@ def build_readme_context_from_schema(
             elif required_status is True:
                 context_data[field_name] = default_value
             elif required_status == "optional":
-                # Optional fixed field: only add if has explicit value or default
                 if default_value not in (None, ""):
                     context_data[field_name] = default_value
-            else:
-                # required=None or other values: do not add to context
-                pass
             continue
 
         resolved = _resolve_value_from_source(
@@ -844,96 +912,22 @@ def build_readme_context_from_schema(
         if explicit_value not in (None, ""):
             context_data[field_name] = explicit_value
         elif resolved not in (None, ""):
-            # Add resolved value for required=True or required="optional" (with value)
             if required_status is True or required_status == "optional":
                 context_data[field_name] = resolved
         elif required_status is True:
-            # required=True: must display with default value even if no resolved value
             context_data[field_name] = default_value
         elif required_status == "optional":
-            # required="optional": only display if has resolved or default value (already handled above)
             pass
         else:
-            # required=False or None: do not add to context at all
             pass
 
     _apply_auto_fields(context_data=context_data, dataset_path=dataset_path, logger=logger)
     _apply_template_compatibility(context_data=context_data)
 
     logger.info(
-        "[SCHEMA_CONTEXT] Context build done. Source types: "
+        "[RESOLVE_CONTEXT] Context resolved. Source types: "
         + ", ".join(
-            [f"{k}={v}" for k, v in sorted(source_type_counter.items(), key=lambda x: x[0])]
+            [f"{k}={v}" for k, v in sorted(source_type_counter.items())]
         )
     )
-    return context_data, source_type_counter
-
-
-def load_collected_info_yaml(
-    info_yaml_path: Path,
-    logger: logging.Logger,
-) -> Dict[str, Any]:
-    """
-    Load a pre-collected flat info.yaml into a context dict for template rendering.
-
-    This function is the counterpart to InfoCollector.collect(): it reads the flat
-    YAML file that InfoCollector wrote and returns it as a plain dict.
-
-    Unlike load_schema_yaml (which reads the schema template with nested field specs),
-    this function expects a simple flat key->value mapping with no schema metadata.
-
-    Input:
-        info_yaml_path (Path): Absolute path to the info.yaml written by InfoCollector.
-            Expected format: flat YAML mapping (str -> Any), e.g.:
-                dataset_name: my_robot_task
-                task_categories: [robotics]
-                statistics:
-                    total_episodes: 100
-        logger (logging.Logger): Logger instance for error reporting.
-
-    Output:
-        Dict[str, Any]: Flat context dict, keys are field names, values are resolved.
-            Returns empty dict if the file is empty.
-
-    Usage:
-        Called by ReadmeGenerator.generate_readme() as Step 2:
-            context_data = load_collected_info_yaml(info_yaml_path, logger)
-            rendered = render_template(template, context_data, logger)
-
-    Raises:
-        FileNotFoundError: If info_yaml_path does not exist.
-        ValueError: If YAML top-level type is not a mapping.
-        yaml.YAMLError: If YAML parsing fails.
-    """
-    import yaml as _yaml
-
-    info_yaml_path = Path(info_yaml_path)
-    if not info_yaml_path.exists():
-        error_msg = f"[INFO_LOAD] Collected info.yaml not found: {info_yaml_path}"
-        log_error(logger, error_msg)
-        raise FileNotFoundError(error_msg)
-
-    try:
-        with open(info_yaml_path, "r", encoding="utf-8") as f:
-            data = _yaml.safe_load(f)
-    except _yaml.YAMLError as e:
-        error_msg = f"[INFO_LOAD] Failed to parse info.yaml at {info_yaml_path}: {e}"
-        log_error(logger, error_msg)
-        raise
-
-    if data is None:
-        logger.warning(f"[INFO_LOAD] Collected info.yaml is empty: {info_yaml_path}")
-        return {}
-
-    if not isinstance(data, dict):
-        error_msg = (
-            f"[INFO_LOAD] Unexpected top-level type in {info_yaml_path}: "
-            f"{type(data).__name__}. Expected mapping."
-        )
-        log_error(logger, error_msg)
-        raise ValueError(error_msg)
-
-    logger.info(
-        f"[INFO_LOAD] Loaded {len(data)} fields from collected info.yaml: {info_yaml_path}"
-    )
-    return data
+    return context_data

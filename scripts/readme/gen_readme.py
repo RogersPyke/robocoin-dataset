@@ -158,7 +158,7 @@ def run_generation(args: argparse.Namespace, logger: logging.Logger) -> Path:
 
     generator = ReadmeGenerator(
         dataset_path=dataset_path,
-        info_yaml_path=args.local_dataset_info_path,
+        local_dataset_info_path=args.local_dataset_info_path,
         template_path=template_path,
         output_path=output_path,
         log_dir=fixed_log_dir,
