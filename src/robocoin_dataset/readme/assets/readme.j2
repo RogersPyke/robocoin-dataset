@@ -38,6 +38,12 @@ configs:
 
 # {{ dataset_name if dataset_name else "RoboCOIN Dataset" }}
 
+{% if dataset_description is defined and dataset_description -%}
+## Dataset Description
+
+{{ dataset_description }}
+{%- endif %}
+
 ### Overview
 
 {% set _total_episodes = statistics.total_episodes if statistics is defined and statistics.total_episodes is defined else None -%}
@@ -110,7 +116,7 @@ configs:
 {% endif -%}
 {% if objects is defined and objects -%}
 - **Objects:** {% for obj in objects -%}
-`{{ obj.object_name }}{% for i in range(1, 6) %}{% set l = "level" ~ i %}{% if obj[l] %}-{{ obj[l] }}{% endif %}{% endfor %}`{% if not loop.last %}, {% endif %}
+`{{ obj.object_name }}({{ obj.color if obj.color else "unknown" }})`{% if not loop.last %}, {% endif %}
 {% endfor %}
 {% endif -%}
 {% if task_instruction is defined and task_instruction -%}
@@ -170,7 +176,7 @@ configs:
 {% if objects is defined and objects -%}
 ### Objects
 {% for obj in objects -%}
-- `{{ obj.object_name }}{% for i in range(1, 6) %}{% set l = "level" ~ i %}{% if obj[l] %}-{{ obj[l] }}{% endif %}{% endfor %}`
+- `{{ obj.object_name }}({{ obj.color if obj.color else "unknown" }})`
 {% endfor %}
 {%- endif %}
 
@@ -211,23 +217,27 @@ This dataset includes {{ sub_tasks | length }} distinct subtasks:
 
 ## Hardware and Sensors
 
-{% if sensor_list is defined and sensor_list -%}
+{% if sensor_list is defined and sensor_list %}
 ### Sensors
-{% for sensor in sensor_list -%}
+{% for sensor in sensor_list %}
 - `{{ sensor }}`
 {% endfor %}
-{%- endif %}
+{% endif %}
 
-{% if came_info is defined and came_info -%}
+{% if came_info is defined and came_info %}
 ### Camera Information
-{%- if came_info is iterable and came_info is not string -%}
-{% for cam in came_info -%}
-- {{ cam }}
-{% endfor -%}
-{%- else -%}
+{% if came_info is mapping %}
+{% for cam_name, cam_spec in came_info.items() %}
+- `{{ cam_name }}`: {{ cam_spec }}
+{% endfor %}
+{% elif came_info is iterable and came_info is not string %}
+{% for cam in came_info %}
+- `{{ cam }}`
+{% endfor %}
+{% else %}
 {{ came_info }}
-{%- endif -%}
-{%- endif %}
+{% endif %}
+{% endif %}
 
 {% if coordinate_definition is defined or origin_xyz is defined -%}
 ### Coordinate System
@@ -342,32 +352,21 @@ This dataset follows the LeRobot format and contains the following components:
 
 ## Camera Views
 
-{% if features is defined -%}
-{%- set camera_count = features.items() | selectattr('0', 'match', '^observation\\.images\\.') | list | length -%}
-{%- if camera_count > 0 -%}
-This dataset includes {{ camera_count }} camera views.
-{%- endif -%}
-{%- endif %}
+{% set _camera_names = [] %}
+{% if came_info is mapping and came_info %}
+{% set _camera_names = came_info.keys() | list %}
+{% elif sensor_list is iterable and sensor_list is not string and sensor_list %}
+{% set _camera_names = sensor_list %}
+{% endif %}
+{% if _camera_names %}
+This dataset includes {{ _camera_names | length }} camera views: {% for cam_name in _camera_names %}`{{ cam_name }}`{% if not loop.last %}, {% endif %}{% endfor %}.
+{% endif %}
 
 ## Features (Full YAML)
 
 {% if features is defined and features -%}
 ```yaml
 {{ features | to_yaml }}
-```
-{%- endif %}
-
-## Meta Information
-
-The complete dataset metadata is available in [meta/info.json](meta/info.json).
-
-{% if data_structure is defined and data_structure -%}
-### Directory Structure
-
-The dataset is organized as follows (showing leaf directories with first 5 files only):
-
-```
-{{ data_structure }}
 ```
 {%- endif %}
 
@@ -463,7 +462,7 @@ For technical issues or questions, please open an issue on the repository or con
 
 ## License
 
-This dataset is released under the **{{ license | default("apache-2.0") }}** license.
+- **License Type:** `{{ license | default("apache-2.0") }}`
 
 {% if license_details is defined -%}
 {{ license_details }}
@@ -494,8 +493,3 @@ If you use this dataset in your research, please cite:
 - v1.0.0 (2025-11): Initial release
 {%- endif %}
 
-{% if dataset_description is defined and dataset_description -%}
-## Dataset Description
-
-{{ dataset_description }}
-{%- endif %}

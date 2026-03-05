@@ -74,6 +74,55 @@ def _resolve_from_mapping(
     return None
 
 
+def _extract_scene_type_from_local_dataset_info(local_dataset_info: Dict[str, Any]) -> Dict[str, Any] | None:
+    """
+    Extract hierarchical scene levels from local_dataset_info.yaml.
+
+    Input:
+        local_dataset_info (Dict[str, Any]): Parsed local dataset metadata.
+
+    Output:
+        Dict[str, Any] | None: Mapping like {"level1": "...", "level2": "..."} when available.
+    """
+    scene_levels: Dict[str, Any] = {}
+    has_any_level = False
+    for i in range(1, 6):
+        key = f"scene_level{i}"
+        value = local_dataset_info.get(key)
+        if value not in (None, ""):
+            has_any_level = True
+            scene_levels[f"level{i}"] = value
+        else:
+            scene_levels[f"level{i}"] = None
+
+    if has_any_level:
+        return scene_levels
+
+    # Backward compatibility:
+    # - scene_level may be a dict/list/string in old metadata.
+    legacy_scene_level = local_dataset_info.get("scene_level")
+    if isinstance(legacy_scene_level, dict):
+        normalized = {f"level{i}": legacy_scene_level.get(f"level{i}") for i in range(1, 6)}
+        if any(v not in (None, "") for v in normalized.values()):
+            return normalized
+    if isinstance(legacy_scene_level, list):
+        normalized = {}
+        for i in range(1, 6):
+            idx = i - 1
+            normalized[f"level{i}"] = legacy_scene_level[idx] if idx < len(legacy_scene_level) else None
+        if any(v not in (None, "") for v in normalized.values()):
+            return normalized
+    if isinstance(legacy_scene_level, str) and legacy_scene_level.strip():
+        parts = [part.strip() for part in legacy_scene_level.split("-") if part.strip()]
+        normalized = {}
+        for i in range(1, 6):
+            idx = i - 1
+            normalized[f"level{i}"] = parts[idx] if idx < len(parts) else None
+        return normalized
+
+    return None
+
+
 def _load_json_file(json_path: Path, logger: logging.Logger) -> Dict[str, Any]:
     if not json_path.exists():
         raise FileNotFoundError(f"[SOURCE_LOAD] File not found: {json_path}")
@@ -128,17 +177,39 @@ def _extract_camera_info_from_features(features: Any) -> Dict[str, str]:
     if not isinstance(features, dict):
         return camera_info
 
-    def _shape_to_resolution(shape: Any) -> str:
-        if isinstance(shape, list) and len(shape) >= 2:
-            if all(isinstance(v, int) for v in shape[:2]):
-                return f"{shape[1]}x{shape[0]}"
-        return "unknown"
+    def _format_cam_spec(cam_feature: Dict[str, Any]) -> str:
+        dtype = cam_feature.get("dtype")
+        shape = cam_feature.get("shape")
+        info = cam_feature.get("info") if isinstance(cam_feature.get("info"), dict) else {}
+
+        shape_str = None
+        if isinstance(shape, list) and len(shape) >= 2 and all(
+            isinstance(v, int) for v in shape
+        ):
+            shape_str = "x".join(str(v) for v in shape)
+
+        width = info.get("video.width")
+        height = info.get("video.height")
+        codec = info.get("video.codec")
+        pix_fmt = info.get("video.pix_fmt")
+
+        parts: List[str] = []
+        if isinstance(dtype, str) and dtype:
+            parts.append(f"dtype={dtype}")
+        if shape_str:
+            parts.append(f"shape={shape_str}")
+        if isinstance(width, int) and isinstance(height, int):
+            parts.append(f"resolution={width}x{height}")
+        if isinstance(codec, str) and codec:
+            parts.append(f"codec={codec}")
+        if isinstance(pix_fmt, str) and pix_fmt:
+            parts.append(f"pix_fmt={pix_fmt}")
+        return ", ".join(parts) if parts else "unknown"
 
     for key, value in features.items():
-        if isinstance(key, str) and key.startswith("observation.images."):
+        if isinstance(key, str) and key.startswith("observation.images.") and isinstance(value, dict):
             sensor_name = key.split("observation.images.", 1)[1]
-            if isinstance(value, dict):
-                camera_info[sensor_name] = _shape_to_resolution(value.get("shape"))
+            camera_info[sensor_name] = _format_cam_spec(value)
 
     observation = features.get("observation")
     if isinstance(observation, dict):
@@ -146,7 +217,7 @@ def _extract_camera_info_from_features(features: Any) -> Dict[str, str]:
         if isinstance(images, dict):
             for sensor_name, value in images.items():
                 if isinstance(sensor_name, str) and isinstance(value, dict):
-                    camera_info[sensor_name] = _shape_to_resolution(value.get("shape"))
+                    camera_info[sensor_name] = _format_cam_spec(value)
     return camera_info
 
 
@@ -168,6 +239,89 @@ def _extract_depth_enabled_from_features(features: Any) -> bool:
                 if isinstance(channels, int) and channels >= 4:
                     return True
     return False
+
+
+def _infer_unit_from_names(names: List[str], keywords: List[str], suffix_to_unit: Dict[str, str]) -> str | None:
+    """
+    Infer a physical unit from feature names by keyword and suffix.
+
+    Input:
+        names (List[str]): Feature name list.
+        keywords (List[str]): Required keyword fragments.
+        suffix_to_unit (Dict[str, str]): Mapping from suffix token to unit label.
+
+    Output:
+        str | None: Resolved unit text, or None if unknown.
+    """
+    for raw_name in names:
+        name = str(raw_name).lower()
+        if not all(keyword in name for keyword in keywords):
+            continue
+        for suffix, unit in suffix_to_unit.items():
+            if name.endswith(suffix):
+                return unit
+    return None
+
+
+def _extract_dimension_units_from_features(features: Any) -> Dict[str, str]:
+    """
+    Extract dimension unit fields from meta/info.json features.
+
+    Input:
+        features (Any): Source features object from meta/info.json.
+
+    Output:
+        Dict[str, str]: Unit mapping for known dimension fields.
+    """
+    if not isinstance(features, dict):
+        return {}
+    state_def = features.get("observation.state")
+    names = state_def.get("names") if isinstance(state_def, dict) else None
+    if not isinstance(names, list):
+        return {}
+
+    inferred: Dict[str, str] = {}
+    joint_rot = _infer_unit_from_names(
+        names=names,
+        keywords=["joint"],
+        suffix_to_unit={"_rad": "radian", "_deg": "degree"},
+    )
+    if joint_rot:
+        inferred["joint_rotation_dim"] = joint_rot
+
+    eef_rot = _infer_unit_from_names(
+        names=names,
+        keywords=["eef", "rot"],
+        suffix_to_unit={"_rad": "radian", "_deg": "degree"},
+    )
+    if eef_rot:
+        inferred["end_rotation_dim"] = eef_rot
+
+    eef_trans = _infer_unit_from_names(
+        names=names,
+        keywords=["eef", "pos"],
+        suffix_to_unit={"_mm": "millimeter", "_m": "meter"},
+    )
+    if eef_trans:
+        inferred["end_translation_dim"] = eef_trans
+
+    base_rot = _infer_unit_from_names(
+        names=names,
+        keywords=["base", "rot"],
+        suffix_to_unit={"_rad": "radian", "_deg": "degree"},
+    )
+    if base_rot:
+        inferred["base_robtation_dim"] = base_rot
+
+    base_trans = _infer_unit_from_names(
+        names=names,
+        keywords=["base", "pos"],
+        suffix_to_unit={"_mm": "millimeter", "_m": "meter"},
+    )
+    if base_trans:
+        inferred["base_translation_dim"] = base_trans
+
+    return inferred
 
 
 def _format_size_bytes(num_bytes: int) -> str:
@@ -415,9 +569,22 @@ def _resolve_value_from_source(
         return None
 
     if source == "local_dataset_info.yaml":
+        if field_name == "scene_type":
+            scene_type = _extract_scene_type_from_local_dataset_info(local_dataset_info)
+            if scene_type is not None:
+                return scene_type
         return _resolve_from_mapping(local_dataset_info, field_name, aliases)
 
     source_rel = str(source)
+    if source_rel.rstrip("/") == "annotations":
+        annotations_dir = dataset_path / "annotations"
+        if not annotations_dir.exists() or not annotations_dir.is_dir():
+            return None
+        annotation_files = sorted(
+            [p.name for p in annotations_dir.iterdir() if p.is_file()]
+        )
+        return annotation_files if annotation_files else None
+
     source_path = _resolve_source_path(dataset_path, source_rel)
     if source_path is None:
         logger.warning(
@@ -471,6 +638,16 @@ def _resolve_value_from_source(
             total_frames = source_data.get("total_frames") or source_data.get("frame_num")
             if isinstance(total_frames, int):
                 return total_frames
+        if field_name in (
+            "joint_rotation_dim",
+            "end_rotation_dim",
+            "end_translation_dim",
+            "base_robtation_dim",
+            "base_translation_dim",
+        ):
+            inferred_units = _extract_dimension_units_from_features(features)
+            value = inferred_units.get(field_name)
+            return value if value not in (None, "") else None
 
     if source_path.name.endswith(".jsonl") and isinstance(source_data, list):
         if field_name == "sub_tasks":
@@ -526,17 +703,26 @@ def _apply_auto_fields(
             fallback="videos/chunk-{id}/{video_key}/episode_{id}.mp4",
         )
 
-    if context_data.get("path") in (None, ""):
-        context_data["path"] = dataset_path.name
+    # NOTE: path, video_url, and thumbnail_url fields have been removed from schema
+    # and are no longer auto-generated. They were previously auto-generated but are now
+    # deprecated to reduce redundant information in the context.
 
-    if context_data.get("annotations") in (None, ""):
+    if "annotations" in context_data and context_data.get("annotations") in (
+        None,
+        "",
+        ["annotation_1", "annotation_2", "annotation_3"],
+    ):
         annotations_dir = dataset_path / "annotations"
         if annotations_dir.exists() and annotations_dir.is_dir():
             ann_files = sorted([p.name for p in annotations_dir.iterdir() if p.is_file()])
             if ann_files:
                 context_data["annotations"] = ann_files
 
-    if context_data.get("sub_tasks") in (None, "", ["sub_task_1", "sub_task_2", "sub_task_3"]):
+    if "sub_tasks" in context_data and context_data.get("sub_tasks") in (
+        None,
+        "",
+        ["sub_task_1", "sub_task_2", "sub_task_3"],
+    ):
         task_instruction = context_data.get("task_instruction")
         if isinstance(task_instruction, list) and task_instruction:
             context_data["sub_tasks"] = task_instruction
@@ -615,14 +801,30 @@ def build_readme_context_from_schema(
             continue
 
         source = field_spec.get("source")
+        required_status = field_spec.get("required")  # Can be True, False, "optional", or None
         source_key = str(source)
         source_type_counter[source_key] = source_type_counter.get(source_key, 0) + 1
+
+        # Permission gate: fields with required=False are excluded from template context.
+        if required_status is False:
+            continue
 
         aliases = _normalize_aliases(field_spec.get("alias"))
         default_value = field_spec.get("default")
 
         if source == "fixed":
-            context_data[field_name] = default_value
+            explicit_value = field_spec.get("value")
+            if explicit_value not in (None, ""):
+                context_data[field_name] = explicit_value
+            elif required_status is True:
+                context_data[field_name] = default_value
+            elif required_status == "optional":
+                # Optional fixed field: only add if has explicit value or default
+                if default_value not in (None, ""):
+                    context_data[field_name] = default_value
+            else:
+                # required=None or other values: do not add to context
+                pass
             continue
 
         resolved = _resolve_value_from_source(
@@ -642,9 +844,18 @@ def build_readme_context_from_schema(
         if explicit_value not in (None, ""):
             context_data[field_name] = explicit_value
         elif resolved not in (None, ""):
-            context_data[field_name] = resolved
-        else:
+            # Add resolved value for required=True or required="optional" (with value)
+            if required_status is True or required_status == "optional":
+                context_data[field_name] = resolved
+        elif required_status is True:
+            # required=True: must display with default value even if no resolved value
             context_data[field_name] = default_value
+        elif required_status == "optional":
+            # required="optional": only display if has resolved or default value (already handled above)
+            pass
+        else:
+            # required=False or None: do not add to context at all
+            pass
 
     _apply_auto_fields(context_data=context_data, dataset_path=dataset_path, logger=logger)
     _apply_template_compatibility(context_data=context_data)
