@@ -30,6 +30,36 @@ if TYPE_CHECKING:
     from robocoin_dataset.database.database import DatasetDatabase
 
 
+def _ensure_info_yaml_exists(
+    hardlink_path: str,
+    info_yaml_path: str,
+    logger: logging.Logger,
+) -> str:
+    """
+    Ensure info.yaml exists under dataset hardlink path.
+    If missing, trigger metadata collect stage to generate it.
+    """
+    from robocoin_dataset.metadata.collect import InfoCollector
+
+    info_yaml = Path(info_yaml_path)
+    if info_yaml.exists():
+        logger.debug("info.yaml already exists: %s", info_yaml)
+        return str(info_yaml)
+
+    logger.warning(
+        "info.yaml missing at %s, triggering metadata collect for dataset path %s",
+        info_yaml,
+        hardlink_path,
+    )
+    collector = InfoCollector(
+        dataset_path=hardlink_path,
+        output_info_yaml_path=info_yaml,
+    )
+    generated_path = collector.collect()
+    logger.info("Generated info.yaml via metadata collect: %s", generated_path)
+    return str(generated_path)
+
+
 def construce_target_file(
     db: "DatasetDatabase",
     session: "Session",
@@ -148,21 +178,24 @@ def construce_target_file(
         _logger.debug(f"  info_yaml_path: {info_yaml_path}")
         _logger.debug(f"  hardlink_path: {hardlink_path}")
 
-        # Validate that both info_yaml_path and hardlink_path exist
-        if not _validate_exist(info_yaml_path, hardlink_path):
-            _logger.error(
-                f"Validation failed for dataset {dataset_uuid}: "
-                f"info_yaml_path={info_yaml_path}, hardlink_path={hardlink_path}. "
-                f"Both paths must exist. Marking as FAILED."
-            )
-            err_msg = (
-                "Page sync validation failed: info_yaml_path and hardlink_path must both exist. "
-                f"info_yaml_path={info_yaml_path}, hardlink_path={hardlink_path}"
-            )
-            _mark_task_failed(session, dataset_uuid, err_msg)
-            continue
-
         try:
+            info_yaml_path = _ensure_info_yaml_exists(
+                hardlink_path=str(hardlink_path),
+                info_yaml_path=str(info_yaml_path),
+                logger=_logger,
+            )
+            if not _validate_exist(info_yaml_path, hardlink_path):
+                _logger.error(
+                    f"Validation failed for dataset {dataset_uuid}: "
+                    f"info_yaml_path={info_yaml_path}, hardlink_path={hardlink_path}. "
+                    f"Both paths must exist. Marking as FAILED."
+                )
+                err_msg = (
+                    "Page sync validation failed: info_yaml_path and hardlink_path must both exist. "
+                    f"info_yaml_path={info_yaml_path}, hardlink_path={hardlink_path}"
+                )
+                _mark_task_failed(session, dataset_uuid, err_msg)
+                continue
 
             # 5. Copy pre-generated info.yaml into page dataset_info assets
             _logger.debug(f"Getting dataset name for {dataset_uuid}...")
