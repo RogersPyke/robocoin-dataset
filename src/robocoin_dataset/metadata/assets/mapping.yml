@@ -1,0 +1,20 @@
+unitree_g1:
+  - G1edu-u3
+yinhe:
+  - Galbot_g1
+galaxea_r1_lite:
+  - R1_Lite
+agilex_cobot_decoupled_magic:
+  - Split_aloha
+  - Cobot_Magic
+discover_robotics_aitbot_mmk2:
+  - AIRBOT_MMK2
+ruantong_a2d:
+  - AgiBot-g1
+  - Tianqin_A2
+realman_rmc_aidal:
+  - RMC-AIDA-L
+  - Rs-02
+  - Rs-01
+zhipingfang:
+  - alpha_bot_2
