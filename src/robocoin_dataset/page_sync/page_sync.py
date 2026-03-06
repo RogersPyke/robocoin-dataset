@@ -16,7 +16,7 @@ to the page project. It coordinates the following workflow:
    - consolidated_datasets.json: All metadata in one file
    - data_index.json: List of all YAML files
 
-The actual business logic is implemented in utils.py and task.py.
+The actual business logic is implemented in _utils.py and _task.py.
 """
 
 import logging
@@ -95,13 +95,13 @@ def construce_target_file(
         force_regenerate: If True, ignore existing COMPLETED status and rebuild assets whenever prerequisites are ready
         logger: Optional logger instance
     """
-    from robocoin_dataset.page_sync.task import (
+    from robocoin_dataset.page_sync._task import (
         _gen_one_page_sync_task,
         _mark_task_completed,
         _mark_task_failed,
         _sync_page_sync_status,
     )
-    from robocoin_dataset.page_sync.utils import (
+    from robocoin_dataset.page_sync._utils import (
         _align_video_name_with_yaml,
         _copy_info_yaml,
         _compress_video_to_dst,

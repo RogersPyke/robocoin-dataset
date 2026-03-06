@@ -10,7 +10,7 @@ Dependencies:
     - pathlib: Path normalization
     - traceback: Error stack capture
     - robocoin_dataset.readme.gen_readme: Core README generator class
-    - robocoin_dataset.readme.utils: Logger setup utility
+    - robocoin_dataset.readme._logging: Logger setup utility
     - robocoin_dataset.utils.log_config: Colored success/error logs
 
 Usage examples:
@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import Optional
 
 from robocoin_dataset.readme.gen_readme import ReadmeGenerator
-from robocoin_dataset.readme.logging import setup_readme_logger
+from robocoin_dataset.readme._logging import setup_readme_logger
 from robocoin_dataset.utils.log_config import log_error, log_success
 
 

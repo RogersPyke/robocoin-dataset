@@ -13,9 +13,9 @@ Purpose:
       - Web page asset generation (future downstream consumers)
 
 Dependencies:
-    - robocoin_dataset.metadata.collect_utils: Field resolution and context building
-    - robocoin_dataset.metadata.logging: Collect stage logger setup
-    - robocoin_dataset.metadata.yaml_utils: YAML file locating and loading
+    - robocoin_dataset.metadata._collect_utils: Field resolution and context building
+    - robocoin_dataset.metadata._logging: Collect stage logger setup
+    - robocoin_dataset.metadata._yaml_utils: YAML file locating and loading
     - robocoin_dataset.utils.log_config: log_error, log_success
     - yaml: YAML serialization
     - pathlib: Path operations
@@ -36,12 +36,12 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-from robocoin_dataset.metadata.collect_utils import resolve_context_from_schema
-from robocoin_dataset.metadata.logging import (
+from robocoin_dataset.metadata._collect_utils import resolve_context_from_schema
+from robocoin_dataset.metadata._logging import (
     setup_collect_logger,
     validate_hardlink_directory,
 )
-from robocoin_dataset.metadata.yaml_utils import locate_yaml_file
+from robocoin_dataset.metadata._yaml_utils import locate_yaml_file
 from robocoin_dataset.utils.log_config import log_error, log_success
 
 # Filename of the generated output placed in the dataset root directory.

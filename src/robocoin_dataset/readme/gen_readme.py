@@ -23,9 +23,9 @@ Generation flow (two-phase pipeline):
 
 Dependencies:
     - robocoin_dataset.metadata.collect: InfoCollector for Phase 1 delegation
-    - robocoin_dataset.readme.utils: load_collected_info_yaml for Phase 2
-    - robocoin_dataset.readme.logging: Logger setup for Render stage
-    - robocoin_dataset.readme.template_utils: Template operations for Phase 2
+    - robocoin_dataset.readme._utils: load_collected_info_yaml for Phase 2
+    - robocoin_dataset.readme._logging: Logger setup for Render stage
+    - robocoin_dataset.readme._template_utils: Template operations for Phase 2
     - yaml: For parsing configuration files
     - pathlib: For file path operations
 
@@ -51,9 +51,9 @@ from typing import Optional
 import yaml
 
 from robocoin_dataset.metadata.collect import InfoCollector
-from robocoin_dataset.readme.logging import setup_readme_logger
-from robocoin_dataset.readme.utils import load_collected_info_yaml
-from robocoin_dataset.readme.template_utils import (
+from robocoin_dataset.readme._logging import setup_readme_logger
+from robocoin_dataset.readme._utils import load_collected_info_yaml
+from robocoin_dataset.readme._template_utils import (
     load_jinja2_template,
     render_template,
     write_readme_file,

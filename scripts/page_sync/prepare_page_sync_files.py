@@ -171,7 +171,7 @@ Output Structure:
         if args.hf_token and args.hf_repo_id:
             print("\nStarting HuggingFace upload...")
             try:
-                from robocoin_dataset.page_sync.upload_assets_utils import sync_assets_to_hf
+                from robocoin_dataset.page_sync._upload import sync_assets_to_hf
 
                 assets_dir = target_dir / "assets"
                 commit_sha = sync_assets_to_hf(

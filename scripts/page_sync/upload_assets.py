@@ -20,7 +20,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from robocoin_dataset.page_sync.upload_assets_utils import (
+from robocoin_dataset.page_sync._upload import (
     DEFAULT_COMMIT_MESSAGE,
     DEFAULT_REPO_ID,
     HF_TOKEN_ENV_VAR,
