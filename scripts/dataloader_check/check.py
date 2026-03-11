@@ -230,7 +230,7 @@ Examples:
     local_parser.add_argument(
         "--log-dir",
         type=str,
-        default="",
+        default="logs/dataloader_check",
         help="Path to the log directory",
     )
     local_parser.add_argument(
