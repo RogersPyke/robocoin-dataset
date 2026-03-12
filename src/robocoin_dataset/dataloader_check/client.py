@@ -5,6 +5,8 @@ This module provides:
 """
 
 import logging
+import traceback
+
 from robocoin_dataset.distribution_computation.task_client import TaskClient
 from robocoin_dataset.dataloader_check.utils import load_repo
 
@@ -12,6 +14,7 @@ from robocoin_dataset.dataloader_check.utils import load_repo
 NUM_WORKERS = "num_workers"
 SAMPLE_RATE = "sample_rate"
 HARD_LINK_PATH = "hard_link_path"
+
 
 class DataLoaderCheckerClient(TaskClient):
     """
@@ -66,7 +69,11 @@ class DataLoaderCheckerClient(TaskClient):
             self.logger.info(f"[SUCCESS] Task completed: {hard_link_path}")
             return {}
         except Exception as e:
-            self.logger.error(f"[FAILED] Task failed: {hard_link_path}, error: {e}")
+            self.logger.error(
+                f"[FAILED] Task failed: {hard_link_path}, error: {e}\n{traceback.format_exc()}",
+                exc_info=True,
+            )
             raise RuntimeError(f"dataset dataloader check {hard_link_path} failed") from e
+
 
 __all__ = ["DataLoaderCheckerClient"]

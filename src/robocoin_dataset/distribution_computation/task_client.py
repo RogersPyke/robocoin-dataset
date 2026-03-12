@@ -11,6 +11,7 @@ from websockets.legacy.client import connect
 from .constant import (
     CLIENT_ID,
     CLIENT_IP,
+    DATASET_UUID,
     ERR_MSG,
     ERROR,
     ERROR_MSG,
@@ -64,6 +65,9 @@ class TaskClient(ABC):
         # None or <= 0 means: wait indefinitely for task response
         self.request_task_timeout: float | None = request_task_timeout
         self.logger = logger
+        # Retry config for submit_result so failed tasks get marked FAILED on server (backward compatible)
+        self._submit_result_max_attempts: int = 4
+        self._submit_result_retry_delay: float = 1.0
 
     async def connect_to_server(self, max_retries: int = 5, delay: float = 3.0) -> None:
         for attempt in range(max_retries):
@@ -336,14 +340,35 @@ class TaskClient(ABC):
                 self.logger.error("[ERROR] Not registered, cannot submit result")
             return
 
-        try:
-            await self.websocket.send(json.dumps(result))
-            if self.logger:
-                self.logger.info(f"[RESULT_SUBMIT] Submitting task result, task_id is: {result.get(TASK_ID)}")
-
-        except Exception as e:
-            if self.logger:
-                self.logger.error(f"Submit result failed: {e}")
+        last_exc = None
+        for attempt in range(self._submit_result_max_attempts):
+            try:
+                if self.websocket and not self.websocket.closed:
+                    await self.websocket.send(json.dumps(result))
+                    if self.logger:
+                        self.logger.info(
+                            "[RESULT_SUBMIT] Task result submitted, task_id=%s",
+                            result.get(TASK_ID),
+                        )
+                    return
+            except Exception as e:
+                last_exc = e
+                if self.logger:
+                    self.logger.warning(
+                        "[submit_result] Send failed (attempt %d/%d): %s",
+                        attempt + 1,
+                        self._submit_result_max_attempts,
+                        e,
+                    )
+                if attempt < self._submit_result_max_attempts - 1:
+                    await asyncio.sleep(self._submit_result_retry_delay)
+        if self.logger and last_exc is not None:
+            self.logger.error(
+                "[submit_result] Could not send result after %d attempts; "
+                "database may still show PROCESSING. Last error: %s",
+                self._submit_result_max_attempts,
+                last_exc,
+            )
 
     async def process_task(self, task_data: dict) -> dict:
         loop = asyncio.get_event_loop()
@@ -354,13 +379,18 @@ class TaskClient(ABC):
             )
             return {TASK_RESULT_STATUS: TASK_SUCCESS, TASK_RESULT_CONTENT: task_result_content}
         except Exception:
+            err_detail = f"Task {task_id} failed.\n{traceback.format_exc()}"
             if self.logger:
-                self.logger.error(f"Task {task_id} failed. {traceback.format_exc()}")
-            return {
+                self.logger.error("[process_task] %s", err_detail, exc_info=True)
+            failure_result = {
                 TASK_RESULT_STATUS: TASK_FAILED,
-                ERR_MSG: f"Task {task_id} failed. {traceback.format_exc()}",
+                ERR_MSG: err_detail,
                 TASK_RESULT_CONTENT: {},
             }
+            # Include DATASET_UUID so server can update status when task_content is missing (e.g. restart)
+            if task_data.get(DATASET_UUID) is not None:
+                failure_result[DATASET_UUID] = task_data.get(DATASET_UUID)
+            return failure_result
 
 
     async def run_until_no_task(self) -> None:

@@ -22,8 +22,10 @@ Usage:
 """
 
 import asyncio
+import json
 import logging
 import multiprocessing as mp
+import sys
 import time
 import traceback
 from dataclasses import replace
@@ -213,7 +215,10 @@ class UploadClient(TaskClient):
             tb = traceback.format_exc()
             error_msg = f"Unexpected error during upload: {e}\n\nFull traceback:\n{tb}"
             log_error(self.logger, f"[UploadClient._sync_process_task] Task exception | UUID: {dataset_uuid} | Error: {e}")
-            self.logger.debug(f"[UploadClient._sync_process_task] Full traceback:\n{tb}")
+            self.logger.error(
+                f"[UploadClient._sync_process_task] Full traceback:\n{tb}",
+                exc_info=True,
+            )
             return {
                 "dataset_uuid": dataset_uuid,
                 "hub_name": hub_name,
@@ -224,6 +229,34 @@ class UploadClient(TaskClient):
             # UploadUtil instance will be automatically garbage collected
             # Explicitly clear reference to help with cleanup
             del upload_util
+
+# ===== Helpers =====
+
+
+async def _submit_result_with_retry(
+    client: TaskClient,
+    result: dict,
+    logger: logging.Logger,
+    max_attempts: int = 4,
+) -> bool:
+    """Send task result to server with retries. Returns True if sent, False otherwise."""
+    for attempt in range(max_attempts):
+        try:
+            if client.websocket and not client.websocket.closed:
+                await client.websocket.send(json.dumps(result))
+                logger.debug(f"[run_one_client_async] Result sent to server (attempt {attempt + 1})")
+                return True
+        except Exception as e:
+            log_error(logger, f"Failed to send result to server (attempt {attempt + 1}/{max_attempts}): {e}")
+            if attempt < max_attempts - 1:
+                await asyncio.sleep(1.0)
+    log_error(
+        logger,
+        "Could not send result to server; database may still show PROCESSING for this task. "
+        "Ensure the server is running and reachable.",
+    )
+    return False
+
 
 # ===== Client entry points =====
 
@@ -275,10 +308,11 @@ async def run_one_client_async(
         logger=logger,
     )
 
-    # Track task counts
+    # Track task counts and per-task failure reasons
     tasks_processed = 0
     tasks_succeeded = 0
     tasks_failed = 0
+    task_errors: list[tuple[str, str]] = []  # (dataset_uuid, error_message)
 
     # Connect to server
     try:
@@ -292,6 +326,7 @@ async def run_one_client_async(
                     "tasks_processed": 0,
                     "tasks_succeeded": 0,
                     "tasks_failed": 0,
+                    "task_errors": [],
                 }
             except Exception as e:
                 log_error(logger, f"[run_one_client_async] Connection error: {e}")
@@ -300,6 +335,7 @@ async def run_one_client_async(
                     "tasks_processed": 0,
                     "tasks_succeeded": 0,
                     "tasks_failed": 0,
+                    "task_errors": [],
                 }
 
         logger.debug("[run_one_client_async] Starting message receiver...")
@@ -312,6 +348,7 @@ async def run_one_client_async(
                 "tasks_processed": 0,
                 "tasks_succeeded": 0,
                 "tasks_failed": 0,
+                "task_errors": [],
             }
 
         await client._start_heartbeat()
@@ -325,7 +362,19 @@ async def run_one_client_async(
                 logger.info("[run_one_client_async] No more tasks available")
                 break
 
-            result_content = await asyncio.to_thread(client._sync_process_task, task)
+            try:
+                result_content = await asyncio.to_thread(client._sync_process_task, task)
+            except Exception as e:
+                full_tb = traceback.format_exc()
+                log_error(logger, f"[run_one_client_async] Task execution raised: {e}\n{full_tb}")
+                hub_name = (task.get("hub_name") or getattr(client.config, "hub_name", "unknown"))
+                result_content = {
+                    "dataset_uuid": task.get("dataset_uuid", "unknown"),
+                    "hub_name": hub_name,
+                    "success": False,
+                    "error_message": f"Task raised: {e}\n{full_tb}",
+                }
+
             tasks_processed += 1
 
             # Check if task succeeded or failed
@@ -333,7 +382,11 @@ async def run_one_client_async(
                 tasks_succeeded += 1
             else:
                 tasks_failed += 1
+                uuid = result_content.get("dataset_uuid", "?")
+                err = result_content.get("error_message") or "Upload failed"
+                task_errors.append((uuid, err))
 
+            # Build result payload: server expects MSG_CONTENT = dict with success, dataset_uuid, hub_name, error_message
             result = {
                 MSG_TYPE: TASK_RESULT,
                 MSG_CONTENT: result_content,
@@ -342,7 +395,17 @@ async def run_one_client_async(
             result[CLIENT_ID] = client.client_id
 
             logger.debug(f"[run_one_client_async] Submitting result for task {task.get(TASK_ID)}...")
-            await client.submit_result(result)
+            sent = await _submit_result_with_retry(client, result, logger)
+            if sent and not result_content.get("success"):
+                # Give server time to receive and process (handle_task_result) before we request next task or close
+                await asyncio.sleep(0.5)
+            if not sent and not result_content.get("success"):
+                log_error(
+                    logger,
+                    "[run_one_client_async] Send failed: result (including error_message) failed to be delivered to server; "
+                    "database will remain PROCESSING for UUID: %s. Reason: WebSocket send failed (check server reachable).",
+                    result_content.get("dataset_uuid", "?"),
+                )
 
     except KeyboardInterrupt:
         logger.info("[run_one_client_async] Interrupted by user")
@@ -359,6 +422,7 @@ async def run_one_client_async(
         "tasks_processed": tasks_processed,
         "tasks_succeeded": tasks_succeeded,
         "tasks_failed": tasks_failed,
+        "task_errors": task_errors,
     }
 
 
@@ -449,7 +513,8 @@ def run_one_client_process_main(
         # Send statistics back to parent process
         if stats_queue is not None:
             stats_queue.put({"process_id": process_id, **stats})
-        return 0 if stats["tasks_failed"] == 0 else 1
+        exit_code = 0 if stats["tasks_failed"] == 0 else 1
+        sys.exit(exit_code)
     except Exception as e:
         # Always show critical errors to console, regardless of log level
         error_msg = f"[run_one_client_process_main] Hub upload client process {process_id} failed: {e}"
@@ -472,7 +537,7 @@ def run_one_client_process_main(
                     "error": str(e),
                 }
             )
-        return 1
+        sys.exit(1)
 
 
 def run_multi_clients(
@@ -666,7 +731,7 @@ def run_multi_clients(
             if error_msg:
                 log_error(console_logger, f"         Error: {error_msg}")
 
-    # Show any error details
+    # Show any process-level error details
     errors_found = [s for s in process_stats.values() if s.get("error")]
     if errors_found:
         console_logger.info(f"\n[run_multi_clients] ERROR DETAILS")
@@ -674,6 +739,16 @@ def run_multi_clients(
             proc_id = stats["process_id"]
             error = stats["error"]
             log_error(console_logger, f"  Process {proc_id}: {error}")
+
+    # Show failed task reasons (why uploads failed)
+    all_task_errors: list[tuple[str, str]] = []
+    for s in process_stats.values():
+        all_task_errors.extend(s.get("task_errors") or [])
+    if all_task_errors:
+        console_logger.info(f"\n[run_multi_clients] FAILED TASK DETAILS")
+        for dataset_uuid, err_msg in all_task_errors:
+            log_error(console_logger, f"  UUID: {dataset_uuid}")
+            log_error(console_logger, f"    Reason: {err_msg}")
 
     console_logger.info("\n" + "=" * 80 + "\n")
 

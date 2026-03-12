@@ -103,10 +103,17 @@ class DataLoaderCheckerServer(TaskServer):
         """
         Handles the result returned by a client.
         Updates the database status based on success or failure.
+        Uses task_result_content for dataset_uuid when task_content is empty (e.g. server restart).
         """
-        ds_uuid = task_content.get(DATASET_UUID)
+        ds_uuid = task_content.get(DATASET_UUID) or task_result_content.get(DATASET_UUID)
         task_status = task_result_content.get(TASK_RESULT_STATUS)
         err_msg = task_result_content.get(ERR_MSG)
+
+        if not ds_uuid:
+            self.logger.warning(
+                "Dataset UUID missing in task_content and task_result_content; cannot update status."
+            )
+            return
 
         with self.db.with_session() as session:
             item = session.query(DatasetDB).filter(DatasetDB.dataset_uuid == ds_uuid).first()
@@ -121,8 +128,12 @@ class DataLoaderCheckerServer(TaskServer):
             else:
                 item.data_loader_detection_status = TaskStatus.FAILED
                 item.data_loader_detection_err_msg = err_msg
-                self.logger.error(f"[FAILED] Dataset {ds_uuid} dataloader check failed: {err_msg}")
-            
+                # Log full error (and stack) so it is in logs; same content is stored in DB on commit
+                self.logger.error(
+                    "[FAILED] Dataset %s dataloader check failed. Error (stored in DB): %s",
+                    ds_uuid,
+                    err_msg or "",
+                )
             session.commit()
 
 __all__ = ["DataLoaderCheckerServer"]

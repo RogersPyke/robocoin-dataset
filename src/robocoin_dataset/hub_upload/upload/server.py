@@ -268,20 +268,26 @@ class UploadServer(TaskServer):
         self.logger.debug(f"[TASK] Sending task for dataset {dataset_uuid} to {hub_name}")
         return task_config
 
-    def handle_task_result(self, task_result_content: dict) -> None:
+    def handle_task_result(self, task_content: dict, task_result_content: dict) -> None:
         """
         Handle task result from client and update database status.
-        
+
         This method updates the database status for THIS server's hub.
         The hub_name should match self.cfg.hub_name.
 
         Args:
-            task_content: Original task content dictionary containing dataset_uuid and hub_name
-            task_result_content: Result dictionary from client containing success status and error message
+            task_content: Original task content dictionary (from server; used for compatibility with base).
+            task_result_content: Result dictionary from client containing success, error_message, dataset_uuid, hub_name.
         """
-        dataset_uuid = task_result_content.get("dataset_uuid")
-        hub_name = task_result_content.get("hub_name", self.cfg.hub_name)
+        if not isinstance(task_result_content, dict):
+            self.logger.error(
+                f"[ERROR] Task result content invalid (type={type(task_result_content).__name__}); cannot update database"
+            )
+            return
+        dataset_uuid = task_result_content.get("dataset_uuid") or task_content.get("dataset_uuid")
+        hub_name = task_result_content.get("hub_name") or task_content.get("hub_name", self.cfg.hub_name)
         upload_success = task_result_content.get("success", False)
+        error_message = task_result_content.get("error_message") or "Upload failed"
 
         if not dataset_uuid:
             self.logger.error("[ERROR] Task result missing dataset_uuid")
@@ -312,10 +318,18 @@ class UploadServer(TaskServer):
                     f"({self.succeed_cnt} succeeded, {self.fail_cnt} failed)"
                 )
             else:
-                error_message = task_result_content.get("error_message") or "Upload failed"
+                self.logger.info(
+                    f"[DB] Marking dataset {dataset_uuid} as FAILED in database (hub: {hub_name})"
+                )
                 _mark_upload_failed(session, dataset_uuid, error_message, hub_name, logger=self.logger)
                 self.fail_cnt += 1
-                self.logger.info(f"[FAILED] Task failed | UUID: {dataset_uuid} | Hub: {hub_name} | Error: {error_message}")
+                # Log full error (and stack) so it is in logs; same content is stored in DB
+                self.logger.error(
+                    "[FAILED] Task failed | UUID: %s | Hub: %s | Error (stored in DB): %s",
+                    dataset_uuid,
+                    hub_name,
+                    error_message,
+                )
 
                 # Log cumulative statistics
                 total_datasets = self.succeed_cnt + self.fail_cnt
