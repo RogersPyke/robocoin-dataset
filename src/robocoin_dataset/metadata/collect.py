@@ -162,11 +162,9 @@ class InfoCollector:
         """
         self.dataset_path = Path(dataset_path).expanduser().resolve()
 
-        # schema template is always the package-bundled assets/info.yaml
-        # collect.py is at: src/robocoin_dataset/metadata/collect.py
-        # readme/assets/info.yaml is at: src/robocoin_dataset/readme/assets/info.yaml
-        _readme_module_root = Path(__file__).resolve().parent.parent / "readme"
-        self.schema_yaml_path = _readme_module_root / "assets" / "info.yaml"
+        # schema template is the package-bundled metadata/assets/info.yaml
+        _metadata_module_root = Path(__file__).resolve().parent
+        self.schema_yaml_path = _metadata_module_root / "assets" / "info.yaml"
 
         if log_dir is None:
             self.log_dir = self.dataset_path / "logs" / "collect"

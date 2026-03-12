@@ -37,6 +37,7 @@ from robocoin_dataset.distribution_computation.constant import (
     TASK_RESULT,
 )
 from robocoin_dataset.distribution_computation.task_client import TaskClient
+from robocoin_dataset.hub_upload.check.val_readme import validate_readme
 from robocoin_dataset.utils.log_config import (
     ANSI_GREEN,
     ANSI_RED,
@@ -185,10 +186,13 @@ class UploadClient(TaskClient):
             ms_namespace=namespace if hub_name in ("modelscope", "ms") else self.config.ms_namespace,
         )
         
+        # Require README.md before upload
+        validate_readme(hardlink_path)
+
         # Create a new UploadUtil instance for this task
         # The instance will be automatically garbage collected after the task completes
         upload_util = self._create_upload_util(task_config)
-        
+
         try:
             upload_success, upload_error = upload_util.upload(hardlink_path)
             if upload_success:

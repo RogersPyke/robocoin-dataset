@@ -22,6 +22,9 @@ Usage examples:
            --dataset-path ~/projects/TestDatasets_0/Agilex_Cobot_Magic_pour_water_into_cup_0_qced_hardlink \
            --info-yaml-path ~/projects/TestDatasets_0/local_dataset_info.yaml
 
+    3) Force re-collect metadata (regenerate info.yaml) then render:
+       python scripts/readme/gen_readme.py --dataset-path /data/my_dataset --force
+
 Input:
     Command-line arguments only.
 
@@ -56,6 +59,7 @@ def parse_cli_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         argparse.Namespace: Parsed arguments object with fields:
             - dataset_path (str, required)
             - local_dataset_info_path (Optional[str])
+            - force (bool): If True, force re-collect info.yaml.
 
     Scenario:
         Called by main() as the only CLI input entry.
@@ -81,6 +85,11 @@ def parse_cli_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         help="Optional custom path to local_dataset_info.yaml. "
         "If omitted, system searches for 'local_dataset_info.yaml' at dataset_path first level. "
         "If neither found, error is reported and process exits.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-collect metadata (regenerate info.yaml) even if it already exists.",
     )
     return parser.parse_args(argv)
 
@@ -152,6 +161,7 @@ def run_generation(args: argparse.Namespace, logger: logging.Logger) -> Path:
 
     logger.info(f"[CLI] dataset_path={dataset_path}")
     logger.info(f"[CLI] local_dataset_info_path={args.local_dataset_info_path}")
+    logger.info(f"[CLI] force={getattr(args, 'force', False)}")
     logger.info(f"[CLI] template_path={template_path}")
     logger.info(f"[CLI] output_path={output_path}")
     logger.info(f"[CLI] log_dir={fixed_log_dir}")
@@ -162,6 +172,7 @@ def run_generation(args: argparse.Namespace, logger: logging.Logger) -> Path:
         template_path=template_path,
         output_path=output_path,
         log_dir=fixed_log_dir,
+        force_collect=getattr(args, "force", False),
     )
     return generator.generate_readme()
 

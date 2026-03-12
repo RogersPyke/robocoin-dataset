@@ -13,6 +13,8 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from robocoin_dataset.hub_upload.check.val_readme import validate_readme
+
 from .task import (
     _gen_one_upload_task,
     _mark_upload_completed,
@@ -152,7 +154,10 @@ class UploadLocal(UploadUtil):
             self.logger.error(error_msg)
             raise
 
-        # Step 3: Execute actual upload via parent class
+        # Step 3: Require README.md before upload
+        validate_readme(hardlink_path)
+
+        # Step 4: Execute actual upload via parent class
         # Parent class handles retry logic and hub API calls
         try:
             self.logger.info(

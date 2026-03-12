@@ -106,55 +106,25 @@ def _copy_info_yaml(
 
 def _sample_one_video_path(hardlink_path: str) -> str | None:
     """
-    Sample one video path from the dataset root directory,
-    identify the actual video path.
+    Sample one video path from the dataset root directory (priority: high/top/head/front).
 
-    Priority: searches folders containing "high", "top", or "head" first.
-    Falls back to all observation.images.* folders if no match found.
+    Delegates to metadata._vid_coll.get_one_video_path so selection logic stays
+    in one place. Returns absolute path to one .mp4 for page_sync compression/display.
 
-    INPUT:
-    hardlink_path, -> the dataset in lerobot foramt, sepecify to sample from where.
-    OUTPUT:
-    selected_video_path, -> the sampled, actual video path.
+    Input:
+        hardlink_path (str): Dataset root in LeRobot format.
 
-    Expects root directory structure:
-    hardlink_path/
-      videos/
-        chunk-*/
-          observation.images.*/*.mp4
+    Output:
+        str | None: Absolute path to one sampled video, or None if none found.
     """
-    import random
-
     _logger = logging.getLogger(__name__)
-    root_path = Path(hardlink_path)
+    from robocoin_dataset.metadata._vid_coll import get_one_video_path
 
-    if not root_path.exists():
-        _logger.warning(f"Root directory does not exist: {hardlink_path}")
-        return None
-
-    videos_path = root_path / "videos"
-    if not videos_path.exists():
-        _logger.warning(f"Videos directory does not exist: {videos_path}")
-        return None
-
-    # Get all videos first
-    all_videos = list(videos_path.glob("chunk-*/observation.images.*/*.mp4"))
-    if not all_videos:
-        _logger.warning(f"No videos found in any observation.images.* folders under {videos_path}")
-        return None
-
-    # Filter videos from priority folders (containing "high", "top", or "head")
-    priority_keywords = ["high", "top", "head","front"]
-    priority_videos = [
-        v for v in all_videos if any(kw in str(v).lower() for kw in priority_keywords)
-    ]
-
-    # Use priority videos if found, otherwise use all videos
-    video_files = priority_videos if priority_videos else all_videos
-    selected_video_path = random.choice(video_files)
-    _logger.info(f"Sampled video: {selected_video_path}")
-
-    return str(selected_video_path)
+    return get_one_video_path(
+        dataset_path=hardlink_path,
+        logger=_logger,
+        random=True,
+    )
 
 
 def _compress_video_to_dst(

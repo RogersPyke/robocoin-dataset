@@ -593,8 +593,15 @@ version_info:
 
 # REMOVED FIELDS (no longer needed):
 # - path: Dataset path identifier (auto-generated)
-# - video_url: Video URL (auto-generated)
 # - thumbnail_url: Thumbnail URL (auto-generated)
+
+video_url:
+  value: null
+  required: optional
+  source: "auto"
+  alias: null
+  default: null
+# Relative path to one preview video (high/head/front camera), for README/Hub. Auto-filled via _vid_coll in apply_auto_fields.
 
 # ========== Raw Data Retention ==========
 raw:

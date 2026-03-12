@@ -44,6 +44,14 @@ configs:
 {{ dataset_description }}
 {%- endif %}
 
+{% if video_url is defined and video_url -%}
+## Task Preview
+
+<video src="{{ video_url }}" controls width="640">
+Your browser does not support the video tag.
+</video>
+
+{% endif -%}
 ### Overview
 
 {% set _total_episodes = statistics.total_episodes if statistics is defined and statistics.total_episodes is defined else None -%}

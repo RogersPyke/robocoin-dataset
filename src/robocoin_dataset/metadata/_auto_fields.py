@@ -374,6 +374,12 @@ def apply_auto_fields(
         stats.setdefault("dataset_size", context_data["dataset_size"])
     context_data["statistics"] = stats
 
+    # video_url: one preview video (high/head/front camera) for README/Hub, deterministic.
+    from robocoin_dataset.metadata._vid_coll import select_preview_video_path
+
+    preview_rel = select_preview_video_path(dataset_path=dataset_path, logger=logger)
+    context_data["video_url"] = preview_rel
+
     logger.info("[AUTO_FIELDS] Auto field completion finished")
 
 

@@ -116,6 +116,7 @@ class ReadmeGenerator:
         local_dataset_info_filename: str = "local_dataset_info.yaml",
         # Backward-compat alias kept so existing callers using info_yaml_path= still work.
         info_yaml_path: Optional[str | Path] = None,
+        force_collect: bool = False,
     ) -> None:
         """
         Initialize ReadmeGenerator.
@@ -135,6 +136,8 @@ class ReadmeGenerator:
                 first level (default: "local_dataset_info.yaml").
             info_yaml_path (Optional[str | Path]): Backward-compat alias for
                 local_dataset_info_path. Ignored if local_dataset_info_path is set.
+            force_collect (bool): If True, always run metadata collect (regenerate info.yaml)
+                even when it already exists. Default False.
 
         Output:
             None.
@@ -213,6 +216,8 @@ class ReadmeGenerator:
         self.logger.info(f"[INIT] Template path: {self.template_path}")
         self.logger.info(f"[INIT] Output path: {self.output_path}")
         self.logger.info(f"[INIT] Log directory: {self.log_dir}")
+        self.force_collect = force_collect
+        self.logger.info(f"[INIT] force_collect: {self.force_collect}")
 
     def generate_readme(self) -> Path:
         """
@@ -253,11 +258,16 @@ class ReadmeGenerator:
             self.logger.info(
                 "[GENERATE] Phase 1: Check/collect info.yaml"
             )
-            if not self.collected_info_yaml_path.exists():
-                self.logger.info(
-                    f"[GENERATE] info.yaml not found at {self.collected_info_yaml_path}. "
-                    "Generating via InfoCollector..."
-                )
+            if self.force_collect or not self.collected_info_yaml_path.exists():
+                if self.force_collect:
+                    self.logger.info(
+                        "[GENERATE] force_collect=True, regenerating info.yaml..."
+                    )
+                else:
+                    self.logger.info(
+                        f"[GENERATE] info.yaml not found at {self.collected_info_yaml_path}. "
+                        "Generating via InfoCollector..."
+                    )
                 self._info_collector.collect()
                 self.logger.info(
                     f"[GENERATE] Generated info.yaml: {self.collected_info_yaml_path}"
