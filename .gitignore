@@ -114,3 +114,5 @@ robocoin_datasets/server_logs/
 !/src/robocoin_dataset/page_sync/assets/exclude.json
 run*
 
+# Test configuration file
+scripts/hub_upload/config/test.yaml

@@ -270,4 +270,6 @@ def _get_hardlink_path_by_uuid(
     from robocoin_dataset.database.models import DatasetHardLinkDB
     _logger = logger or logging.getLogger(__name__)
     item = session.query(DatasetHardLinkDB).filter(DatasetHardLinkDB.dataset_uuid == dataset_uuid).first()
-    return Path(item.hard_link_path) if item else None
+    if item is None or not item.hard_link_path:
+        return None
+    return Path(item.hard_link_path).expanduser()

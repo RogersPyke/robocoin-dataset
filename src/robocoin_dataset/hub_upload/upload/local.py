@@ -9,6 +9,7 @@ and the database task management, ensuring proper status synchronization.
 """
 
 import logging
+import traceback
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -193,6 +194,7 @@ class UploadLocal(UploadUtil):
                         hub_name=hub_name,
                         logger=self.logger,
                     )
+                    raise RuntimeError(error_msg)
             elif upload_result is True:
                 # Backward compatibility: handle old format where success was just True
                 self.logger.info(
@@ -215,12 +217,14 @@ class UploadLocal(UploadUtil):
                     hub_name=hub_name,
                     logger=self.logger,
                 )
+                raise RuntimeError(error_msg)
 
         except Exception as e:
-            # Upload failed with exception
-            error_msg = str(e)
+            # Upload failed with exception: store and log full traceback
+            error_msg = f"{e}\n\nFull traceback:\n{traceback.format_exc()}"
             self.logger.error(
-                f"[UploadLocal.upload] Upload exception for dataset {dataset_uuid}: {error_msg}"
+                f"[UploadLocal.upload] Upload exception for dataset {dataset_uuid}: {e}",
+                exc_info=True,
             )
             _mark_upload_failed(
                 session=pg_session,

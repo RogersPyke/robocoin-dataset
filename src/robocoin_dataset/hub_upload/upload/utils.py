@@ -21,6 +21,8 @@ from pathlib import Path
 import yaml
 from tqdm import tqdm
 
+from robocoin_dataset.hub_upload.check.val_readme import get_readme_path
+
 #===== Local var =====
 
 UPLOAD_LOGGER_NAME = "UploadUtil"
@@ -320,9 +322,10 @@ class UploadUtil():
     ) -> tuple[bool, str]:
         """
         Upload only the README.md file for a dataset by staging it in a temporary folder.
+        Uses case-insensitive lookup for README.md (e.g. readme.md, README.md).
         """
-        readme_path = hardlink_path / "README.md"
-        if not readme_path.exists():
+        readme_path = get_readme_path(hardlink_path)
+        if readme_path is None:
             error_msg = f"README.md not found for {dataset_name}"
             self.logger.error(error_msg)
             return False, error_msg

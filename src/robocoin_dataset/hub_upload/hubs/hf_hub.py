@@ -32,7 +32,15 @@ class HuggingfaceUploadHub(AbstractUploadHub):
 
         Args:
             token (str): Authentication token for Hugging Face API.
+
+        Raises:
+            ValueError: If token is missing or empty (avoids httpx "Illegal header value b'Bearer '").
         """
+        if not (token and str(token).strip()):
+            raise ValueError(
+                "Hugging Face token is required. Set HF_TOKEN or HUGGINGFACE_TOKEN in the environment, "
+                "or set hf_token in your upload config YAML."
+            )
         super().__init__(token)
         self.hub = HfApi(token=token)
 

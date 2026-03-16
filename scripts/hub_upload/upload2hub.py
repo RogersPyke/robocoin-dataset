@@ -24,21 +24,21 @@ Dependencies:
 
 Usage:
     # Local upload mode (single machine, default)
-    python scripts/hub_upload/upload2hub.py \\
-        --config configs/upload.yaml
+    python scripts/hub_upload/upload2hub.py \
+        --config test.yaml
 
     # Server mode (distribute tasks to clients)
-    python scripts/hub_upload/upload2hub.py --server \\
-        --config configs/upload.yaml \\
-        --host 0.0.0.0 \\
+    python scripts/hub_upload/upload2hub.py --server \
+        --config test.yaml \
+        --host 0.0.0.0 \
         --port 2100
 
     # Client mode (connect to server and process tasks)
-    python scripts/hub_upload/upload2hub.py --client \\
-        --host 127.0.0.1 \\
-        --port 2100 \\
-        --num-clients 4 \\
-        --config configs/upload.yaml
+    python scripts/hub_upload/upload2hub.py --client \
+        --config test.yaml \
+        --host 127.0.0.1 \
+        --port 2100 \
+        --num-clients 4 \
 """
 
 import argparse
@@ -74,6 +74,9 @@ ANSI_RESET = "\033[0m"
 
 # Default platform name (can be overridden by config)
 DEFAULT_PLATFORM_NAME = "RoboCOIN"
+
+# Config files are looked up under this directory (relative to this script)
+HUB_UPLOAD_CONFIG_DIR = Path(__file__).resolve().parent / "config"
 
 
 def _colorize(text: str, color: str, use_color: bool = True) -> str:
@@ -301,24 +304,24 @@ def parse_arguments() -> argparse.Namespace:
     Examples:
     # Local upload mode (single machine, default)
     python scripts/hub_upload/upload2hub.py \\
-        --config configs/upload.yaml
+        --config config/upload.yaml
 
     # Server mode (start task distribution server)
     python scripts/hub_upload/upload2hub.py --server \\
-        --config configs/upload.yaml \\
+        --config config/upload.yaml \\
         --host 0.0.0.0 \\
         --port 2100
 
     # Client mode (connect to server and process tasks)
     python scripts/hub_upload/upload2hub.py --client \\
-        --config configs/upload.yaml \\
+        --config config/upload.yaml \\
         --host 127.0.0.1 \\
         --port 2100 \\
         --num-clients 4
 
     # All options for local mode
     python scripts/hub_upload/upload2hub.py \\
-        --config configs/upload.yaml \\
+        --config config/upload.yaml \\
         --log-level DEBUG \\
         --force \\
         --readme-only
@@ -329,7 +332,7 @@ def parse_arguments() -> argparse.Namespace:
         "--config", "-c",
         type=str,
         required=True,
-        help="Path to YAML configuration file"
+        help="Path to YAML configuration file (relative paths are resolved under scripts/hub_upload/config)"
     )
 
     parser.add_argument(
@@ -776,8 +779,13 @@ def main() -> None:
             _log_error(logger, "[MAIN] --config/-c is required")
             sys.exit(1)
 
-        logger.info(f"[MAIN] Loading configuration from: {args.config}")
-        config = create_config(args.config)
+        config_path = Path(args.config)
+        if not config_path.is_absolute():
+            config_path = HUB_UPLOAD_CONFIG_DIR / config_path
+        config_path = config_path.resolve()
+
+        logger.info(f"[MAIN] Loading configuration from: {config_path}")
+        config = create_config(config_path)
 
         # Override config with command line arguments
         if args.force:
