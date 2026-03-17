@@ -2,21 +2,23 @@
 """
 Page Sync Orchestration Module
 
-This module contains the main orchestration logic for syncing dataset information
-to the page project. It coordinates the following workflow:
-1. Detect and create directory structure (assets/dataset_info, assets/videos, assets/info)
-2. Loop through pending tasks:
-   - Sync task status (mark eligible datasets as PENDING)
-   - Generate one task (mark PENDING -> PROCESSING)
-   - Copy YAML file to dataset_info
-   - Sample and compress video to videos directory
-   - Align video name to match dataset name
-   - Mark task as COMPLETED or FAILED
-3. Generate consolidated metadata files:
-   - consolidated_datasets.json: All metadata in one file
-   - data_index.json: List of all YAML files
+Page sync consumes info.yaml only (same pattern as readme generation):
+- If consumable info.yaml exists at dataset root, use it for (1) video collect/compress,
+  (2) thumbnail, (3) meta file write and consolidated file for the page, (4) optional upload.
+- If no info.yaml exists, call metadata/ (InfoCollector) to generate it, then consume.
+  If info.yaml generation fails, raise and do not continue.
 
-The actual business logic is implemented in _utils.py and _task.py.
+No internal data collection from DB for content: dataset name and display fields come
+from info.yaml. Task list (which datasets to process) still comes from DB; per-dataset
+content is read only from info.yaml.
+
+Workflow:
+1. Create directory structure (assets/dataset_info, videos, thumbnails, info).
+2. Get pending entries (hardlink_path, dataset_uuid) from DB.
+3. For each entry: ensure info.yaml (generate via metadata if missing; raise on failure),
+   then consume info.yaml to get dataset_name and do: copy YAML, sample/compress video,
+   thumbnail, align names; mark COMPLETED/FAILED in DB.
+4. Generate consolidated_datasets.json and data_index.json from assets/dataset_info.
 """
 
 import logging
@@ -36,8 +38,8 @@ def _ensure_info_yaml_exists(
     logger: logging.Logger,
 ) -> str:
     """
-    Ensure info.yaml exists under dataset hardlink path.
-    If missing, trigger metadata collect stage to generate it.
+    Ensure consumable info.yaml exists. If missing, call metadata collect to generate it.
+    If collect raises, the exception propagates (caller must not continue).
     """
     from robocoin_dataset.metadata.collect import InfoCollector
 
@@ -55,6 +57,7 @@ def _ensure_info_yaml_exists(
         dataset_path=hardlink_path,
         output_info_yaml_path=info_yaml,
     )
+    # Do not catch: on failure caller must raise and refuse to continue.
     generated_path = collector.collect()
     logger.info("Generated info.yaml via metadata collect: %s", generated_path)
     return str(generated_path)
@@ -96,10 +99,10 @@ def construce_target_file(
         logger: Optional logger instance
     """
     from robocoin_dataset.page_sync._task import (
-        _gen_one_page_sync_task,
+        get_pending_page_sync_entries,
         _mark_task_completed,
         _mark_task_failed,
-        _sync_page_sync_status,
+        _mark_task_processing,
     )
     from robocoin_dataset.page_sync._utils import (
         _align_video_name_with_yaml,
@@ -109,7 +112,7 @@ def construce_target_file(
         _gen_consolidation,
         _gen_data_index,
         _gen_video_thumbnail,
-        _get_dataset_name,
+        _get_dataset_name_from_info_yaml,
         _sample_one_video_path,
         _validate_exist,
     )
@@ -154,42 +157,33 @@ def construce_target_file(
     else:
         _logger.debug(f"Thumbnails directory already exists: {thumbnails_dir}")
 
-    # 3-8. Main loop: sync -> generate task -> copy info yaml -> copy & compress videos -> align video name -> mark completed
+    # 3. Get pending entries (hardlink_path, dataset_uuid); content will come from info.yaml only.
+    _logger.debug("Getting pending page sync entries...")
+    entries = get_pending_page_sync_entries(session, _logger, force_regenerate=force_regenerate)
+    if not entries:
+        _logger.info("No pending tasks to process")
+    else:
+        _logger.info("Processing %d pending task(s)", len(entries))
+
     task_count = 0
-    while True:
-        # 3. Sync the task status
-        _logger.debug("Syncing page sync status...")
-        _sync_page_sync_status(session, _logger, force_regenerate=force_regenerate)
-
-        # 4. Generate one task
-        _logger.debug("Generating next task...")
-        info_yaml_path, hardlink_path, dataset_uuid = _gen_one_page_sync_task(session)
-
-        if info_yaml_path is None and hardlink_path is None and dataset_uuid is None:
-            _logger.info("No more pending tasks to process")
-            break
-
-        if not dataset_uuid:
-            _logger.error("No dataset_uuid returned from task generation")
-            continue
-
+    for hardlink_path, dataset_uuid in entries:
+        info_yaml_path = str(Path(hardlink_path) / "info.yaml")
         task_count += 1
-        _logger.info(f"Processing task {task_count}: dataset_uuid={dataset_uuid}")
-        _logger.debug(f"  info_yaml_path: {info_yaml_path}")
-        _logger.debug(f"  hardlink_path: {hardlink_path}")
+        _logger.info("Processing task %d: dataset_uuid=%s", task_count, dataset_uuid)
+        _logger.debug("  hardlink_path: %s", hardlink_path)
+        _logger.debug("  info_yaml_path: %s", info_yaml_path)
+
+        _mark_task_processing(session, dataset_uuid)
+
+        # Ensure consumable info.yaml; if missing, call metadata collect. On failure, raise and stop.
+        info_yaml_path = _ensure_info_yaml_exists(
+            hardlink_path=hardlink_path,
+            info_yaml_path=info_yaml_path,
+            logger=_logger,
+        )
 
         try:
-            info_yaml_path = _ensure_info_yaml_exists(
-                hardlink_path=str(hardlink_path),
-                info_yaml_path=str(info_yaml_path),
-                logger=_logger,
-            )
             if not _validate_exist(info_yaml_path, hardlink_path):
-                _logger.error(
-                    f"Validation failed for dataset {dataset_uuid}: "
-                    f"info_yaml_path={info_yaml_path}, hardlink_path={hardlink_path}. "
-                    f"Both paths must exist. Marking as FAILED."
-                )
                 err_msg = (
                     "Page sync validation failed: info_yaml_path and hardlink_path must both exist. "
                     f"info_yaml_path={info_yaml_path}, hardlink_path={hardlink_path}"
@@ -197,32 +191,23 @@ def construce_target_file(
                 _mark_task_failed(session, dataset_uuid, err_msg)
                 continue
 
-            # 5. Copy pre-generated info.yaml into page dataset_info assets
-            _logger.debug(f"Getting dataset name for {dataset_uuid}...")
-            dataset_name = _get_dataset_name(session, dataset_uuid)
+            # Consume info.yaml only for dataset name (no DB lookup for content).
+            dataset_name = _get_dataset_name_from_info_yaml(info_yaml_path, _logger)
             if not dataset_name:
-                _logger.error(f"Failed to get dataset name for dataset {dataset_uuid}")
-                err_msg = f"Failed to get dataset name for dataset_uuid={dataset_uuid}"
+                err_msg = f"dataset_name missing in info.yaml and fallback empty: {info_yaml_path}"
                 _mark_task_failed(session, dataset_uuid, err_msg)
                 continue
 
-            _logger.info(f"Dataset name: {dataset_name}")
+            _logger.info("Dataset name: %s", dataset_name)
             yaml_dst = dataset_info_dir / f"{dataset_name}.yaml"
 
-            _logger.debug(
-                "Copying info.yaml for dataset %s from %s to %s",
-                dataset_uuid,
-                info_yaml_path,
-                yaml_dst,
-            )
-            _copy_info_yaml(str(info_yaml_path), str(yaml_dst))
+            _logger.debug("Copying info.yaml from %s to %s", info_yaml_path, yaml_dst)
+            _copy_info_yaml(info_yaml_path, str(yaml_dst))
             _logger.info("Copied info YAML to %s", yaml_dst)
 
-            # 6. Sample and compress videos
-            _logger.debug(f"Sampling video from hardlink path: {hardlink_path}...")
+            _logger.debug("Sampling video from hardlink path: %s", hardlink_path)
             sampled_video_path = _sample_one_video_path(hardlink_path)
             if not sampled_video_path:
-                _logger.error(f"Failed to sample video from {hardlink_path}")
                 err_msg = (
                     "Failed to sample video for page sync: no suitable video found under "
                     f"hardlink_path={hardlink_path}"
@@ -230,30 +215,25 @@ def construce_target_file(
                 _mark_task_failed(session, dataset_uuid, err_msg)
                 continue
 
-            _logger.info(f"Sampled video: {sampled_video_path}")
-            _logger.debug(f"Starting video compression with CRF={crf}...")
+            _logger.info("Sampled video: %s", sampled_video_path)
             _compress_video_to_dst(sampled_video_path, str(videos_dir), crf=crf, force_update=update_videos)
-            _logger.info(f"Compressed video from {sampled_video_path} into {videos_dir}")
+            _logger.info("Compressed video into %s", videos_dir)
 
-            # 7. Alighment-Rename videos
-            _logger.debug("Aligning video name with dataset name...")
             compressed_video_name = Path(sampled_video_path).name
             compressed_video_path = videos_dir / compressed_video_name
             _align_video_name_with_yaml(str(yaml_dst), str(compressed_video_path), dataset_name)
-            _logger.info(f"Aligned video name to {dataset_name}")
+            _logger.info("Aligned video name to %s", dataset_name)
 
-            # 7.5. Generate thumbnail after video is renamed
             video_suffix = compressed_video_path.suffix
             final_video_path = videos_dir / f"{dataset_name}{video_suffix}"
             _gen_video_thumbnail(str(final_video_path), str(thumbnails_dir), force_update=update_videos)
-            _logger.info(f"Generated thumbnail for {dataset_name}")
+            _logger.info("Generated thumbnail for %s", dataset_name)
 
-            # 8. Update task status to COMPLETED
             _mark_task_completed(session, dataset_uuid)
-            _logger.info(f"Successfully processed dataset: {dataset_name} ({dataset_uuid})")
+            _logger.info("Successfully processed dataset: %s (%s)", dataset_name, dataset_uuid)
 
         except Exception as e:
-            _logger.error(f"Error processing task {dataset_uuid}: {e}", exc_info=True)
+            _logger.error("Error processing task %s: %s", dataset_uuid, e, exc_info=True)
             err_msg = f"Error processing page sync task for dataset_uuid={dataset_uuid}: {e}\n{traceback.format_exc()}"
             _mark_task_failed(session, dataset_uuid, err_msg)
 

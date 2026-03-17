@@ -10,7 +10,7 @@ This script is intentionally thin: it only
 Usage example:
     python scripts/page_sync/upload_assets.py \
         --assets-dir /home/rogerspyke/projects/assets \
-        --repo-id RogersPyke/RoboCOIN-DataManager-assets \
+        --repo-id RogersPyke/robocoin_datamanager_assets \
         --hf-token hf_xxx
 """
 
@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import time
 from pathlib import Path
 
 from robocoin_dataset.page_sync._upload import (
@@ -34,7 +35,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Upload the local assets directory to the HuggingFace repo "
-            "RogersPyke/RoboCOIN-DataManager-assets (or a custom target)."
+            "RogersPyke/robocoin_datamanager_assets (or a custom target)."
         )
     )
     parser.add_argument(
@@ -89,6 +90,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default="INFO",
         help="Logging verbosity (DEBUG, INFO, WARNING, ...).",
     )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="Number of upload attempts on failure (default: 3).",
+    )
+    parser.add_argument(
+        "--retry-delay",
+        type=float,
+        default=10.0,
+        help="Seconds to wait between retries (default: 10).",
+    )
     return parser
 
 
@@ -106,7 +119,7 @@ def run(argv: list[str] | None = None) -> str:
     Parse arguments, configure logging, and trigger the upload routine.
 
     Returns:
-        str: The commit SHA returned by the HuggingFace Hub API.
+        str: The commit URL returned by the upload (canonical repo name, matches the Hub page).
     """
 
     parser = _build_parser()
@@ -117,19 +130,38 @@ def run(argv: list[str] | None = None) -> str:
     # Allow running the script from any working directory.
     assets_dir = args.assets_dir or Path.cwd() / "assets"
 
-    commit_sha = sync_assets_to_hf(
-        assets_dir=assets_dir,
-        repo_id=args.repo_id,
-        repo_type=args.repo_type,
-        revision=args.revision,
-        commit_message=args.commit_message,
-        token=args.hf_token,
-        allow_patterns=args.allow_patterns,
-        ignore_patterns=args.ignore_patterns,
-    )
-
-    logging.getLogger(__name__).info("Assets uploaded successfully: %s", commit_sha)
-    return commit_sha
+    log = logging.getLogger(__name__)
+    if args.max_retries < 1:
+        raise ValueError("--max-retries must be >= 1")
+    last_exc: BaseException | None = None
+    for attempt in range(1, args.max_retries + 1):
+        try:
+            commit_sha = sync_assets_to_hf(
+                assets_dir=assets_dir,
+                repo_id=args.repo_id,
+                repo_type=args.repo_type,
+                revision=args.revision,
+                commit_message=args.commit_message,
+                token=args.hf_token,
+                allow_patterns=args.allow_patterns,
+                ignore_patterns=args.ignore_patterns,
+            )
+            log.info("Assets uploaded successfully: %s", commit_sha)
+            return commit_sha
+        except Exception as exc:
+            last_exc = exc
+            if attempt < args.max_retries:
+                log.warning(
+                    "Upload failed (attempt %d/%d), retrying in %.1fs: %s",
+                    attempt,
+                    args.max_retries,
+                    args.retry_delay,
+                    exc,
+                )
+                time.sleep(args.retry_delay)
+            else:
+                raise
+    raise last_exc  # only when max_retries was 0 (invalid)
 
 
 def main() -> None:

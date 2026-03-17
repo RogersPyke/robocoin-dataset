@@ -157,6 +157,34 @@ def _gen_one_page_sync_task(session: "Session"
     return str(info_yaml_path), str(hardlink_path), dataset_uuid
 
 
+def _mark_task_processing(session: "Session", dataset_uuid: str) -> None:
+    """
+    Mark the specific task as PROCESSING and set version fields (same as old task pickup).
+    Called when starting to process one dataset in the page sync loop.
+    """
+    from robocoin_dataset.database.models import DatasetDB, TaskStatus
+
+    hf_prefix, ms_prefix = _get_hub_field_prefix(DatasetDB)
+    ms_upload_version_field = f"{ms_prefix}_upload_version"
+    hf_upload_version_field = f"{hf_prefix}_upload_version"
+
+    query = session.query(DatasetDB).filter(
+        DatasetDB.dataset_uuid == dataset_uuid
+    )
+    item = query.first()
+
+    if item:
+        item.dataset_info_sync_status = TaskStatus.PROCESSING
+        ms_version = getattr(item, ms_upload_version_field, None) or 0
+        hf_version = getattr(item, hf_upload_version_field, None) or 0
+        item.dataset_info_sync_version_ps_ms = ms_version
+        item.dataset_info_sync_version_ps_hf = hf_version
+        current_version = getattr(item, "dataset_info_sync_version", None) or 0
+        item.dataset_info_sync_version = current_version + 1
+        session.commit()
+        logging.getLogger(__name__).debug("Marked dataset %s as PROCESSING", dataset_uuid)
+
+
 def _mark_task_completed(session: "Session", dataset_uuid: str) -> None:
     """
     Mark the specific task as COMPLETED using dataset_uuid.
@@ -195,6 +223,61 @@ def _mark_task_failed(session: "Session", dataset_uuid: str, error_msg: str = ""
         item.dataset_info_sync_err_msg = error_msg if error_msg else None
         session.commit()
         logging.getLogger(__name__).error(f"Marked dataset {dataset_uuid} as FAILED: {error_msg}")
+
+
+def get_pending_page_sync_entries(
+    session: "Session",
+    logger: logging.Logger | None = None,
+    force_regenerate: bool = False,
+) -> list[tuple[str, str]]:
+    """
+    Return list of (hardlink_path, dataset_uuid) for all datasets that are eligible
+    for page sync (PENDING, with hub uploads completed). Does not change any status.
+
+    Input:
+        session: Database session.
+        logger: Optional logger.
+        force_regenerate: If True, same as in _sync_page_sync_status (mark eligible as PENDING).
+
+    Output:
+        list of (hardlink_path, dataset_uuid). Paths are validated to exist on disk.
+    """
+    from sqlalchemy.sql.expression import and_
+
+    from robocoin_dataset.database.models import DatasetDB, DatasetHardLinkDB, TaskStatus
+
+    _sync_page_sync_status(session, logger=logger, force_regenerate=force_regenerate)
+
+    _logger = logger or logging.getLogger(__name__)
+    hf_prefix, ms_prefix = _get_hub_field_prefix(DatasetDB)
+    ms_upload_status_field = f"{ms_prefix}_upload_status"
+    hf_upload_status_field = f"{hf_prefix}_upload_status"
+
+    query = session.query(DatasetDB).filter(
+        and_(
+            DatasetDB.dataset_info_sync_status == TaskStatus.PENDING,
+            getattr(DatasetDB, ms_upload_status_field) == TaskStatus.COMPLETED,
+            getattr(DatasetDB, hf_upload_status_field) == TaskStatus.COMPLETED,
+        )
+    )
+    items = query.all()
+    result: list[tuple[str, str]] = []
+    for item in items:
+        uuid = getattr(item, "dataset_uuid", None)
+        if not uuid:
+            continue
+        hardlink_record = session.query(DatasetHardLinkDB).filter(
+            DatasetHardLinkDB.dataset_uuid == uuid
+        ).first()
+        if not hardlink_record or not hardlink_record.hard_link_path:
+            _logger.warning("No hardlink path for dataset_uuid=%s, skipping", uuid)
+            continue
+        path = Path(hardlink_record.hard_link_path)
+        if not path.exists():
+            _logger.warning("Hardlink path does not exist for dataset_uuid=%s: %s", uuid, path)
+            continue
+        result.append((str(path), uuid))
+    return result
 
 
 def _get_hub_field_prefix(dataset_table: "type[DatasetDB]") -> tuple[str, str]:

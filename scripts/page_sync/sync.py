@@ -18,7 +18,7 @@ python scripts/page_sync/prepare_page_sync_files.py \
     --db-path db/datasets_new.db \
     --target-dir /home/rogerspyke/projects \
     --hf-token your_hf_token \
-    --hf-repo-id RogersPyke/RoboCOIN-DataManager-assets \
+    --hf-repo-id RogersPyke/robocoin_datamanager_assets \
     --crf 30 \
     --force-regenerate
 """
@@ -62,7 +62,7 @@ Examples:
     --db-path db/datasets_new.db \\
     --target-dir /path/to/page-project \\
     --hf-token your_hf_token \\
-    --hf-repo-id RogersPyke/RoboCOIN-DataManager-assets
+    --hf-repo-id RogersPyke/robocoin_datamanager_assets
 
 Output Structure:
   target-dir/

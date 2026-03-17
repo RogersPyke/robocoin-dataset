@@ -1,51 +1,43 @@
 """
-脚本旨在提供一些通用的工具函数，用于页面同步和数据集上传的辅助操作
+Script utilities for page sync and dataset upload.
+
+Page sync consumes info.yaml only. Dataset name and display fields are read
+exclusively from the collected info.yaml (dataset_name); DB convert_path
+is not used for naming.
 """
 
 import logging
 from pathlib import Path
-from typing import Any
-
-from sqlalchemy.orm import Session
 
 ######## ACTUAL OPERATION ########
 
-# ------- DATASET NAME GETTING -------#
+# ------- DATASET NAME FROM INFO.YAML -------#
 
-def _get_dataset_name(session: Session, dataset_uuid: str) -> str | None:
+
+def _get_dataset_name_from_info_yaml(info_yaml_path: str, logger: logging.Logger) -> str:
     """
-    Get dataset name from a dataset record using dataset_uuid.
-    This is for the page script compatibility.
+    Read dataset_name from a collected info.yaml file.
 
-    Args:
-        session: Database session
-        dataset_uuid: UUID of the dataset to query
+    Uses info.yaml key "dataset_name"; fallback is the basename of the
+    info.yaml parent directory (hardlink dir name). DB convert_path is not used.
 
-    Returns:
-        Dataset name (basename of convert_path) or None if not found
+    Input:
+        info_yaml_path: Absolute path to info.yaml produced by metadata collect.
+        logger: Logger for diagnostics.
+
+    Output:
+        str: Non-empty name used for asset filenames and consolidated keys.
+
+    Raises:
+        FileNotFoundError, ValueError, yaml.YAMLError: From load_collected_info_yaml.
     """
-    from robocoin_dataset.database.models import DatasetDB
+    from robocoin_dataset.readme._utils import load_collected_info_yaml
 
-    _logger = logging.getLogger(__name__)
-
-    _logger.debug(f"Querying for dataset name using dataset_uuid: {dataset_uuid}...")
-    query = session.query(DatasetDB).filter(
-        DatasetDB.dataset_uuid == dataset_uuid
-    )
-    item = query.first()
-
-    if not item:
-        _logger.warning(f"No dataset found with dataset_uuid: {dataset_uuid}")
-        return None
-
-    if not hasattr(item, 'convert_path') or not item.convert_path:
-        _logger.warning(f"Dataset {dataset_uuid} found but convert_path is missing or empty")
-        return None
-
-    # Get the basename (ending) of the convert_path as dataset_name
-    dataset_name = Path(item.convert_path).name
-    _logger.debug(f"Retrieved dataset name: {dataset_name} for dataset_uuid: {dataset_uuid}")
-    return dataset_name
+    data = load_collected_info_yaml(Path(info_yaml_path), logger)
+    name = (data.get("dataset_name") or "").strip()
+    if name:
+        return name
+    return Path(info_yaml_path).resolve().parent.name
 
 
 # ------- VALIDATION -------#
@@ -361,12 +353,7 @@ def _gen_consolidation(dataset_info_dir: str, output_path: str) -> None:
 
                 # Use the filename (without extension) as the key
                 dataset_name = yaml_file.stem
-                data_with_compat = dict(data)
-                data_with_compat["legacy_compat"] = _build_legacy_compat_payload(
-                    dataset_name=dataset_name,
-                    data=data_with_compat,
-                )
-                consolidated_data[dataset_name] = data_with_compat
+                consolidated_data[dataset_name] = dict(data)
                 _logger.debug(f"Added {dataset_name} to consolidated data")
 
             except Exception as e:  # noqa: PERF203
@@ -382,34 +369,6 @@ def _gen_consolidation(dataset_info_dir: str, output_path: str) -> None:
         json.dump(consolidated_data, f, indent=2, ensure_ascii=False)
 
     _logger.info(f"Successfully wrote consolidated datasets to {output_file}")
-
-
-def _build_legacy_compat_payload(dataset_name: str, data: dict[str, Any]) -> dict[str, Any]:
-    """
-    Build legacy-compatible fields for old page consumers.
-    """
-    path_value = data.get("dataset_name") or dataset_name
-    structure_value = data.get("data_structure")
-    if structure_value in (None, ""):
-        structure_value = data.get("structure")
-
-    task_instruction = data.get("task_instruction")
-    if isinstance(task_instruction, list):
-        tasks_value = "\n".join([str(item) for item in task_instruction if str(item).strip()])
-    elif isinstance(task_instruction, str):
-        tasks_value = task_instruction
-    else:
-        tasks_value = ""
-
-    return {
-        "path": path_value,
-        "video_url": f"./assets/videos/{path_value}.mp4",
-        "thumbnail_url": f"./assets/thumbnails/{path_value}.jpg",
-        "robot_type": data.get("robot_name") or data.get("device_model") or "",
-        "structure": structure_value or "",
-        "tasks": tasks_value,
-        "task_descriptions": data.get("sub_tasks") if isinstance(data.get("sub_tasks"), list) else [],
-    }
 
 
 def _gen_data_index(dataset_info_dir: str, output_path: str) -> None:

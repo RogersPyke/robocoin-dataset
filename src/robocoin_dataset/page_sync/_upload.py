@@ -10,7 +10,7 @@ Design overview
 4. A tiny CLI (main) wires everything together for ad-hoc execution.
 
 The default target repository is:
-    RogersPyke/RoboCOIN-DataManager-assets
+    RogersPyke/robocoin_datamanager_assets
 which is expected to host the dataset assets for the RoboCOIN page project.
 """
 
@@ -26,7 +26,7 @@ from pathlib import Path
 from huggingface_hub import HfApi
 
 HF_TOKEN_ENV_VAR = "HF_TOKEN"
-DEFAULT_REPO_ID = "RogersPyke/RoboCOIN-DataManager-assets"
+DEFAULT_REPO_ID = "RogersPyke/robocoin_datamanager_assets"
 DEFAULT_COMMIT_MESSAGE = "Update RoboCOIN assets"
 
 logger = logging.getLogger(__name__)
@@ -90,13 +90,20 @@ def upload_assets(config: UploadConfig) -> str:
     Upload the prepared assets directory to HuggingFace Hub.
 
     Returns:
-        str: The commit SHA (or revision) returned by the HuggingFace API.
+        str: The commit URL using the Hub's canonical repo_id (matches the repo name on the website).
     """
 
     assets_dir = _resolve_assets_dir(config.assets_dir)
     token = _resolve_token(config.token)
 
     api = HfApi(token=token)
+
+    # Create the repo if it does not exist (no-op when exist_ok=True and repo exists).
+    api.create_repo(
+        repo_id=config.repo_id,
+        repo_type=config.repo_type,
+        exist_ok=True,
+    )
 
     logger.info(
         "Uploading assets from %s to %s (repo_type=%s, revision=%s)",
@@ -116,8 +123,21 @@ def upload_assets(config: UploadConfig) -> str:
         ignore_patterns=config.ignore_patterns,
     )
 
-    logger.info("Upload completed successfully at commit %s", commit_sha)
-    return commit_sha
+    # Build commit URL using the Hub's canonical repo_id (matches the repo name shown on the website).
+    raw_commit = commit_sha
+    if "/commit/" in str(raw_commit):
+        commit_sha = str(raw_commit).rstrip("/").split("/commit/")[-1]
+    try:
+        info = api.repo_info(repo_id=config.repo_id, repo_type=config.repo_type)
+        canonical_id = info.id
+    except Exception:
+        canonical_id = config.repo_id
+    path_prefix = {"dataset": "datasets", "model": "models", "space": "spaces"}.get(
+        config.repo_type, "datasets"
+    )
+    commit_url = f"https://huggingface.co/{path_prefix}/{canonical_id}/commit/{commit_sha}"
+    logger.info("Upload completed successfully: %s", commit_url)
+    return commit_url
 
 
 def sync_assets_to_hf(
@@ -156,7 +176,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Upload the generated assets directory to "
-            "RogersPyke/RoboCOIN-DataManager-assets on HuggingFace."
+            "RogersPyke/robocoin_datamanager_assets on HuggingFace."
         )
     )
     parser.add_argument(
