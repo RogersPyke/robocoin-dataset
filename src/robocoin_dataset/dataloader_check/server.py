@@ -115,25 +115,27 @@ class DataLoaderCheckerServer(TaskServer):
             )
             return
 
-        with self.db.with_session() as session:
-            item = session.query(DatasetDB).filter(DatasetDB.dataset_uuid == ds_uuid).first()
-            if not item:
-                self.logger.warning(f"Dataset {ds_uuid} not found in database during result handling.")
-                return
+        try:
+            with self.db.with_session() as session:
+                item = session.query(DatasetDB).filter(DatasetDB.dataset_uuid == ds_uuid).first()
+                if not item:
+                    self.logger.warning(f"Dataset {ds_uuid} not found in database during result handling.")
+                    return
 
-            if task_status == TASK_SUCCESS:
-                item.data_loader_detection_status = TaskStatus.COMPLETED
-                item.data_loader_detection_err_msg = None
-                self.logger.info(f"[SUCCESS] Dataset {ds_uuid} dataloader check completed.")
-            else:
-                item.data_loader_detection_status = TaskStatus.FAILED
-                item.data_loader_detection_err_msg = err_msg
-                # Log full error (and stack) so it is in logs; same content is stored in DB on commit
-                self.logger.error(
-                    "[FAILED] Dataset %s dataloader check failed. Error (stored in DB): %s",
-                    ds_uuid,
-                    err_msg or "",
-                )
-            session.commit()
+                if task_status == TASK_SUCCESS:
+                    item.data_loader_detection_status = TaskStatus.COMPLETED
+                    item.data_loader_detection_err_msg = None
+                    self.logger.info(f"[SUCCESS] Dataset {ds_uuid} dataloader check completed.")
+                else:
+                    item.data_loader_detection_status = TaskStatus.FAILED
+                    item.data_loader_detection_err_msg = err_msg
+                    self.logger.error(
+                        "[FAILED] Dataset %s dataloader check failed. Error (stored in DB): %s",
+                        ds_uuid,
+                        err_msg or "",
+                    )
+                session.commit()
+        except Exception as db_err:
+            self.logger.error(f"[DB_ERR] Failed to write result to DB for {ds_uuid}: {db_err}")
 
 __all__ = ["DataLoaderCheckerServer"]

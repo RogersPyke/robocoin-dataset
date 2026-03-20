@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "robocoin-dataset"
 version = "0.1.0"
@@ -34,7 +38,7 @@ dependencies = [
   "mujoco",
   "matplotlib>=3.9.4",
   "robocoin",
-  "psycopg2>=2.9.11",
+  "psycopg2-binary>=2.9.11",
 ] # project dependencies
 
 # scripts path

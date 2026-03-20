@@ -61,6 +61,7 @@ from robocoin_dataset.hub_upload.upload.task import (
     _sync_upload_status,
 )
 from robocoin_dataset.hub_upload.upload.utils import UploadConfig, create_config
+from temp_skip_backup_hook import install_skip_backup_upload_hook
 
 # ANSI color codes for terminal output
 # Red for WARNING and ERR
@@ -476,6 +477,7 @@ def run_local_mode(config: UploadConfig, args: argparse.Namespace, logger: loggi
     # Initialize upload utility
     try:
         uploader = UploadLocal(config)
+        install_skip_backup_upload_hook(uploader, logger=logger)
         logger.info(f"[LOCAL_MODE] Upload utility initialized")
     except Exception as e:
         error_msg = f"[LOCAL_MODE] Failed to initialize upload utility: {e}"
