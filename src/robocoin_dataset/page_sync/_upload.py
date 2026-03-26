@@ -17,6 +17,7 @@ which is expected to host the dataset assets for the RoboCOIN page project.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import logging
 import os
 from collections.abc import Sequence
@@ -48,6 +49,20 @@ class UploadConfig:
     token: str | None = None
     allow_patterns: tuple[str, ...] | None = None
     ignore_patterns: tuple[str, ...] | None = None
+    only_missing: bool = False
+
+
+def _path_matches_patterns(path: str, patterns: tuple[str, ...] | None) -> bool:
+    """
+    Match a relative posix path against HuggingFace "Standard Wildcards" patterns.
+
+    This is used only for `only_missing` selection to decide which local files
+    are eligible for upload (so we don't accidentally upload files filtered by
+    allow/ignore patterns).
+    """
+    if not patterns:
+        return True
+    return any(fnmatch.fnmatch(path, pattern) for pattern in patterns)
 
 
 def _normalize_patterns(patterns: Sequence[str] | None) -> tuple[str, ...] | None:
@@ -106,22 +121,66 @@ def upload_assets(config: UploadConfig) -> str:
     )
 
     logger.info(
-        "Uploading assets from %s to %s (repo_type=%s, revision=%s)",
+        "Uploading assets from %s to %s (repo_type=%s, revision=%s, only_missing=%s)",
         assets_dir,
         config.repo_id,
         config.repo_type,
         config.revision,
+        config.only_missing,
     )
 
-    commit_sha = api.upload_folder(
-        folder_path=str(assets_dir),
-        repo_id=config.repo_id,
-        repo_type=config.repo_type,
-        revision=config.revision,
-        commit_message=config.commit_message,
-        allow_patterns=config.allow_patterns,
-        ignore_patterns=config.ignore_patterns,
-    )
+    if config.only_missing:
+        # 1) Gather local files (relative to assets_dir)
+        local_files: list[str] = []
+        for p in assets_dir.rglob("*"):
+            if p.is_file():
+                rel = p.relative_to(assets_dir).as_posix()
+                local_files.append(rel)
+
+        # 2) Fetch remote file list
+        remote_files = api.list_repo_files(
+            config.repo_id,
+            revision=config.revision,
+            repo_type=config.repo_type,
+        )
+        remote_set = set(remote_files)
+
+        # 3) Apply allow/ignore filters (matching upload_folder semantics)
+        candidate_files: list[str] = []
+        for rel in local_files:
+            if config.allow_patterns and not _path_matches_patterns(rel, config.allow_patterns):
+                continue
+            if config.ignore_patterns and _path_matches_patterns(rel, config.ignore_patterns):
+                continue
+            candidate_files.append(rel)
+
+        missing_files = [rel for rel in candidate_files if rel not in remote_set]
+        if not missing_files:
+            logger.info("No missing remote files detected; skipping HF upload.")
+            # Return a stable-ish value; callers mostly use this for logging.
+            return "NO_UPLOAD"
+
+        logger.info("Uploading %d missing file(s) to HF...", len(missing_files))
+        commit_sha = api.upload_folder(
+            folder_path=str(assets_dir),
+            repo_id=config.repo_id,
+            repo_type=config.repo_type,
+            revision=config.revision,
+            commit_message=config.commit_message,
+            allow_patterns=missing_files,
+            ignore_patterns=config.ignore_patterns,
+            delete_patterns=None,
+        )
+    else:
+        commit_sha = api.upload_folder(
+            folder_path=str(assets_dir),
+            repo_id=config.repo_id,
+            repo_type=config.repo_type,
+            revision=config.revision,
+            commit_message=config.commit_message,
+            allow_patterns=config.allow_patterns,
+            ignore_patterns=config.ignore_patterns,
+        )
 
     # Build commit URL using the Hub's canonical repo_id (matches the repo name shown on the website).
     raw_commit = commit_sha
@@ -150,6 +209,7 @@ def sync_assets_to_hf(
     token: str | None = None,
     allow_patterns: Sequence[str] | None = None,
     ignore_patterns: Sequence[str] | None = None,
+    only_missing: bool = False,
 ) -> str:
     """
     Public helper with a minimal surface for orchestrators to call.
@@ -166,6 +226,7 @@ def sync_assets_to_hf(
         token=token,
         allow_patterns=_normalize_patterns(allow_patterns),
         ignore_patterns=_normalize_patterns(ignore_patterns),
+        only_missing=only_missing,
     )
     return upload_assets(config)
 
@@ -226,6 +287,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Optional glob pattern to ignore (can be repeated).",
     )
     parser.add_argument(
+        "--only-missing",
+        action="store_true",
+        help="Upload only files that are missing on the remote repo (no remote deletion).",
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         help="Logging verbosity (DEBUG, INFO, WARNING, ...).",
@@ -260,6 +326,7 @@ def main(argv: Sequence[str] | None = None) -> str:
         token=args.hf_token,
         allow_patterns=_normalize_patterns(args.allow_patterns),
         ignore_patterns=_normalize_patterns(args.ignore_patterns),
+        only_missing=bool(args.only_missing),
     )
 
     try:

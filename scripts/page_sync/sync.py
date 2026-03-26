@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 本脚本是进行网页同步所需的素材文件生成的CLI入口脚本,一个标准的执行命令是:
-python scripts/page_sync/prepare_page_sync_files.py \
-  --db-path /mnt/db/datasets_new.db \
+python scripts/page_sync/sync.py \
+  --db-cfg-path /mnt/db/postgresql_config.yaml \
   --target-dir /home/rogerspyke/projects \
   --log-level INFO \
   --update-videos \
@@ -14,8 +14,8 @@ python scripts/page_sync/prepare_page_sync_files.py \
 
 
 # With HuggingFace upload
-python scripts/page_sync/prepare_page_sync_files.py \
-    --db-path db/datasets_new.db \
+python scripts/page_sync/sync.py \
+    --db-cfg-path db/postgresql_config.yaml \
     --target-dir /home/rogerspyke/projects \
     --hf-token your_hf_token \
     --hf-repo-id RogersPyke/robocoin_datamanager_assets \
@@ -35,31 +35,31 @@ def main() -> None:
         epilog="""
 Examples:
   # Basic usage with required arguments
-  python scripts/page_sync/prepare_page_sync_files.py \\
-    --db-path db/datasets_new.db \\
+  python scripts/page_sync/sync.py \\
+    --db-cfg-path db/postgresql_config.yaml \\
     --target-dir /path/to/page-project
 
   # With debug logging
-  python scripts/page_sync/prepare_page_sync_files.py \\
-    --db-path db/datasets_new.db \\
+  python scripts/page_sync/sync.py \\
+    --db-cfg-path db/postgresql_config.yaml \\
     --target-dir /path/to/page-project \\
     --log-level DEBUG
 
   # Force regenerate videos and thumbnails
-  python scripts/page_sync/prepare_page_sync_files.py \\
-    --db-path db/datasets_new.db \\
+  python scripts/page_sync/sync.py \\
+    --db-cfg-path db/postgresql_config.yaml \\
     --target-dir /path/to/page-project \\
     --update-videos
 
   # With custom CRF value for video compression
-  python scripts/page_sync/prepare_page_sync_files.py \\
-    --db-path db/datasets_new.db \\
+  python scripts/page_sync/sync.py \\
+    --db-cfg-path db/postgresql_config.yaml \\
     --target-dir /path/to/page-project \\
     --crf 23
 
   # With HuggingFace upload
-  python scripts/page_sync/prepare_page_sync_files.py \\
-    --db-path db/datasets_new.db \\
+  python scripts/page_sync/sync.py \\
+    --db-cfg-path db/postgresql_config.yaml \\
     --target-dir /path/to/page-project \\
     --hf-token your_hf_token \\
     --hf-repo-id RogersPyke/robocoin_datamanager_assets
@@ -77,10 +77,10 @@ Output Structure:
     )
 
     parser.add_argument(
-        "--db-path",
+        "--db-cfg-path",
         type=str,
         required=True,
-        help="Path to the SQLite database file (e.g., db/datasets_new.db)",
+        help="Path to the PostgreSQL YAML config file (e.g., db/postgresql_config.yaml)",
     )
 
     parser.add_argument(
@@ -133,10 +133,12 @@ Output Structure:
 
     args = parser.parse_args()
 
+    db_cfg_path_str = args.db_cfg_path
+
     # Validate paths
-    db_path = Path(args.db_path)
-    if not db_path.exists():
-        print(f"Error: Database file not found: {args.db_path}", file=sys.stderr)
+    db_cfg_path = Path(db_cfg_path_str)
+    if not db_cfg_path.exists():
+        print(f"Error: DB config file not found: {db_cfg_path_str}", file=sys.stderr)
         sys.exit(1)
 
     target_dir = Path(args.target_dir)
@@ -149,7 +151,7 @@ Output Structure:
     from robocoin_dataset.page_sync.page_sync import main as page_sync_main
 
     print("Starting page sync operation...")
-    print(f"  Database: {args.db_path}")
+    print(f"  Database config: {db_cfg_path}")
     print(f"  Target: {args.target_dir}")
     print(f"  CRF: {args.crf}")
     print(f"  Update videos: {args.update_videos}")
@@ -158,7 +160,7 @@ Output Structure:
 
     try:
         page_sync_main(
-            db_path=str(db_path.absolute()),
+            db_path=str(db_cfg_path.absolute()),
             target_dir=str(target_dir.absolute()),
             crf=args.crf,
             update_videos=args.update_videos,

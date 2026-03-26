@@ -270,7 +270,7 @@ def main(
     Main entry point for page sync operation.
 
     Args:
-        db_path: Path to the SQLite database
+        db_path: Path to the PostgreSQL YAML config file
         target_dir: Root directory of the page project
         crf: CRF value for video compression (default: 18, range: 0-51, lower = better quality)
         update_videos: If True, always regenerate videos and thumbnails; if False, skip existing ones (default: False)
@@ -324,10 +324,10 @@ if __name__ == "__main__":
         description="Sync dataset information to page project"
     )
     parser.add_argument(
-        "--db-path",
+        "--db-cfg-path",
         type=str,
         required=True,
-        help="Path to the SQLite database",
+        help="Path to the PostgreSQL YAML config file",
     )
     parser.add_argument(
         "--target-dir",
@@ -362,7 +362,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(
-        db_path=args.db_path,
+        db_path=args.db_cfg_path,
         target_dir=args.target_dir,
         crf=args.crf,
         update_videos=args.update_videos,

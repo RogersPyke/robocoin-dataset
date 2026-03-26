@@ -416,31 +416,37 @@ def _gen_data_index(dataset_info_dir: str, output_path: str) -> None:
 
 def _copy_robot_aliases_and_exclude(info_dir: str) -> None:
     """
-    Copy the repository's robot_aliases.json and exclude.json into the page info directory.
+    Copy robot_aliases.json and exclude.json into the page info directory
+    from robocoin_dataset.metadata.assets only.
     """
     import shutil
+    from importlib import resources
 
     _logger = logging.getLogger(__name__)
-    assets_dir = Path(__file__).parent / "assets"
-
-    # Copy robot_aliases.json
-    robot_aliases_src = assets_dir / "robot_aliases.json"
-    if not robot_aliases_src.exists():
-        _logger.error("robot_aliases.json resource missing at %s", robot_aliases_src)
-        raise FileNotFoundError(f"Failed to locate robot_aliases.json at {robot_aliases_src}")
-
     dst_dir = Path(info_dir)
     dst_dir.mkdir(parents=True, exist_ok=True)
+
+    def _resolve_asset_path(filename: str) -> Path:
+        """Resolve asset path from metadata assets package only."""
+        try:
+            package_file = resources.files("robocoin_dataset.metadata.assets").joinpath(filename)
+            resolved = Path(str(package_file))
+            if resolved.exists():
+                return resolved
+        except Exception:  # noqa: BLE001
+            _logger.exception("Failed to access metadata assets package while resolving %s", filename)
+            raise
+
+        expected = "robocoin_dataset.metadata.assets"
+        _logger.error("%s resource missing under package %s", filename, expected)
+        raise FileNotFoundError(f"Failed to locate {filename} under package {expected}")
+
+    robot_aliases_src = _resolve_asset_path("robot_aliases.json")
     robot_aliases_dst = dst_dir / "robot_aliases.json"
     shutil.copy2(robot_aliases_src, robot_aliases_dst)
     _logger.info("Copied %s to %s", robot_aliases_src, robot_aliases_dst)
 
-    # Copy exclude.json
-    exclude_src = assets_dir / "exclude.json"
-    if not exclude_src.exists():
-        _logger.error("exclude.json resource missing at %s", exclude_src)
-        raise FileNotFoundError(f"Failed to locate exclude.json at {exclude_src}")
-
+    exclude_src = _resolve_asset_path("exclude.json")
     exclude_dst = dst_dir / "exclude.json"
     shutil.copy2(exclude_src, exclude_dst)
     _logger.info("Copied %s to %s", exclude_src, exclude_dst)

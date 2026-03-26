@@ -1,65 +1,50 @@
 #!/usr/bin/env python3
 """
-本脚本是进行网页同步的自动化工作流。
+==================== WARNING (READ FIRST) ====================
+This script only orchestrates the global workflow (run page sync + upload per cycle).
+The database fields `dataset_info_sync_status/dataset_info_sync_err_msg` with `FAILED/err_msg`
+are only written reliably inside each per-dataset loop `try/except`.
 
-一个标准的执行命令是(示例):
-python scripts/page_sync/auto_sync_workflow.py \
-  --db-path /mnt/db/datasets_new.db \
-  --target-dir /home/rogerspyke/projects \
-  --git-dir /home/rogerspyke/projects/DataManager \
-  --log-level INFO \
-  --update-videos \
-  --crf 30 \
-  --run-once
+As a result, if a global post-processing step in `page_sync` fails
+(for example, missing resources during consolidated metadata generation,
+or non-fatal exceptions logged without entering dataset-level failure branches),
+you may see:
+- datasets still marked as `COMPLETED`
+- no matching `FAILED` or full stack trace in DB
+- HF upload still attempted afterward
 
-  --interval-hours 6
+Also, if HF upload fails, the current workflow only logs the exception and
+does not automatically write failure state back to dataset-level DB status fields.
+=============================================================
 
-脚本的流程是:
-1. 每隔固定时间(默认 2 小时)执行一次完整的同步流程:
-   1) 调用页面同步逻辑,在 target-dir 中生成网页项目所需的 YAML 和视频资源
-   2) 将生成的 assets 文件夹复制到 git-dir 的 docs/assets 目录（强制覆写）
-   3) 在命令完成之后,对指定挂载路径执行挂载
-   4) 在 git-dir 中执行 git add、git commit 和 git push
-      - 只添加 docs/assets 目录的变更
-      - commit 信息默认为: "automatic sync assets for page project (X datasets)"
-      - push 到指定分支(默认 main),以触发 GitHub Actions 刷新网页资源
+This script is an automated workflow for page sync and HF asset upload.
 
-2. 你可以通过 --interval-hours 参数修改同步间隔,也可以使用 --run-once 先调试单次流程。
-
-注意:
-- 挂载操作默认执行: mount <mount-path>
-  - 默认 mount-path 为 /home/rogerspyke/projects
-  - 如果你的环境不同,可以通过 --mount-path 参数进行修改
-  - 挂载前,请确保 /etc/fstab 或权限配置正确,否则 mount 可能需要 sudo 或失败
-- git push 默认使用远端 origin 和分支 main,可通过 --git-remote 和 --git-branch 参数调整
-
+Recommended command examples (with `tmux`):
 cd /home/rogerspyke/projects/robocoin-dataset
 
+# One-time debug run
 python scripts/page_sync/auto_sync_workflow.py \
-  --db-path /mnt/db/datasets_new.db \
+  --db-cfg-path /mnt/db/postgresql_config.yaml \
   --target-dir /home/rogerspyke/projects \
-  --git-dir /home/rogerspyke/projects/DataManager \
   --log-level INFO \
   --update-videos \
   --crf 30 \
   --run-once
 
-python scripts/page_sync/auto_sync_workflow.py \
-  --db-path /mnt/db/datasets_new.db \
-  --target-dir /home/rogerspyke/projects \
-  --git-dir /home/rogerspyke/projects/DataManager \
-  --log-level INFO \
-  --update-videos \
-  --crf 30
+# Optional: pass HF token via --token/--hf-token (or set HF_TOKEN env var)
+  --token <your_hf_token>
 
-nohup python scripts/page_sync/auto_sync_workflow.py \
-  --db-path /mnt/db/datasets_new.db \
-  --target-dir /home/rogerspyke/projects \
-  --git-dir /home/rogerspyke/projects/DataManager \
+# Long-running loop in tmux (recommended on servers)
+tmux new-session -d -s page-sync "\
+cd /home/rogerspyke/projects/robocoin-dataset && \
+python scripts/page_sync/auto_sync_workflow.py \
+  --db-cfg-path db/postgresql_config.yaml \
+  --target-dir ~/projects/robocoin_datamanager_assets \
   --log-level INFO \
   --update-videos \
-  --crf 30 \
-  > auto_sync.log 2>&1 &
+  --crf 30"
+tmux attach -t page-sync
+# Detach with Ctrl+b, then d
 """
 
 from __future__ import annotations
@@ -74,6 +59,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from huggingface_hub import snapshot_download
+
 logger = logging.getLogger(__name__)
 
 
@@ -81,18 +68,16 @@ logger = logging.getLogger(__name__)
 class SyncConfig:
     db_path: Path
     target_dir: Path
-    git_dir: Path
     crf: int
     update_videos: bool
     log_level: str
     interval_hours: float
-    mount_path: Path
-    git_remote: str
-    git_branch: str
-    git_commit_message: str
-    git_username: str | None
-    git_token: str | None
     run_once: bool
+    hf_token: str | None
+    hf_repo_id: str
+    hf_upload_enabled: bool
+    hf_max_retries: int
+    hf_retry_delay: float
 
 
 def _run_subprocess(
@@ -148,14 +133,14 @@ def _run_subprocess(
 
 
 def _run_page_sync(config: SyncConfig) -> None:
-    """调用页面同步逻辑,生成/更新页面项目所需资源。"""
+    """Run page sync logic and generate/update required resources."""
     logger.info("Starting page sync...")
     logger.info("  Database: %s", config.db_path)
     logger.info("  Target dir: %s", config.target_dir)
     logger.info("  CRF: %s", config.crf)
     logger.info("  Update videos: %s", config.update_videos)
 
-    # 复用与 prepare_page_sync_files.py 相同的入口
+    # Reuse the same entrypoint as prepare_page_sync_files.py
     from robocoin_dataset.page_sync.page_sync import main as page_sync_main
 
     page_sync_main(
@@ -169,8 +154,80 @@ def _run_page_sync(config: SyncConfig) -> None:
     logger.info("Page sync completed successfully.")
 
 
+def _resolve_page_assets_dir(target_dir: Path) -> Path:
+    """
+    Resolve generated assets folder.
+    """
+    return target_dir / "assets"
+
+
+def _prefetch_hf_dataset_info(config: SyncConfig) -> None:
+    """
+    Pull existing remote dataset_info YAML files before page sync.
+
+    This keeps local consolidation input complete (historical + newly generated).
+    """
+    assets_dir = _resolve_page_assets_dir(config.target_dir)
+    assets_dir.mkdir(parents=True, exist_ok=True)
+
+    logger.info("Pulling existing dataset_info files from HuggingFace before sync...")
+    logger.info("  Repo id: %s", config.hf_repo_id)
+    logger.info("  Local assets dir: %s", assets_dir)
+
+    snapshot_download(
+        repo_id=config.hf_repo_id,
+        repo_type="dataset",
+        revision="main",
+        local_dir=str(assets_dir),
+        allow_patterns=["dataset_info/*.yaml", "dataset_info/*.yml"],
+        token=config.hf_token or os.environ.get("HF_TOKEN"),
+    )
+    logger.info("Finished pulling dataset_info files from HuggingFace.")
+
+
+def _run_hf_upload(config: SyncConfig) -> None:
+    """
+    Upload generated assets to HuggingFace.
+
+    Token is expected from `--hf-token/--token` or `HF_TOKEN` env var (handled by the upload script).
+    """
+    if not config.hf_upload_enabled:
+        logger.warning(
+            "Skipping HuggingFace upload because token is not set. "
+            "Set HF_TOKEN env var or pass --token/--hf-token."
+        )
+        return
+
+    assets_dir = _resolve_page_assets_dir(config.target_dir)
+    repo_root = Path(__file__).resolve().parents[2]
+
+    cmd: list[str] = [
+        sys.executable,
+        "scripts/page_sync/upload_assets.py",
+        "--assets-dir",
+        str(assets_dir),
+        "--repo-id",
+        config.hf_repo_id,
+        "--max-retries",
+        str(config.hf_max_retries),
+        "--retry-delay",
+        str(config.hf_retry_delay),
+        "--log-level",
+        config.log_level,
+    ]
+    if config.hf_token:
+        # If token exists only in env var, upload_assets.py will fall back automatically.
+        cmd += ["--hf-token", config.hf_token]
+
+    logger.info("Starting HuggingFace upload...")
+    logger.info("  Assets dir: %s", assets_dir)
+    logger.info("  Repo id: %s", config.hf_repo_id)
+    _run_subprocess(cmd, cwd=repo_root, check=True)
+    logger.info("HuggingFace upload finished.")
+
+
 def _run_mount(config: SyncConfig) -> None:
-    """对指定路径执行挂载操作(如果需要)。"""
+    """Mount a path if needed."""
     if not config.mount_path:
         logger.debug("No mount path specified, skipping mount step.")
         return
@@ -186,11 +243,11 @@ def _run_mount(config: SyncConfig) -> None:
             config.mount_path,
             exc.returncode,
         )
-        # 挂载失败不阻塞后续 git 步骤,但记录错误
+        # Do not block later git steps on mount failure; only log it.
 
 
 def _copy_assets_to_git_dir(config: SyncConfig) -> None:
-    """复制 assets 文件夹到 git 目录的 docs/assets 目录（强制覆写）。"""
+    """Copy assets folder to docs/assets in git directory (force overwrite)."""
     source_assets = config.target_dir / "docs" / "assets"
     target_assets = config.git_dir / "docs" / "assets"
 
@@ -201,7 +258,7 @@ def _copy_assets_to_git_dir(config: SyncConfig) -> None:
 
     if not source_assets.exists():
         logger.warning("Source assets directory does not exist: %s", source_assets)
-        # 检查是否已经在目标目录中
+        # Check whether assets already exist in target.
         if target_assets.exists():
             logger.info("Assets already exist in target directory, skipping copy")
             return
@@ -210,33 +267,33 @@ def _copy_assets_to_git_dir(config: SyncConfig) -> None:
     logger.info("Copying assets from %s to %s (force overwrite)", source_assets, target_assets)
 
     try:
-        # 如果源和目标是同一个路径，跳过复制
+        # Skip copy when source and target are identical.
         if source_assets.resolve() == target_assets.resolve():
             logger.info("Source and target are the same path, skipping copy")
             return
 
-        # 确保目标目录存在
+        # Ensure target parent directory exists.
         target_assets.parent.mkdir(parents=True, exist_ok=True)
 
-        # 强制覆写：如果目标目录存在，先删除再复制
+        # Force overwrite: remove target first when it already exists.
         if target_assets.exists():
             import shutil
             logger.info("Removing existing target directory: %s", target_assets)
             shutil.rmtree(target_assets)
 
-        # 使用 rsync 进行复制，如果 rsync 不可用则使用 cp
+        # Prefer rsync; fall back to shutil when rsync is unavailable.
         try:
             logger.info("Using rsync to copy assets")
             _run_subprocess(["rsync", "-av", "--delete", str(source_assets) + "/", str(target_assets)], check=True)
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             logger.warning("rsync failed (%s), falling back to shutil", e)
-            # rsync 不可用，使用 shutil
+            # rsync unavailable, use shutil.
             import shutil
             shutil.copytree(source_assets, target_assets)
 
         logger.info("Assets copy completed successfully to %s", target_assets)
 
-        # 验证复制是否成功
+        # Verify copy result.
         if not target_assets.exists():
             raise RuntimeError(f"Copy completed but target directory does not exist: {target_assets}")
 
@@ -246,9 +303,9 @@ def _copy_assets_to_git_dir(config: SyncConfig) -> None:
 
 
 def _count_datasets(db_path: Path) -> int:
-    """统计数据库中已同步完成 (COMPLETED) 的数据集数量。
+    """Count datasets marked COMPLETED in database.
 
-    这个计数代表了数据库中标记为已完成页面同步的数据集总数。
+    This represents total datasets whose page sync is marked completed.
     """
     try:
         from robocoin_dataset.database.database import DatasetDatabase
@@ -268,17 +325,17 @@ def _count_datasets(db_path: Path) -> int:
 
 
 def _setup_git_auth(config: SyncConfig) -> None:
-    """设置 git 认证信息，避免交互式输入。"""
+    """Set git auth details to avoid interactive prompts."""
     if not config.git_username or not config.git_token:
         logger.debug("No git credentials provided, using default authentication (SSH or stored credentials)")
         return
 
-    # 设置 git credential helper 来存储 token
+    # Set git credential helper environment values.
     import os
     os.environ['GIT_USERNAME'] = config.git_username
     os.environ['GIT_TOKEN'] = config.git_token
 
-    # 创建一个简单的 credential helper 脚本
+    # Create a simple credential helper script.
     credential_script = """#!/bin/bash
 echo "username=$GIT_USERNAME"
 echo "password=$GIT_TOKEN"
@@ -291,28 +348,28 @@ echo "password=$GIT_TOKEN"
 
 
 def _run_git_sync(config: SyncConfig) -> None:
-    """在目标目录执行 git add/commit/push,用于触发 GitHub Actions。
+    """Run git add/commit/push in target dir to trigger GitHub Actions.
 
-    只添加 assets 目录下的文件，确保不会修改 README 或其他文件。
+    Only add files under assets to avoid unrelated modifications.
     """
     target_dir = config.target_dir
 
     logger.info("Running git sync in %s", target_dir)
 
-    # 0) 设置认证（如果提供了凭据）
+    # 0) Configure authentication when credentials are provided.
     _setup_git_auth(config)
 
-    # 1) 只添加 docs/assets 目录，确保不会修改 README 或其他文件
+    # 1) Add only docs/assets to avoid touching unrelated files.
     assets_path = target_dir / "docs" / "assets"
     if not assets_path.exists():
         logger.warning("Assets directory does not exist at %s. Skipping git add.", assets_path)
         return
 
     logger.info("Adding docs/assets directory to git")
-    # 使用相对路径，相对于 target_dir
+    # Use relative path from target_dir.
     _run_subprocess(["git", "add", "docs/assets/"], cwd=target_dir, check=True)
 
-    # 2) 检查是否有 staged 变更,没有则跳过 commit/push
+    # 2) Skip commit/push when there are no staged changes.
     diff_result = subprocess.run(
         ["git", "diff", "--cached", "--quiet"],
         cwd=str(target_dir),
@@ -328,7 +385,7 @@ def _run_git_sync(config: SyncConfig) -> None:
             diff_result.returncode,
         )
 
-    # 3) 计算数据集数量并更新提交信息
+    # 3) Compute dataset count and update commit message.
     dataset_count = _count_datasets(config.db_path)
     commit_message = f"{config.git_commit_message} ({dataset_count} datasets)"
 
@@ -343,7 +400,7 @@ def _run_git_sync(config: SyncConfig) -> None:
     # 5) git push
     push_cmd = ["git", "push", config.git_remote, config.git_branch]
 
-    # 如果提供了凭据，使用 credential helper
+    # Use credential helper when credentials are provided.
     if config.git_username and config.git_token:
         env = os.environ.copy()
         env['GIT_ASKPASS'] = str(Path.home() / ".git_credential_helper.sh")
@@ -368,28 +425,28 @@ def _run_git_sync(config: SyncConfig) -> None:
 
 
 def _run_git_sync_in_git_dir(config: SyncConfig) -> None:
-    """在 git 目录执行 git add/commit/push,用于触发 GitHub Actions。
+    """Run git add/commit/push in git directory to trigger GitHub Actions.
 
-    只添加 docs/assets 目录下的文件，确保不会修改 README 或其他文件。
+    Only add files under docs/assets to avoid unrelated modifications.
     """
     git_dir = config.git_dir
 
     logger.info("Running git sync in git directory: %s", git_dir)
 
-    # 0) 设置认证（如果提供了凭据）
+    # 0) Configure authentication when credentials are provided.
     _setup_git_auth(config)
 
-    # 1) 只添加 docs/assets 目录，确保不会修改 README 或其他文件
+    # 1) Add only docs/assets to avoid touching unrelated files.
     assets_path = git_dir / "docs" / "assets"
     if not assets_path.exists():
         logger.warning("Assets directory does not exist in git dir at %s. Skipping git add.", assets_path)
         return
 
     logger.info("Adding docs/assets directory to git")
-    # 使用相对路径，相对于 git_dir
+    # Use relative path from git_dir.
     _run_subprocess(["git", "add", "docs/assets/"], cwd=git_dir, check=True)
 
-    # 2) 检查是否有 staged 变更,没有则跳过 commit/push
+    # 2) Skip commit/push when there are no staged changes.
     diff_result = subprocess.run(
         ["git", "diff", "--cached", "--quiet"],
         cwd=str(git_dir),
@@ -405,7 +462,7 @@ def _run_git_sync_in_git_dir(config: SyncConfig) -> None:
             diff_result.returncode,
         )
 
-    # 3) 计算数据集数量并更新提交信息
+    # 3) Compute dataset count and update commit message.
     dataset_count = _count_datasets(config.db_path)
     commit_message = f"{config.git_commit_message} ({dataset_count} datasets)"
 
@@ -420,7 +477,7 @@ def _run_git_sync_in_git_dir(config: SyncConfig) -> None:
     # 5) git push
     push_cmd = ["git", "push", config.git_remote, config.git_branch]
 
-    # 如果提供了凭据，使用 credential helper
+    # Use credential helper when credentials are provided.
     if config.git_username and config.git_token:
         env = os.environ.copy()
         env['GIT_ASKPASS'] = str(Path.home() / ".git_credential_helper.sh")
@@ -445,32 +502,27 @@ def _run_git_sync_in_git_dir(config: SyncConfig) -> None:
 
 
 def _run_single_cycle(config: SyncConfig) -> None:
-    """执行一次完整的同步 + 挂载 + 复制到git目录 + git 流程。"""
+    """Run one full sync cycle plus HuggingFace upload."""
     start_time = datetime.now()
     logger.info("===== Starting auto sync cycle at %s =====", start_time.isoformat(timespec="seconds"))
+
+    try:
+        _prefetch_hf_dataset_info(config)
+    except Exception:  # noqa: BLE001
+        logger.exception("HuggingFace prefetch step failed.")
+        # Prefetch failure should not block local generation.
 
     try:
         _run_page_sync(config)
     except Exception:  # noqa: BLE001
         logger.exception("Page sync step failed.")
-        # 失败时仍然尝试继续执行后续步骤,以便挂载/推送其他变更(如果需要)
+        # Keep going so later steps can still run if needed.
 
     try:
-        _copy_assets_to_git_dir(config)
+        _run_hf_upload(config)
     except Exception:  # noqa: BLE001
-        logger.exception("Assets copy to git directory step failed.")
-
-    try:
-        _run_mount(config)
-    except Exception:  # noqa: BLE001
-        logger.exception("Mount step failed.")
-
-    try:
-        _run_git_sync_in_git_dir(config)
-    except subprocess.CalledProcessError:
-        logger.exception("Git sync step failed.")
-    except Exception:  # noqa: BLE001
-        logger.exception("Unexpected error during git sync step.")
+        logger.exception("HuggingFace upload step failed.")
+        # Upload failure should not block later steps.
 
     end_time = datetime.now()
     logger.info(
@@ -482,55 +534,43 @@ def _run_single_cycle(config: SyncConfig) -> None:
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Auto workflow for syncing dataset info to page project and pushing changes to GitHub.",
+        description="Auto workflow for generating page assets and uploading them to HuggingFace.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # 每 2 小时自动同步一次,在 target-dir 生成文件,复制到 git-dir 并推送
+  # Run continuously every 2 hours (assets generation + incremental HF upload)
   python scripts/page_sync/auto_sync_workflow.py \\
-    --db-path /mnt/db/datasets_new.db \\
+    --db-cfg-path /mnt/db/postgresql_config.yaml \\
     --target-dir /home/rogerspyke/projects \\
-    --git-dir /home/rogerspyke/projects/DataManager \\
     --log-level INFO \\
     --update-videos \\
     --crf 30
+    --token <your_hf_token>
 
-  # 只运行一次,用于调试
+  # Run once for debugging
   python scripts/page_sync/auto_sync_workflow.py \\
-    --db-path /mnt/db/datasets_new.db \\
+    --db-cfg-path /mnt/db/postgresql_config.yaml \\
     --target-dir /home/rogerspyke/projects \\
-    --git-dir /home/rogerspyke/projects/DataManager \\
     --run-once
 
-  # 修改同步间隔为每 3 小时,并显式指定挂载路径
-  python scripts/page_sync/auto_sync_workflow.py \\
-    --db-path /mnt/db/datasets_new.db \\
-    --target-dir /home/rogerspyke/projects \\
-    --git-dir /home/rogerspyke/projects/page-repo \\
-    --mount-path /home/rogerspyke/projects \\
-    --interval-hours 3
-
-  # 如果需要使用 HTTPS 认证而非 SSH,可以提供 GitHub token
-  python scripts/page_sync/auto_sync_workflow.py \\
-    --db-path /mnt/db/datasets_new.db \\
-    --target-dir /home/rogerspyke/projects \\
-    --git-dir /home/rogerspyke/projects/page-repo \\
-    --git-username your-github-username \\
-    --git-token your-personal-access-token
+  # Recommended: run loop mode inside tmux
+  tmux new-session -d -s page-sync "cd /home/rogerspyke/projects/robocoin-dataset && \\
+    python scripts/page_sync/auto_sync_workflow.py --db-cfg-path /mnt/db/postgresql_config.yaml --target-dir /home/rogerspyke/projects --update-videos --crf 30"
+  tmux attach -t page-sync
         """,
     )
 
     parser.add_argument(
-        "--db-path",
+        "--db-cfg-path",
         type=str,
         required=True,
-        help="Path to the SQLite database file (e.g., /mnt/db/datasets_new.db)",
+        help="Path to the PostgreSQL YAML config file (e.g., /mnt/db/postgresql_config.yaml)",
     )
     parser.add_argument(
         "--target-dir",
         type=str,
         required=True,
-        help="Root directory of the page project where assets are located and git operations run",
+        help="Root directory where the page project will generate `assets/`.",
     )
     parser.add_argument(
         "--crf",
@@ -556,47 +596,32 @@ Examples:
         default=2.0,
         help="Interval between sync cycles in hours (default: 2.0)",
     )
+
     parser.add_argument(
-        "--mount-path",
+        "--hf-repo-id",
         type=str,
-        default="/home/rogerspyke/projects",
-        help="Path to mount before git sync (default: /home/rogerspyke/projects). "
-        "If this path is not needed in your environment, you can still leave it and rely on /etc/fstab, "
-        "or set it to the same as --target-dir.",
+        default="RogersPyke/robocoin_datamanager_assets",
+        help="Target HuggingFace repo id for uploading generated page assets.",
     )
     parser.add_argument(
-        "--git-remote",
+        "--hf-token",
+        "--token",
+        dest="hf_token",
         type=str,
-        default="origin",
-        help="Git remote name to push to (default: origin)",
+        default=None,
+        help="HuggingFace token for uploading assets (optional; falls back to HF_TOKEN env var).",
     )
     parser.add_argument(
-        "--git-branch",
-        type=str,
-        default="main",
-        help="Git branch to push to (default: main)",
+        "--hf-max-retries",
+        type=int,
+        default=3,
+        help="Max HF upload attempts on failure (default: 3).",
     )
     parser.add_argument(
-        "--git-commit-message",
-        type=str,
-        default="automatic sync assets for page project",
-        help='Commit message used for automatic sync (default: "automatic sync assets for page project")',
-    )
-    parser.add_argument(
-        "--git-username",
-        type=str,
-        help="GitHub username for authentication (optional, uses SSH if not provided)",
-    )
-    parser.add_argument(
-        "--git-token",
-        type=str,
-        help="GitHub personal access token for authentication (optional, uses SSH if not provided)",
-    )
-    parser.add_argument(
-        "--git-dir",
-        type=str,
-        required=True,
-        help="Directory where git operations (add/commit/push) will be performed",
+        "--hf-retry-delay",
+        type=float,
+        default=10.0,
+        help="Seconds to wait between HF upload retries (default: 10.0).",
     )
     parser.add_argument(
         "--run-once",
@@ -608,19 +633,14 @@ Examples:
 
 
 def _build_config(args: argparse.Namespace) -> SyncConfig:
-    db_path = Path(args.db_path).expanduser().absolute()
+    db_cfg_path_str = args.db_cfg_path
+
+    db_path = Path(db_cfg_path_str).expanduser().absolute()
     target_dir = Path(args.target_dir).expanduser().absolute()
-    git_dir = Path(args.git_dir).expanduser().absolute()
-    mount_path = Path(args.mount_path).expanduser().absolute()
 
-    # 验证路径配置
-    if target_dir.resolve() == git_dir.resolve():
-        print(f"Warning: target_dir and git_dir are the same path: {target_dir}", file=sys.stderr)
-        print("This may cause issues with the sync workflow.", file=sys.stderr)
-
-    # 基本路径校验
+    # Basic path validation
     if not db_path.exists():
-        print(f"Error: Database file not found: {db_path}", file=sys.stderr)
+        print(f"Error: DB config file not found: {db_path}", file=sys.stderr)
         sys.exit(1)
 
     if not target_dir.exists():
@@ -632,34 +652,26 @@ def _build_config(args: argparse.Namespace) -> SyncConfig:
         print(f"Error: Target path is not a directory: {target_dir}", file=sys.stderr)
         sys.exit(1)
 
-    if not git_dir.exists():
-        print(f"Error: Git directory not found: {git_dir}", file=sys.stderr)
-        print("Please create the directory first or check the path.", file=sys.stderr)
-        sys.exit(1)
-
-    if not git_dir.is_dir():
-        print(f"Error: Git path is not a directory: {git_dir}", file=sys.stderr)
-        sys.exit(1)
-
     if args.interval_hours <= 0:
         print("Error: --interval-hours must be positive.", file=sys.stderr)
         sys.exit(1)
 
+    resolved_hf_token = args.hf_token or os.environ.get("HF_TOKEN")
+    hf_upload_enabled = bool(resolved_hf_token)
+
     return SyncConfig(
         db_path=db_path,
         target_dir=target_dir,
-        git_dir=git_dir,
         crf=args.crf,
         update_videos=args.update_videos,
         log_level=args.log_level,
         interval_hours=args.interval_hours,
-        mount_path=mount_path,
-        git_remote=args.git_remote,
-        git_branch=args.git_branch,
-        git_commit_message=args.git_commit_message,
-        git_username=args.git_username,
-        git_token=args.git_token,
         run_once=args.run_once,
+        hf_token=args.hf_token,
+        hf_repo_id=args.hf_repo_id,
+        hf_upload_enabled=hf_upload_enabled,
+        hf_max_retries=args.hf_max_retries,
+        hf_retry_delay=args.hf_retry_delay,
     )
 
 
@@ -678,16 +690,11 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("Auto sync workflow starting with configuration:")
     logger.info("  db_path: %s", config.db_path)
     logger.info("  target_dir: %s", config.target_dir)
-    logger.info("  git_dir: %s", config.git_dir)
     logger.info("  crf: %s", config.crf)
     logger.info("  update_videos: %s", config.update_videos)
     logger.info("  interval_hours: %s", config.interval_hours)
-    logger.info("  mount_path: %s", config.mount_path)
-    logger.info("  git_remote: %s", config.git_remote)
-    logger.info("  git_branch: %s", config.git_branch)
-    logger.info("  git_commit_message: %s", config.git_commit_message)
-    logger.info("  git_username: %s", config.git_username or "Not set (using SSH)")
-    logger.info("  git_token: %s", "***" if config.git_token else "Not set (using SSH)")
+    logger.info("  hf_repo_id: %s", config.hf_repo_id)
+    logger.info("  hf_upload_enabled: %s", config.hf_upload_enabled)
 
     if config.run_once:
         logger.info("Running in single-cycle mode (--run-once).")

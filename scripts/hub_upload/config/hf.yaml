@@ -44,11 +44,11 @@ ms_namespace: "RoboCOIN"
 # ============================================================================
 # Skip errors and continue uploading other datasets
 # If false, script will stop on first error
-skip_errors: false
+skip_errors: true
 
 # Force overwrite existing repositories without prompting
 # If true, will overwrite existing repositories on the hub
-force_overwrite: false
+force_overwrite: true
 
 # Only update README files without uploading dataset files
 # If true, only README.md files will be updated, no dataset files will be uploaded

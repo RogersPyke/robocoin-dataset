@@ -291,6 +291,18 @@ def _setup_mode_logging(
     return logger, log_folder
 
 
+def _parse_bool_arg(value: str | None) -> bool:
+    """Parse CLI true/false strings (e.g. for --retry-failed true)."""
+    if value is None:
+        return True
+    v = str(value).strip().lower()
+    if v in ("true", "1", "yes", "y", "on"):
+        return True
+    if v in ("false", "0", "no", "n", "off"):
+        return False
+    raise argparse.ArgumentTypeError(f"expected true or false, got {value!r}")
+
+
 def parse_arguments() -> argparse.Namespace:
     """
     Parse command line arguments.
@@ -419,6 +431,16 @@ def parse_arguments() -> argparse.Namespace:
         ),
     )
 
+    parser.add_argument(
+        "--retry-failed",
+        nargs="?",
+        const=True,
+        default=True,
+        type=_parse_bool_arg,
+        metavar="BOOL",
+        help="Local mode: re-queue FAILED hub uploads (true/false; default: true)",
+    )
+
     return parser.parse_args()
 
 
@@ -498,6 +520,7 @@ def run_local_mode(config: UploadConfig, args: argparse.Namespace, logger: loggi
                 specific_uuid=None,
                 hub_name=hub_name,
                 logger=logger,
+                retry_failed=args.retry_failed,
             )
         logger.info("[LOCAL_MODE] Status sync completed")
     except Exception as e:

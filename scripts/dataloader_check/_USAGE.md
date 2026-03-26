@@ -26,3 +26,5 @@ python scripts/dataloader_check/check.py client \
 --num-clients 1 \
 --heartbeat-interval 10.0
 ```
+
+Run this part BEFORE the README generation, which prepares for the uploading process.

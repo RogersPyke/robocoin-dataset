@@ -86,6 +86,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional glob pattern to exclude. Can be repeated.",
     )
     parser.add_argument(
+        "--only-missing",
+        action="store_true",
+        help="Incremental upload: only upload files missing on the remote repo (never deletes remote files).",
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         help="Logging verbosity (DEBUG, INFO, WARNING, ...).",
@@ -145,6 +150,7 @@ def run(argv: list[str] | None = None) -> str:
                 token=args.hf_token,
                 allow_patterns=args.allow_patterns,
                 ignore_patterns=args.ignore_patterns,
+                only_missing=args.only_missing,
             )
             log.info("Assets uploaded successfully: %s", commit_sha)
             return commit_sha

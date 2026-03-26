@@ -41,6 +41,7 @@ from robocoin_dataset.metadata._logging import (
     setup_collect_logger,
     validate_hardlink_directory,
 )
+from robocoin_dataset.metadata._handle_dataset_name import patch_dataset_name_in_context
 from robocoin_dataset.metadata._yaml_utils import locate_yaml_file
 from robocoin_dataset.utils.log_config import log_error, log_success
 
@@ -248,6 +249,11 @@ class InfoCollector:
                 local_dataset_info_path=self.local_dataset_info_path,
                 logger=self.logger,
             )
+
+            # Legacy compat for dataset_name:
+            # Some datasets use operation-only names in local_dataset_info.yaml.
+            # Normalize final dataset_name to `<robot_name>-<operation_task_name>`.
+            patch_dataset_name_in_context(context_data)
             self.logger.info(
                 f"[COLLECT] Resolved {len(context_data)} fields"
             )

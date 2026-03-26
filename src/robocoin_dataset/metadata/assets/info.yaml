@@ -138,7 +138,7 @@ env_type:
   required: true
   source: "local_dataset_info.yaml"
   alias: null
-  default: "env_type"
+  default: "Due to some reasons, this dataset temporarily cannot provide the environment type information."
 # --- README -----
 # simulation/real.
 # MUST follow the format: simulation/real_world. one in two choices
@@ -171,7 +171,7 @@ task_operation_type:
   required: true
   source: "local_dataset_info.yaml"
   alias: null
-  default: "task_operation_type"
+  default: "Due to some reasons, this dataset temporarily cannot provide the operation type information."
 # dual_arm..., that is task_type.
 # --- README -----
 # simgle_arm/dual_arm/othes...
@@ -199,6 +199,10 @@ task_instruction:
   source: "local_dataset_info.yaml"
   alias:
     - "tasks"
+    # Legacy compat: `pre_local_datasets_info.yaml` uses `task_descriptions`
+    # (old field name) to store the main natural-language task instruction.
+    # Purpose: map old `task_descriptions` -> standardized `task_instruction`.
+    - "task_descriptions"
   default: "task_instruction"
 # i.e. task_instruction, this is the natural language instruction.
 # NOTE: MUST distinguish the task_instruction from task_descriptions.
@@ -265,7 +269,7 @@ tele_type:
   required: true
   source: "local_dataset_info.yaml"
   alias: null
-  default: "tele_type"
+  default: "Due to some reasons, this dataset temporarily cannot provide the teleoperation type information."
 
 sensor_list:
   value: null
@@ -489,7 +493,9 @@ authors:
   required: true
   source: "fixed"
   alias: null
-  default: "RoboCOIN Team, Beijing Academy of Artificial Intelligence"
+  default:
+    contributed_by:
+      - name: "RoboCOIN Team at Beijing Academy of Artificial Intelligence (BAAI)"
 # Author information
 
 dataset_description:
@@ -553,7 +559,7 @@ license_details:
   required: true
   source: "fixed"
   alias: null
-  default: "Please refer to the LICENSE file for full license terms and conditions."
+  default: "apache-2.0"
 
 # ========== Citation Information ==========
 

@@ -52,6 +52,7 @@ def _sync_upload_status(
     specific_uuid: str | None = None,
     hub_name: str = "huggingface",
     logger: logging.Logger | None = None,
+    retry_failed: bool = False,
 ) -> None:
     """
     Sync upload status for both HuggingFace and ModelScope hubs in one operation.
@@ -64,6 +65,7 @@ def _sync_upload_status(
         specific_uuid: Optional specific dataset UUID to sync. If provided, only syncs that dataset.
         logger: Optional logger instance
         hub_name: The hub name to sync. Must be 'huggingface' or 'modelscope'.
+        retry_failed: Bulk sync includes FAILED rows when True (reset to PENDING).
     """
     from sqlalchemy.sql.expression import and_, or_
     from robocoin_dataset.database.models import DatasetDB, TaskStatus
@@ -82,6 +84,11 @@ def _sync_upload_status(
                         and_(
                             getattr(DatasetDB, HF_STATE) == TaskStatus.COMPLETED,
                             getattr(DatasetDB, HF_VERSION_PS) < getattr(DatasetDB, HF_VERSION),
+                        ),
+                        *(
+                            [getattr(DatasetDB, HF_STATE) == TaskStatus.FAILED]
+                            if retry_failed
+                            else []
                         ),
                     ),
                 )
@@ -114,6 +121,11 @@ def _sync_upload_status(
                         and_(
                             getattr(DatasetDB, MS_STATE) == TaskStatus.COMPLETED,
                             getattr(DatasetDB, MS_VERSION_PS) < getattr(DatasetDB, MS_VERSION),
+                        ),
+                        *(
+                            [getattr(DatasetDB, MS_STATE) == TaskStatus.FAILED]
+                            if retry_failed
+                            else []
                         ),
                     ),
                 )

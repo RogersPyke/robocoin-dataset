@@ -27,7 +27,7 @@ tags:
   - {{ tag }}
 {%- endfor %}
 
-license: {{ license | default("Unknown") }}
+license: {{ license }}
 
 {% if configs is defined and configs -%}
 configs:
@@ -72,7 +72,11 @@ configs:
 - **Dataset Size:** {{ _dataset_size }}
 {% endif -%}
 {% if robot_name is defined and robot_name -%}
-- **Robot Name:** `{{ robot_name }}`
+{%- set _robot_name_display = robot_name -%}
+{%- if _robot_name_display is iterable and _robot_name_display is not string -%}
+{%- set _robot_name_display = _robot_name_display | join(', ') -%}
+{%- endif -%}
+- **Robot Name:** `{{ _robot_name_display }}`
 {% endif -%}
 {% if end_effector_type is defined and end_effector_type -%}
 {%- set _eef_type_display = end_effector_type -%}
@@ -115,7 +119,7 @@ configs:
     {%- set _void = _scene_parts.append(scene_type[_level_key]) -%}
   {%- endif -%}
 {%- endfor -%}
-`{{ _scene_parts | join('-') }}`
+`{{ _scene_parts | join('->') }}`
 {%- else -%}
 {%- for scene in scene_type -%}
 `{{ scene }}`{% if not loop.last %}, {% endif %}
@@ -128,19 +132,31 @@ configs:
 {% endfor %}
 {% endif -%}
 {% if task_instruction is defined and task_instruction -%}
-- **Task Description:** {{ task_instruction }}
+{%- set _task_instruction_display = task_instruction -%}
+{%- if _task_instruction_display is iterable and _task_instruction_display is not string -%}
+{%- set _task_instruction_display = _task_instruction_display | join(', ') -%}
+{%- endif -%}
+- **Task Description:** {{ _task_instruction_display }}
 {% endif %}
 
 {% if task_instruction is defined and task_instruction -%}
+{%- set _task_instruction_display = task_instruction -%}
+{%- if _task_instruction_display is iterable and _task_instruction_display is not string -%}
+{%- set _task_instruction_display = _task_instruction_display | join(', ') -%}
+{%- endif -%}
 ### Primary Task Instruction
-> {{ task_instruction }}
+> {{ _task_instruction_display }}
 {%- endif %}
 
 {% if robot_name is defined or codebase_version is defined or end_effector_type is defined -%}
 ### Robot Configuration
 
 {% if robot_name is defined and robot_name -%}
-- **Robot Name:** `{{ robot_name }}`
+{%- set _robot_name_display = robot_name -%}
+{%- if _robot_name_display is iterable and _robot_name_display is not string -%}
+{%- set _robot_name_display = _robot_name_display | join(', ') -%}
+{%- endif -%}
+- **Robot Name:** `{{ _robot_name_display }}`
 {%- endif %}
 {% if codebase_version is defined -%}
 - **Codebase Version:** `{{ codebase_version }}`
@@ -173,7 +189,7 @@ configs:
     {%- set _void = _scene_parts.append(scene_type[_level_key]) -%}
   {%- endif -%}
 {%- endfor -%}
-`{{ _scene_parts | join('-') }}`
+`{{ _scene_parts | join('->') }}`
 {%- else -%}
 {%- for scene in scene_type -%}
 - `{{ scene }}`
@@ -191,7 +207,11 @@ configs:
 ## Task Descriptions
 
 {% if task_instruction is defined and task_instruction -%}
-- **Standardized Task Description:** `{{ task_instruction }}`
+{%- set _task_instruction_display = task_instruction -%}
+{%- if _task_instruction_display is iterable and _task_instruction_display is not string -%}
+{%- set _task_instruction_display = _task_instruction_display | join(', ') -%}
+{%- endif -%}
+- **Standardized Task Description:** `{{ _task_instruction_display }}`
 {%- endif %}
 {% if task_operation_type is defined and task_operation_type -%}
 - **Operation Type:** `{{ task_operation_type }}`
@@ -449,7 +469,6 @@ No annotator information available.
 {% if repository is defined -%}
 - **Repository:** [{{ repository }}]({{ repository }})
 {% endif -%}
-- **License:** {{ license | default("apache-2.0") }}
 
 ## Contact and Support
 
@@ -469,8 +488,6 @@ For technical issues or questions, please open an issue on the repository or con
 {%- endif %}
 
 ## License
-
-- **License Type:** `{{ license | default("apache-2.0") }}`
 
 {% if license_details is defined -%}
 {{ license_details }}

@@ -17,7 +17,9 @@ If `--local-dataset-info-path` is not provided, the script tries to find `local_
 
 To generate for many datasets from DB:
 ```
-python scripts/readme/gen_readme.py --db-cfg-path db/postgresql_config.yaml
+python scripts/readme/gen_readme.py \
+--db-cfg-path db/postgresql_config.yaml  \
+--force
 ```
 In batch mode, script selects datasets that:
 
