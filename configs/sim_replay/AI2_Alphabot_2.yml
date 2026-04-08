@@ -2,8 +2,8 @@
 sim:
   xml_path: "configs/sim_replay/mjcfs/ai2robotics_bot2/Bot2_ZPF_L2Fgripper_R2Fgripper_A_description_with_sites.xml"  # 仿真模型路径
 
-  # module_file: config.sim_replay.agilex
-  # function: get_mjcf_gripper_joint_data
+  module_file: config.sim_replay.AI2_Alphabot_2
+  function: get_mjcf_gripper_joint_data
 
   joints:
     ZPF_left_Joint1: left_arm_joint_1_rad
@@ -20,18 +20,18 @@ sim:
     ZPF_right_Joint5: right_arm_joint_5_rad
     ZPF_right_Joint6: right_arm_joint_6_rad
     ZPF_right_Joint7: right_arm_joint_7_rad
-    # fl_joint7: fl_joint7
-    # fl_joint8: fl_joint8
-    # fr_joint7: fr_joint7
-    # fr_joint8: fr_joint8
+    2FEG_l_Joint1: fl_joint7
+    2FEG_l_Joint4: fl_joint8
+    2FEG_r_Joint1: fr_joint7
+    2FEG_r_Joint4: fr_joint8
                                           
   # 物理世界的限制 (MuJoCo 中的实际行程, 单位: 米或弧度)
   gripper_config:
     gripper_name:
-      - left_gripper_open
-      - right_gripper_open
-    # gripper_joint_max: 0.04  # 物理完全张开的宽度
-    # gripper_joint_min: 0.0   # 物理完全闭合的宽度
+      - left_gripper_open_scale
+      - right_gripper_open_scale
+    gripper_joint_max: 0.82  # 物理完全张开的宽度
+    gripper_joint_min: 0.0   # 物理完全闭合的宽度
     gripper: False
 
   camera:   # 相机参数可以从 tools/sim_replay/get_camara.py 中获取
@@ -44,10 +44,12 @@ sim:
 
 default_version:
   gripper_config:
-    gripper_value_open: 1100.0  # 数据中表示"开"的值
+    gripper_value_open: 1.0  # 数据中表示"开"的值
     gripper_value_close: 0.0 # 数据中表示"关"的值
 
 
 show_plt: 
-- left_gripper_open
-- right_gripper_open
+  - 
+    - left_gripper_open_scale
+  - 
+    - right_gripper_open_scale

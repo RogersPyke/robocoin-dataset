@@ -309,8 +309,8 @@ class LerobotSimReplayer:
                 data_list = df[key].to_list()
                 
                 # 如果是 action，加上前缀用于图表可视化：
-                if "action" in key:
-                    names = [f"act_{n}" for n in names]
+                # if "action" in key:
+                #     names = [f"act_{n}" for n in names]
                 
                 # ===== 核心修改：新增gripper_open_scale字段 =====
                 # 1. 确定对应的gripper_open_scale键（state对应state，action对应action）

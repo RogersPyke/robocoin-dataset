@@ -10,6 +10,7 @@ import h5py
 import numpy as np
 from natsort import natsorted
 from PIL import Image
+import json
 
 from robocoin_dataset.format_converter.tolerobot.constant import (
     ARGS_KEY,
@@ -311,8 +312,8 @@ class LerobotFormatConverterHdf5(LerobotFormatConverter):
                 required_paths.add(state_config[ARGS_KEY]["h5_path"])
 
         # 从动作配置中收集路径
-        if "sub_actions" in self.converter_config[FEATURES_KEY]["action"]:
-            for action_config in self.converter_config[FEATURES_KEY]["action"]["sub_actions"]:
+        if "sub_action" in self.converter_config[FEATURES_KEY]["action"]:
+            for action_config in self.converter_config[FEATURES_KEY]["action"]["sub_action"]:
                 if ARGS_KEY in action_config and "h5_path" in action_config[ARGS_KEY]:
                     required_paths.add(action_config[ARGS_KEY]["h5_path"])
 
@@ -417,7 +418,7 @@ class LerobotFormatConverterHdf5(LerobotFormatConverter):
     ) -> np.ndarray:
         if not images_buffer:
             images_buffer = self._prepare_episode_images_buffer(task_path, ep_idx)
-
+          
         try:
             h5_path = args_dict["h5_path"]
         except KeyError as e:
@@ -1190,3 +1191,167 @@ class LerobotFormatConverterHdf5(LerobotFormatConverter):
                 "absolute_path": str(h5_file.absolute()),
             }
         return {}
+    
+    def load_camera_params(self, h5_scalar_data: bytes | np.ndarray) -> dict:
+        """
+        从HDF5标量JSON字节数据加载相机参数
+        兼容：标量bytes / 标量np.void / 数组包裹的bytes
+        Args:
+            h5_scalar_data: H5中存储的JSON字节数据（如infos/camera_params/chest.json）
+        Returns:
+            包含内参、外参、分辨率的参数字典
+        """
+        # ===================== 正确提取标量 bytes =====================
+        if isinstance(h5_scalar_data, np.ndarray):
+            if h5_scalar_data.shape == ():
+                data_bytes = h5_scalar_data.item()
+            else:
+                data_bytes = h5_scalar_data.tobytes()
+        else:
+            data_bytes = h5_scalar_data
+
+        if not isinstance(data_bytes, bytes):
+            raise ValueError(f"相机参数数据类型错误，期望bytes，得到 {type(data_bytes)}")
+
+        # 解析 JSON
+        try:
+            params = json.loads(data_bytes.decode('utf-8'))
+        except json.JSONDecodeError as e:
+            raise ValueError(f"相机参数JSON解析失败: {str(e)[:100]}") from e
+
+        # ===================== 🔥 核心修复：字段名匹配（intrinsics → intrinsic） =====================
+        def safe_array(val, default=[]):
+            return np.array(val, dtype=np.float32) if val is not None else np.array(default, dtype=np.float32)
+
+        # 1. 内参：从 fx, fy, cx, cy 构造 3x3 矩阵
+        intr = params.get('intrinsics', {})
+        fx, fy = intr.get('fx', 0.0), intr.get('fy', 0.0)
+        cx, cy = intr.get('cx', 0.0), intr.get('cy', 0.0)
+        intrinsic_mat = np.array([
+            [fx,  0,  cx],
+            [ 0, fy,  cy],
+            [ 0,  0,  1.0]
+        ], dtype=np.float32)
+
+        # 2. 畸变系数
+        dist_coeffs = intr.get('distortion_coeffs', [])
+
+        # 3. 外参：旋转矩阵(9) + 平移(3) → 4x4  extrinsic
+        extr = params.get('extrinsics', {})
+        rot_mat = np.array(extr.get('rotation_matrix', np.eye(3).flatten()), dtype=np.float32).reshape(3,3)
+        trans_vec = np.array(extr.get('translation_vector', [0,0,0]), dtype=np.float32).reshape(3,1)
+        extrinsic_mat = np.eye(4, dtype=np.float32)
+        extrinsic_mat[:3,:3] = rot_mat
+        extrinsic_mat[:3, 3] = trans_vec.flatten()
+
+        return {
+            "intrinsic": intrinsic_mat,
+            "distortion": safe_array(dist_coeffs),
+            "extrinsic": extrinsic_mat,
+            "resolution": [
+                params.get('resolution', {}).get('width', 640),
+                params.get('resolution', {}).get('height', 480)
+            ]
+        }
+
+
+
+    def save_camera_params_to_json(self, output_dir: Path | None = None) -> None:
+        """
+        【正式修复版】
+        直接读取配置中的 parameters_path，不猜、不漏、不崩溃
+        完全匹配你的数据集结构 + 你的 YAML 配置
+        """
+        if output_dir is None:
+            output_dir = Path(self.output_path)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        json_save_path = output_dir / "camera_params.json"
+
+        camera_params_collection = {}
+        processed_cameras = set()
+
+        for task_path in self.path_task_dict.keys():
+            h5_files = self.task_episode_h5file_paths.get(task_path, [])
+            if not h5_files:
+                continue
+
+            sample_h5_file = h5_files[0]
+            try:
+                with self._h5_file_cache.open(sample_h5_file) as h5_file:
+                    image_configs = (
+                        self.converter_config
+                        .get(FEATURES_KEY, {})
+                        .get(OBSERVATION_KEY, {})
+                        .get(IMAGE_KEY, [])
+                    )
+
+                    for img_cfg in image_configs:
+                        cam_name = img_cfg.get("cam_name") or img_cfg.get("name")
+                        if not cam_name or cam_name in processed_cameras:
+                            continue
+
+                        args = img_cfg.get("args", {})
+                        # ===================== 真正读取你配置里的 parameters_path =====================
+                        param_path = args.get("parameters_path")
+                        if not param_path:
+                            if self.logger:
+                                self.logger.warning(f"⚠️ 相机 {cam_name} 未配置 parameters_path，跳过")
+                            processed_cameras.add(cam_name)
+                            continue
+
+                        if param_path not in h5_file:
+                            if self.logger:
+                                self.logger.warning(f"⚠️ 相机 {cam_name} 参数不存在：{param_path}")
+                            processed_cameras.add(cam_name)
+                            continue
+
+                        # 读取并解析
+                        data = h5_file[param_path][()]
+                        cam_params = self.load_camera_params(data)
+
+                        serializable = {
+                            "camera_name": cam_name,
+                            "intrinsic": cam_params["intrinsic"].tolist(),
+                            "distortion": cam_params["distortion"].tolist(),
+                            "extrinsic": cam_params["extrinsic"].tolist(),
+                            "resolution": self._get_camera_resolution(cam_name, img_cfg),
+                            "source_path": param_path,
+                            "file": str(sample_h5_file.name)
+                        }
+                        camera_params_collection[cam_name] = serializable
+                        processed_cameras.add(cam_name)
+
+            except Exception as e:
+                if self.logger:
+                    self.logger.error(f"❌ 读取相机参数失败：{str(e)[:100]}")
+                continue
+
+        if camera_params_collection:
+            try:
+                final_data = {
+                    "dataset": self.repo_id,
+                    "device_model": self.device_model,
+                    "total_cameras": len(camera_params_collection),
+                    "camera_parameters": camera_params_collection
+                }
+                with open(json_save_path, "w", encoding="utf-8") as f:
+                    json.dump(final_data, f, indent=2, ensure_ascii=False)
+                if self.logger:
+                    self.logger.info(f"✅ 相机参数已保存：{json_save_path}")
+            except Exception as e:
+                if self.logger:
+                    self.logger.error(f"❌ 保存相机参数失败：{e}")
+        else:
+            if self.logger:
+                self.logger.info("ℹ️ 未提取到相机参数")
+
+
+
+    def _get_camera_resolution(self, cam_name: str, image_config: dict) -> list:
+        """从图像配置中获取相机分辨率 [宽度, 高度]"""
+        try:
+            h, w, _ = image_config["shape"]
+            return [w, h]
+        except:
+            return [None, None]
+

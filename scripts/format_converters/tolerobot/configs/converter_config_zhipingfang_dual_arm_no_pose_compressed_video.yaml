@@ -60,7 +60,7 @@ features:
         
         # 左夹爪位置 (1维)
         - names:
-            - left_gripper_open_rad
+            - left_gripper_open
           args:
             h5_path: "observations/effector/left/position"
             range_from: 0
@@ -68,7 +68,7 @@ features:
         
         # 右夹爪位置 (1维)
         - names:
-            - right_gripper_open_rad
+            - right_gripper_open
           args:
             h5_path: "observations/effector/right/position"
             range_from: 0
@@ -121,7 +121,7 @@ features:
       
       # 左夹爪动作 (1维)
       - names:
-          - left_gripper_open_rad
+          - left_gripper_open
         args:
           h5_path: "observations/effector/left/position"
           range_from: 0
@@ -129,7 +129,7 @@ features:
       
       # 右夹爪动作 (1维)
       - names:
-          - right_gripper_open_rad
+          - right_gripper_open
         args:
           h5_path: "observations/effector/right/position"
           range_from: 0

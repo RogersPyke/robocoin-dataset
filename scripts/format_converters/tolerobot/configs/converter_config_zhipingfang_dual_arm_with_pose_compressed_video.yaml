@@ -4,12 +4,12 @@ features:
   observation:
     images:
       # RGB cameras with compressed video support
-      - cam_name: cam_chest_rgb
+      - cam_name: cam_front_chest_rgb
         args:
           h5_path: "observations/camera/rgb/chest/images"
           use_compressed_video: true  # 启用压缩视频
       
-      - cam_name: cam_head_rgb
+      - cam_name: cam_front_head_rgb
         args:
           h5_path: "observations/camera/rgb/head/images"
           use_compressed_video: true
@@ -87,7 +87,7 @@ features:
         
         # 左夹爪位置 (1维)
         - names:
-            - left_gripper_open_rad
+            - left_gripper_open
           args:
             h5_path: "observations/effector/left/position"
             range_from: 0
@@ -95,11 +95,31 @@ features:
         
         # 右夹爪位置 (1维)
         - names:
-            - right_gripper_open_rad
+            - right_gripper_open
           args:
             h5_path: "observations/effector/right/position"
             range_from: 0
             range_to: 1
+
+        # 颈部关节 (2维) - 单位: degree
+        - names:
+            - neck_joint_1_rad
+            - neck_joint_2_rad
+          args:
+            h5_path: "observations/neck/joints"
+            range_from: 0
+            range_to: 2
+          convert_func: degree2rad
+        
+        # 躯干关节 (2维) - 单位: degree
+        - names:
+            - torso_joint_1_rad
+            - torso_joint_2_rad
+          args:
+            h5_path: "observations/torso/joints"
+            range_from: 0
+            range_to: 2
+          convert_func: degree2rad
 
   action:
     timeline_offset: 1
@@ -162,7 +182,7 @@ features:
       
       # 左夹爪动作 (1维)
       - names:
-          - left_gripper_open_rad
+          - left_gripper_open
         args:
           h5_path: "observations/effector/left/position"
           range_from: 0
@@ -170,9 +190,29 @@ features:
       
       # 右夹爪动作 (1维)
       - names:
-          - right_gripper_open_rad
+          - right_gripper_open
         args:
           h5_path: "observations/effector/right/position"
           range_from: 0
           range_to: 1
+
+      # 颈部关节 (2维) - 单位: degree
+      - names:
+          - neck_joint_1_rad
+          - neck_joint_2_rad
+        args:
+          h5_path: "observations/neck/joints"
+          range_from: 0
+          range_to: 2
+        convert_func: degree2rad
+      
+      # 躯干关节 (2维) - 单位: degree
+      - names:
+          - torso_joint_1_rad
+          - torso_joint_2_rad
+        args:
+          h5_path: "observations/torso/joints"
+          range_from: 0
+          range_to: 2
+        convert_func: degree2rad
 
