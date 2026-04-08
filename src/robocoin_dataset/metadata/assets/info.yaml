@@ -427,6 +427,14 @@ frame_num:
   alias: null
   default: "frame_num"
 
+frame_range:
+  value: null
+  required: true
+  source: "auto"
+  alias: null
+  default: "frame_range"
+# Frame count range bucket, auto-computed from frame_num (e.g. 1K/10K/1M/10M).
+
 dataset_size:
   value: null
   required: true

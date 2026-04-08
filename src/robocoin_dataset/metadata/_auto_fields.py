@@ -304,6 +304,30 @@ def build_statistics_from_sources(
 # ============================================================================
 
 
+def _format_frame_range(frame_num: int) -> str:
+    """
+    Convert an absolute frame count into a coarse display bucket.
+
+    Examples:
+        850 -> "1K"
+        12_500 -> "100K"
+        2_300_000 -> "10M"
+    """
+    thresholds = [
+        (1_000, "1K"),
+        (10_000, "10K"),
+        (100_000, "100K"),
+        (1_000_000, "1M"),
+        (10_000_000, "10M"),
+        (100_000_000, "100M"),
+        (1_000_000_000, "1B"),
+    ]
+    for upper_bound, label in thresholds:
+        if frame_num <= upper_bound:
+            return label
+    return "1B+"
+
+
 def apply_auto_fields(
     context_data: Dict[str, Any],
     dataset_path: Path,
@@ -344,6 +368,15 @@ def apply_auto_fields(
             suffix=".mp4",
             fallback="videos/chunk-{id}/{video_key}/episode_{id}.mp4",
         )
+
+    if context_data.get("frame_range") in (None, "", "frame_range"):
+        frame_num = context_data.get("frame_num")
+        if not isinstance(frame_num, int):
+            stats_data = context_data.get("statistics")
+            if isinstance(stats_data, dict) and isinstance(stats_data.get("total_frames"), int):
+                frame_num = stats_data["total_frames"]
+        if isinstance(frame_num, int) and frame_num > 0:
+            context_data["frame_range"] = _format_frame_range(frame_num)
 
     if "annotations" in context_data and context_data.get("annotations") in (
         None,
