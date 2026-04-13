@@ -248,7 +248,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     
     # 替换为你刚才生成的数据集绝对/相对路径
-    DATASET_PATH = sys.argv[1] if len(sys.argv) > 1 else "/home/user/robocoin-dataset/outputs/converted_datasets/Agilex_Split_Aloha_erase _blackboard_0"
+    DATASET_PATH = sys.argv[1] if len(sys.argv) > 1 else "/mnt/nas/synnas/成功区/五次成功区/AI2_Alphabot_2_organize_lab_equipment_0"
     
     try:
         validator = LerobotDatasetValidator(DATASET_PATH)

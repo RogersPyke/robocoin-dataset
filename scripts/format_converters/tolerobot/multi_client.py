@@ -6,6 +6,11 @@ import multiprocessing as mp
 from robocoin_dataset.format_converter.tolerobot.client import LeFormatConverterTaskClient
 from robocoin_dataset.utils.logger import setup_logger
 
+# 🔥 关键：用线程池执行阻塞任务，不卡住 asyncio
+def client_run_sync(client):
+    # 注意：这里不能 await，直接调用同步逻辑
+    # 你的 client.run() 内部会执行阻塞 convert()
+    asyncio.run(client.run())
 
 async def run_client_process(
     server_uri: str,
@@ -13,10 +18,6 @@ async def run_client_process(
     log_path: str,
     process_id: int,
 ) -> None:
-    """
-    每个进程运行的异步客户端逻辑。
-    """
-    # 为每个进程创建独立的日志文件或使用共享日志但区分进程
     logger = setup_logger(
         name=f"client_{process_id}",
         log_dir=log_path,
@@ -28,7 +29,10 @@ async def run_client_process(
         heartbeat_interval=heartbeat_interval,
         logger=logger,
     )
-    await client.run()
+
+    # ✅ 核心修复：把整个 client 运行逻辑丢到线程池
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, client_run_sync, client)
 
 
 def client_process_main(
@@ -37,9 +41,6 @@ def client_process_main(
     log_path: str,
     process_id: int,
 ) -> None:
-    """
-    多进程入口函数，每个进程启动自己的 asyncio 事件循环。
-    """
     asyncio.run(
         run_client_process(
             server_uri=server_uri,
@@ -52,50 +53,17 @@ def client_process_main(
 
 def main() -> None:
     argparser = argparse.ArgumentParser(description="Convert dataset to lerobot format.")
-    argparser.add_argument(
-        "--host",
-        type=str,
-        default="127.0.0.1",
-        help="server host to connect to.",
-    )
-    argparser.add_argument(
-        "--port",
-        type=int,
-        default=8765,
-        help="server port to connect to.",
-    )
-    argparser.add_argument(
-        "--log-path",
-        type=str,
-        default="logs/client.log",
-        help="Path to log file.",
-    )
-    argparser.add_argument(
-        "--timeout",
-        type=float,
-        default=1.0,
-        help="Timeout for each client.",
-    )
-    argparser.add_argument(
-        "--heartbeat-interval",
-        type=float,
-        default=10.0,
-        help="Heartbeat interval for each client.",
-    )
-    argparser.add_argument(
-        "--num-clients",
-        type=int,
-        default=4,
-        help="Number of concurrent client processes to spawn.",
-    )
+    argparser.add_argument("--host", type=str, default="127.0.0.1")
+    argparser.add_argument("--port", type=int, default=8765)
+    argparser.add_argument("--log-path", type=str, default="logs/client.log")
+    argparser.add_argument("--timeout", type=float, default=1.0)
+    argparser.add_argument("--heartbeat-interval", type=float, default=10.0)
+    argparser.add_argument("--num-clients", type=int, default=1)
 
     args = argparser.parse_args()
-
     num_clients = max(1, min(args.num_clients, 8))
-
     server_uri = f"ws://{args.host}:{args.port}"
 
-    # 使用 multiprocessing 启动多个客户端进程
     processes = []
     for i in range(num_clients):
         proc = mp.Process(
@@ -114,7 +82,7 @@ def main() -> None:
 
     try:
         for proc in processes:
-            proc.join()  # 等待所有进程结束
+            proc.join()
     except KeyboardInterrupt:
         print("\nShutting down clients...")
         for proc in processes:
@@ -123,46 +91,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    # Windows 兼容性：避免多进程重复执行入口
     mp.set_start_method("spawn", force=True)
     main()
-
-
-"""_summary_
-# 用于正式运行，用于数据集转换测试
-python scripts/format_converters/tolerobot/multi_client.py \
-    --host=172.16.18.160 \
-    --port=8761 \
-    --timeout=1.0 \
-    --heartbeat-interval=10.0 \
-    --log-path=./outputs/leformat_converter/log \
-    --num-clients=8
-
-# 用于正式运行，用于数据集转换
-python scripts/format_converters/tolerobot/multi_client.py \
-    --host=172.16.18.160 \
-    --port=8765 \
-    --timeout=1.0 \
-    --heartbeat-interval=10.0 \
-    --log-path=./outputs/leformat_converter/log \
-    --num-clients=8
-
-# 用于本地测试，用于数据集转换测试
-python scripts/format_converters/tolerobot/multi_client.py \
-    --host=127.0.0.1 \
-    --port=8765 \
-    --timeout=1.0 \
-    --heartbeat-interval=10.0 \
-    --log-path=./outputs/leformat_converter/log \
-    --num-clients=8
-
-# 用于本地测试，用于数据集转换
-python scripts/format_converters/tolerobot/multi_client.py \
-    --host=127.0.0.1 \
-    --port=8765 \
-    --timeout=1.0 \
-    --heartbeat-interval=10.0 \
-    --log-path=./outputs/leformat_converter/log \
-    --num-clients=8
-
-"""
