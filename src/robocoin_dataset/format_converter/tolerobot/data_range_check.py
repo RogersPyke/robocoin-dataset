@@ -17,7 +17,7 @@ FINE_GRAINED_BOUNDS = {
     "_rad": {"min": -3.1415926, "max": 3.1415926},          # 关节角度：通常在 -pi 到 pi 之间 (加一点容差)
     "_m": {"min": -2.0, "max": 2.0},              # 空间坐标：米，假设机器人在两米范围内活动
     "gripper_open_scale": {"min": 0.0, "max": 1.0}, # 归一化夹爪：必须严格在 0 到 1 之间
-    "gripper_open": {"min": 0.0, "max": 100.0},     # 未归一化的原始夹爪：根据实际硬件调整 (假设最大100)
+    "gripper_open": {"min": 0.0, "max": 1020.0},     # 未归一化的原始夹爪：根据实际硬件调整 (假设最大100)
 }
 
 # 针对没有细粒度 names 的数组特征进行通用兜底防御（防飞点）
@@ -128,6 +128,24 @@ class LerobotDatasetValidator:
                     errors.append(f"☠️ 致命错误: 特征 '{feature_name}' 中检测到 Inf (无限大值)！")
 
             # ==========================================
+            # 🆕 【新增】检查是否有全零子维度
+            # ==========================================
+            if feature_name in self.feature_names_map:
+                sub_names = self.feature_names_map[feature_name]
+                for col_idx, sub_name in enumerate(sub_names):
+                    col_data_np = np_data[:, col_idx]
+
+                    # ✅ 检查：这个子维度是否 **全部都是 0**
+                    if np.all(col_data_np == 0):
+                        errors.append(
+                            f"🟡 全零警告: 特征 '{feature_name}.{sub_name}' 全部为 0，无有效数据！"
+                        )
+
+            # ✅ 检查：整帧是否全零（整帧无效）
+            if np.all(np_data == 0):
+                errors.append(f"🟡 整帧全零: 特征 '{feature_name}' 存在全帧为 0 的无效帧！")
+
+            # ==========================================
             # 🌟 4. 细粒度物理绝对极限检查 (Hard Bounds)
             # ==========================================
             if feature_name in self.feature_names_map:
@@ -230,7 +248,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     
     # 替换为你刚才生成的数据集绝对/相对路径
-    DATASET_PATH = sys.argv[1] if len(sys.argv) > 1 else "/home/user/robocoin-dataset/outputs/converted_datasets/Agilex_Split_Aloha_erase _blackboard_0"
+    DATASET_PATH = sys.argv[1] if len(sys.argv) > 1 else "/mnt/nas/synnas/成功区/五次成功区/AI2_Alphabot_2_organize_lab_equipment_0"
     
     try:
         validator = LerobotDatasetValidator(DATASET_PATH)

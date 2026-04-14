@@ -338,7 +338,7 @@ Galbot_G1:
   class: LerobotFormatConverterMp4Json
   converter_config_path: converter_config_yinhe_full.yaml
 
-zhipingfang:
+AI2_Alphabot_2:
 - version: left_arm_with_pose
   verison_description: zhipingfang single left arm with pose (left joints + pose + gripper, right arm empty)
   module: robocoin_dataset.format_converter.tolerobot.lerobot_format_converter_h5

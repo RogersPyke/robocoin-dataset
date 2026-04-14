@@ -501,7 +501,7 @@ class GripperOpenNormalizer:
 # ==================== 使用示例 ====================
 if __name__ == "__main__":
     # 替换为你的数据集路径
-    DATASET_PATH = "/path/to/your/converted_dataset"
+    DATASET_PATH = "/mnt/nas/synnas/成功区/五次成功区/AI2_Alphabot_2_organize_lab_equipment_0"
     
     # 初始化并运行
     normalizer = GripperOpenNormalizer(DATASET_PATH)

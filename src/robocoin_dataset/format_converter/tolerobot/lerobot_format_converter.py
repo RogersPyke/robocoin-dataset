@@ -62,14 +62,49 @@ VALIDATION_CONFIG = {
     },
     "state_action_names": {
     # 核心修改：将 gripper_open_scale 加入正则匹配规则
-    "pattern": "^(left|right)_(arm_joint_\\d+_rad|gripper_open|eef_pos_[xyz]_m|eef_rot_euler_[xyz]_rad)$",
-    "valid_prefixes": ["left", "right"],
+    "pattern": "^(left|right)_(arm_joint_\\d+_rad|hand_joint_\\d+_rad|gripper_open|eef_pos_[xyz]_m|eef_rot_euler_[xyz]_rad|base_pos_[xyz]_m|base_[xyz]_rad)|^(head_joint_\\d+_rad|torso_joint_\\d+_rad|neck_joint_\\d+_rad)$",
+    "valid_prefixes": [],
     "valid_types": [
-        "arm_joint_1_rad", "arm_joint_2_rad", "arm_joint_3_rad", 
-        "arm_joint_4_rad", "arm_joint_5_rad", "arm_joint_6_rad",
-        "gripper_open",  # 保留该类型，与正则匹配
-        "eef_pos_x_m", "eef_pos_y_m", "eef_pos_z_m",
-        "eef_rot_euler_x_rad", "eef_rot_euler_y_rad", "eef_rot_euler_z_rad"
+        # 手臂关节（支持任意数字 1,2,...7,8...）
+        "left_arm_joint_\\d+_rad",
+        "right_arm_joint_\\d+_rad",
+        # 手部关节
+        "left_hand_joint_\\d+_rad",
+        "right_hand_joint_\\d+_rad",
+        # 夹爪
+        "left_gripper_open",
+        "right_gripper_open",
+        # 末端执行器位姿
+        "left_eef_pos_x_m",
+        "left_eef_pos_y_m",
+        "left_eef_pos_z_m",
+        "right_eef_pos_x_m",
+        "right_eef_pos_y_m",
+        "right_eef_pos_z_m",
+        # 末端执行器旋转
+        "left_eef_rot_euler_x_rad",
+        "left_eef_rot_euler_y_rad",
+        "left_eef_rot_euler_z_rad",
+        "right_eef_rot_euler_x_rad",
+        "right_eef_rot_euler_y_rad",
+        "right_eef_rot_euler_z_rad",
+        # 基座位姿 + 旋转
+        "left_base_pos_x_m",
+        "left_base_pos_y_m",
+        "left_base_pos_z_m",
+        "right_base_pos_x_m",
+        "right_base_pos_y_m",
+        "right_base_pos_z_m",
+        "left_base_x_rad",
+        "left_base_y_rad",
+        "left_base_z_rad",
+        "right_base_x_rad",
+        "right_base_y_rad",
+        "right_base_z_rad",
+        # 头部/躯干/颈部
+        "head_joint_\\d+_rad",
+        "torso_joint_\\d+_rad",
+        "neck_joint_\\d+_rad"
     ],
     "unit_map": {
         "rad": "弧度",
@@ -286,6 +321,13 @@ class LerobotFormatConverter(ABC):
             Actions buffer (format depends on subclass implementation)
         """
         return None
+    
+    def save_camera_params_to_json(self):
+        """
+        保存相机参数到JSON文件，子类可重写
+        默认不做任何操作，避免子类未实现时报错
+        """
+        pass
 
     def _get_task_episodes_num(self, task_path: Path) -> int:
         if task_path in self.task_episodes_num:
@@ -491,32 +533,11 @@ class LerobotFormatConverter(ABC):
         """
         config = VALIDATION_CONFIG["state_action_names"]
         
-        # 1. 正则格式校验
+        # 1. 正则格式校验（支持 left_arm_joint_1_rad 这类带数字的名称）
         if not STATE_ACTION_PATTERN.match(name):
             raise ValueError(
                 f"无效的{name_type}名称格式: {name}。"
                 f"正确格式应匹配正则表达式: {config['pattern']}"
-            )
-        
-        # 2. 拆分前缀和类型，分别校验
-        parts = name.split("_", 1)  # 只拆分一次，分离前缀和类型
-        if len(parts) != 2:
-            raise ValueError(f"无效的{name_type}名称格式: {name}。应包含前缀（left/right）和类型两部分")
-        
-        prefix, type_part = parts
-        
-        # 3. 校验前缀
-        if prefix not in config["valid_prefixes"]:
-            raise ValueError(
-                f"{name_type}名称 {name} 中包含无效的前缀 '{prefix}'。"
-                f"有效前缀列表: {config['valid_prefixes']}"
-            )
-        
-        # 4. 校验类型
-        if type_part not in config["valid_types"]:
-            raise ValueError(
-                f"{name_type}名称 {name} 中包含无效的类型 '{type_part}'。"
-                f"有效类型列表: {config['valid_types']}"
             )
 
 
@@ -1583,7 +1604,8 @@ class LerobotFormatConverter(ABC):
             self.logger.info("🧪 测试模式：保存episode映射文件...")
             self.save_episode_source_mapping()
             self.save_original_data_paths()
-
+        
+        self.save_camera_params_to_json()
 
     def _check_failure_rate_threshold(self, task_stats: dict) -> None:
         """检查失败率是否超过阈值

@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-
+import pandas as pd
 import numpy as np
 
 from robocoin_dataset.data_post_process import DataPostProcessorBase
@@ -47,7 +47,83 @@ class StateActionDataPostProcessorBase(DataPostProcessorBase):
         
         return smoothed_data
 
+    def smooth_dict_data(self, data_dict: dict[str, np.ndarray], window_size: int = 4) -> dict[str, np.ndarray]:
+        """
+        对字典中的每个数据数组调用 smooth_data 进行平滑滤波
+        
+        Args:
+            data_dict: 键为字符串，值为 numpy 数组的字典
+            window_size: 滑动窗口大小
+            
+        Returns:
+            平滑处理后的字典
+        """
+        result = {}
+        for key, value in data_dict.items():
+            result[key] = self.smooth_data(value, window_size=window_size)
+        return result
     
+    def sync_state_action(self, data_dict: dict[str, np.ndarray], source: str = "state", offset: int = 30) -> dict[str, np.ndarray]:
+        """
+        将 observation.state / gripper_open_scale_state 的值覆盖 action / gripper_open_scale_action，
+        或者反向复制。注意：action 相比于 state 提前 offset 帧。
+        
+        Args:
+            data_dict: 包含特征数据的字典
+            source: "state" 表示将 state 覆盖到 action；"action" 表示将 action 覆盖到 state
+            offset: 提前的帧数（默认为 30 帧）
+            
+        Returns:
+            处理后的字典副本
+        """
+        result = {k: v.copy() for k, v in data_dict.items()}
+        
+        state_key = "observation.state"
+        action_key = "action"
+        g_state_key = "gripper_open_scale_state"
+        g_action_key = "gripper_open_scale_action"
+
+        if source == "state":
+            # state -> action (action[t] = state[t+offset])
+            if state_key in result and action_key in result:
+                n_frames = len(result[state_key])
+                new_action = np.zeros_like(result[action_key])
+                if n_frames > offset:
+                    new_action[:-offset] = result[state_key][offset:]
+                    new_action[-offset:] = result[state_key][-1]  # 剩余帧补齐
+                else:
+                    new_action[:] = result[state_key][-1]
+                result[action_key] = new_action
+
+            if g_state_key in result and g_action_key in result and result[g_state_key] is not None:
+                n_frames = len(result[g_state_key])
+                new_g_action = np.zeros_like(result[g_action_key])
+                if n_frames > offset:
+                    new_g_action[:-offset] = result[g_state_key][offset:]
+                    new_g_action[-offset:] = result[g_state_key][-1]
+                else:
+                    new_g_action[:] = result[g_state_key][-1]
+                result[g_action_key] = new_g_action
+
+        elif source == "action":
+            # action -> state (state[t+offset] = action[t])
+            if state_key in result and action_key in result:
+                n_frames = len(result[action_key])
+                new_state = result[state_key].copy()
+                if n_frames > offset:
+                    new_state[offset:] = result[action_key][:-offset]
+                    # 第 0 帧到 offset-1 帧 state 保持不变
+                result[state_key] = new_state
+                
+            if g_state_key in result and g_action_key in result and result[g_action_key] is not None:
+                n_frames = len(result[g_action_key])
+                new_g_state = result[g_state_key].copy()
+                if n_frames > offset:
+                    new_g_state[offset:] = result[g_action_key][:-offset]
+                result[g_state_key] = new_g_state
+
+        return result
+
     def _swap_left_right(self, data: np.ndarray) -> np.ndarray:
         """交换前13维和后13维"""
         if data.ndim != 2 or data.shape[1] < 26:

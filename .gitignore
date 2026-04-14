@@ -116,3 +116,5 @@ run*
 
 # Test configuration file
 scripts/hub_upload/config/test.yaml
+
+!/src/robocoin_dataset/readme/assets/*

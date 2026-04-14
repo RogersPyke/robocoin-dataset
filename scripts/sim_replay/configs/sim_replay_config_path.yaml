@@ -202,7 +202,7 @@ Unitree_G1edu-u3:
   mujoco_sim_replay_config_class: UnitreeG1Dof29ThreeFingerHandConfig
 
 # alpha_bot_2
-alpha_bot_2:
+AI2_Alphabot_2:
 - version: dual_arm_with_pose
   verison_description: two arms and two grippers, three rgb cameras with high, left wrist, right wrist
   mujoco_sim_replay_config_module: robocoin_dataset.sim_replay.configs.alpha_bot_2_config

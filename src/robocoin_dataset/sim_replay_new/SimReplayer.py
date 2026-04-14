@@ -248,10 +248,14 @@ class LerobotSimReplayer:
                 sim_val = self.gripper_joint_min + ratio * (
                     self.gripper_joint_max - self.gripper_joint_min
                 )
+                
+                # 保留原始值用于画图
+                self.data_frame[f"{name}_raw"] = val
+                
                 self.data_frame[name] = sim_val
 
     def get_frame_data(self):
-        """读取文件并建立生成器"""
+        """读取文件并建立生成器，新增gripper_open_scale相关字段"""
         sub_dir = "data" if self.data_source == "data" else "state_action_data"
         
         parquet_file_path = (
@@ -272,7 +276,6 @@ class LerobotSimReplayer:
         df = pd.read_parquet(str(parquet_file_path))
 
         info_file_path = self.repo_path / "meta" / "info.json" if self.data_source == "data" else self.repo_path / "meta" / "state_action_info.json"
-        # info_file_path = self.repo_path / "meta" / "info.json"
         with open(info_file_path, "r") as f:
             info = json.load(f)
 
@@ -283,10 +286,18 @@ class LerobotSimReplayer:
                 keys_to_load.append("observation.state")
             if "action" in info["features"]:
                 keys_to_load.append("action")
+            if "gripper_open_scale_state" in info["features"]:
+                keys_to_load.append("gripper_open_scale_state")
+            if "gripper_open_scale_action" in info["features"]:
+                keys_to_load.append("gripper_open_scale_action")
         elif self.data_type == "state":
             keys_to_load.append("observation.state")
+            if "gripper_open_scale_state" in info["features"]:
+                keys_to_load.append("gripper_open_scale_state")
         elif self.data_type == "action":
             keys_to_load.append("action")
+            if "gripper_open_scale_action" in info["features"]:
+                keys_to_load.append("gripper_open_scale_action")
         
         # Prepare data streams
         data_streams = {}
@@ -294,8 +305,34 @@ class LerobotSimReplayer:
         
         for key in keys_to_load:
             if key in df.columns:
-                names = info["features"][key]["names"]
+                names = info["features"][key]["names"].copy()  # 复制原名称列表
                 data_list = df[key].to_list()
+                
+                # 如果是 action，加上前缀用于图表可视化：
+                # if "action" in key:
+                #     names = [f"act_{n}" for n in names]
+                
+                # ===== 核心修改：新增gripper_open_scale字段 =====
+                # 1. 确定对应的gripper_open_scale键（state对应state，action对应action）
+                gripper_key = "gripper_open_scale_state" if key == "observation.state" else "gripper_open_scale_action"
+                # 2. 如果存在该字段，合并名称和数据
+                if gripper_key in info["features"] and gripper_key in df.columns:
+                    # 合并名称
+                    gripper_names = info["features"][gripper_key]["names"].copy()
+                    if "action" in key:
+                        gripper_names = [f"act_{n}" for n in gripper_names]
+                    names.extend(gripper_names)
+                    
+                    # 合并数据：将gripper_open_scale的每一行数据追加到原数据后
+                    gripper_data_list = df[gripper_key].to_list()
+                    # 确保两个数据列表长度一致
+                    if len(data_list) == len(gripper_data_list):
+                        for i in range(len(data_list)):
+                            # 把gripper的数值追加到原数据的列表中
+                            data_list[i] = list(data_list[i]) + list(gripper_data_list[i])
+                    else:
+                        print(f"Warning: {key} and {gripper_key} have different lengths, skip merging")
+                
                 if length is None:
                     length = len(data_list)
                 
@@ -346,9 +383,8 @@ class LerobotSimReplayer:
                 else:
                     self.plot_groups = key_groups
             else:
-                 print(f"Invalid plot config: {key_groups}")
-                 return
-
+                print(f"Invalid plot config: {key_groups}")
+                return
             # Flatten all keys for data storage
             self.all_plot_keys = []
             for group in self.plot_groups:
@@ -359,7 +395,8 @@ class LerobotSimReplayer:
             plt.ion()
             num_plots = len(self.plot_groups)
             self.fig, self.axs = plt.subplots(num_plots, 1, figsize=(10, 3 * num_plots), sharex=True)
-            
+            self.fig.suptitle(f"Replay Data Monitoring - {self.data_type.upper()}", fontsize=14, fontweight='bold', y=0.98)
+            self.fig.canvas.manager.set_window_title(f"SimReplay: {self.data_type.upper()}")
             # Ensure axs is iterable even if there is only one plot
             if num_plots == 1:
                 self.axs = [self.axs]
@@ -396,6 +433,12 @@ class LerobotSimReplayer:
             plt.tight_layout()
             
             self.plt_initialized = True
+            print("-" * 30)
+            print("Matplotlib initialized! Configured to plot the following keys:")
+            for idx, group in enumerate(self.plot_groups):
+                print(f"  Plot {idx + 1}: {group}")
+            print("-" * 30)
+            
         except Exception as e:
             print(f"Failed to initialize plot: {e}\n{traceback.format_exc()}")
             self.show_plt = False
@@ -407,7 +450,13 @@ class LerobotSimReplayer:
             
             # Update data for all keys
             for k in self.all_plot_keys:
-                val = self.data_frame.get(k, 0)
+                # 优先获取原始未缩放之前的夹爪值（如果存在的话）来绘制在图表中
+                raw_k = f"{k}_raw"
+                if raw_k in self.data_frame:
+                    val = self.data_frame[raw_k]
+                else:
+                    val = self.data_frame.get(k, 0)
+                
                 self.plt_data[k].append(val)
                 self.lines[k].set_data(self.plt_frames, self.plt_data[k])
             
