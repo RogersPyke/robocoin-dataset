@@ -4,3 +4,6 @@
 [submodule "third_parties/SceneAnnotation"]
 	path = third_parties/SceneAnnotation
 	url = https://github.com/PINKCONCRETE/SceneAnnotation.git
+[submodule "src/download_stat/DownloadAnalyzer"]
+	path = src/download_stat/DownloadAnalyzer
+	url = git@github.com:RogersPyke/DownloadAnalyzer.git
