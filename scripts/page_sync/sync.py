@@ -71,13 +71,12 @@ Examples:
     --hf-repo-id RogersPyke/robocoin_datamanager_assets
 
 Output Structure:
-  target-dir/
-    assets/
-      dataset_info/
-        {dataset_name}.yml
-        ...
-      videos/
-        {dataset_name}.mp4
+  target-dir/  (THIS IS the assets root, no nested assets/ subdirectory)
+    dataset_info/
+      {dataset_name}.yml
+      ...
+    videos/
+      {dataset_name}.mp4
         ...
         """,
     )
@@ -93,7 +92,7 @@ Output Structure:
         "--target-dir",
         type=str,
         required=True,
-        help="Root directory of the page project where assets will be created",
+        help="Assets root directory (will contain dataset_info/, videos/, info/, thumbnails/ directly)",
     )
 
     parser.add_argument(
@@ -171,7 +170,7 @@ Output Structure:
             crf=args.crf,
             update_videos=args.update_videos,
             log_level=args.log_level,
-        force_regenerate=args.force_regenerate,
+            force_regenerate=args.force_regenerate,
         )
         print("\nPage sync completed successfully.")
 
@@ -181,7 +180,8 @@ Output Structure:
             try:
                 from robocoin_dataset.page_sync._upload import sync_assets_to_hf
 
-                assets_dir = target_dir / "assets"
+                # target_dir IS the assets root (no nested assets/ subdirectory)
+                assets_dir = target_dir
                 commit_sha = sync_assets_to_hf(
                     assets_dir=str(assets_dir),
                     repo_id=args.hf_repo_id,

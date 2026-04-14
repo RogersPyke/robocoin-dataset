@@ -157,8 +157,10 @@ def _run_page_sync(config: SyncConfig) -> None:
 def _resolve_page_assets_dir(target_dir: Path) -> Path:
     """
     Resolve generated assets folder.
+
+    NOTE: target_dir IS the assets root directory (no nested assets/ subdirectory).
     """
-    return target_dir / "assets"
+    return target_dir
 
 
 def _prefetch_hf_dataset_info(config: SyncConfig) -> None:
@@ -278,24 +280,31 @@ def _copy_assets_to_git_dir(config: SyncConfig) -> None:
         # Force overwrite: remove target first when it already exists.
         if target_assets.exists():
             import shutil
+
             logger.info("Removing existing target directory: %s", target_assets)
             shutil.rmtree(target_assets)
 
         # Prefer rsync; fall back to shutil when rsync is unavailable.
         try:
             logger.info("Using rsync to copy assets")
-            _run_subprocess(["rsync", "-av", "--delete", str(source_assets) + "/", str(target_assets)], check=True)
+            _run_subprocess(
+                ["rsync", "-av", "--delete", str(source_assets) + "/", str(target_assets)],
+                check=True,
+            )
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             logger.warning("rsync failed (%s), falling back to shutil", e)
             # rsync unavailable, use shutil.
             import shutil
+
             shutil.copytree(source_assets, target_assets)
 
         logger.info("Assets copy completed successfully to %s", target_assets)
 
         # Verify copy result.
         if not target_assets.exists():
-            raise RuntimeError(f"Copy completed but target directory does not exist: {target_assets}")
+            raise RuntimeError(
+                f"Copy completed but target directory does not exist: {target_assets}"
+            )
 
     except Exception as exc:
         logger.error("Failed to copy assets to git directory: %s", exc)
@@ -313,9 +322,11 @@ def _count_datasets(db_path: Path) -> int:
 
         db = DatasetDatabase(str(db_path))
         with db.with_session() as session:
-            completed_count = session.query(DatasetDB).filter(
-                DatasetDB.dataset_info_sync_status == TaskStatus.COMPLETED
-            ).count()
+            completed_count = (
+                session.query(DatasetDB)
+                .filter(DatasetDB.dataset_info_sync_status == TaskStatus.COMPLETED)
+                .count()
+            )
 
         logger.info("Database shows %d datasets marked as COMPLETED", completed_count)
         return completed_count
@@ -327,13 +338,16 @@ def _count_datasets(db_path: Path) -> int:
 def _setup_git_auth(config: SyncConfig) -> None:
     """Set git auth details to avoid interactive prompts."""
     if not config.git_username or not config.git_token:
-        logger.debug("No git credentials provided, using default authentication (SSH or stored credentials)")
+        logger.debug(
+            "No git credentials provided, using default authentication (SSH or stored credentials)"
+        )
         return
 
     # Set git credential helper environment values.
     import os
-    os.environ['GIT_USERNAME'] = config.git_username
-    os.environ['GIT_TOKEN'] = config.git_token
+
+    os.environ["GIT_USERNAME"] = config.git_username
+    os.environ["GIT_TOKEN"] = config.git_token
 
     # Create a simple credential helper script.
     credential_script = """#!/bin/bash
@@ -403,7 +417,7 @@ def _run_git_sync(config: SyncConfig) -> None:
     # Use credential helper when credentials are provided.
     if config.git_username and config.git_token:
         env = os.environ.copy()
-        env['GIT_ASKPASS'] = str(Path.home() / ".git_credential_helper.sh")
+        env["GIT_ASKPASS"] = str(Path.home() / ".git_credential_helper.sh")
         result = subprocess.run(
             push_cmd,
             cwd=str(target_dir),
@@ -413,7 +427,9 @@ def _run_git_sync(config: SyncConfig) -> None:
         )
         if result.returncode != 0:
             logger.error("Git push failed: %s", result.stderr)
-            raise subprocess.CalledProcessError(result.returncode, push_cmd, result.stdout, result.stderr)
+            raise subprocess.CalledProcessError(
+                result.returncode, push_cmd, result.stdout, result.stderr
+            )
     else:
         _run_subprocess(push_cmd, cwd=target_dir, check=True)
 
@@ -439,7 +455,9 @@ def _run_git_sync_in_git_dir(config: SyncConfig) -> None:
     # 1) Add only docs/assets to avoid touching unrelated files.
     assets_path = git_dir / "docs" / "assets"
     if not assets_path.exists():
-        logger.warning("Assets directory does not exist in git dir at %s. Skipping git add.", assets_path)
+        logger.warning(
+            "Assets directory does not exist in git dir at %s. Skipping git add.", assets_path
+        )
         return
 
     logger.info("Adding docs/assets directory to git")
@@ -480,7 +498,7 @@ def _run_git_sync_in_git_dir(config: SyncConfig) -> None:
     # Use credential helper when credentials are provided.
     if config.git_username and config.git_token:
         env = os.environ.copy()
-        env['GIT_ASKPASS'] = str(Path.home() / ".git_credential_helper.sh")
+        env["GIT_ASKPASS"] = str(Path.home() / ".git_credential_helper.sh")
         result = subprocess.run(
             push_cmd,
             cwd=str(git_dir),
@@ -490,7 +508,9 @@ def _run_git_sync_in_git_dir(config: SyncConfig) -> None:
         )
         if result.returncode != 0:
             logger.error("Git push failed: %s", result.stderr)
-            raise subprocess.CalledProcessError(result.returncode, push_cmd, result.stdout, result.stderr)
+            raise subprocess.CalledProcessError(
+                result.returncode, push_cmd, result.stdout, result.stderr
+            )
     else:
         _run_subprocess(push_cmd, cwd=git_dir, check=True)
 
@@ -504,7 +524,9 @@ def _run_git_sync_in_git_dir(config: SyncConfig) -> None:
 def _run_single_cycle(config: SyncConfig) -> None:
     """Run one full sync cycle plus HuggingFace upload."""
     start_time = datetime.now()
-    logger.info("===== Starting auto sync cycle at %s =====", start_time.isoformat(timespec="seconds"))
+    logger.info(
+        "===== Starting auto sync cycle at %s =====", start_time.isoformat(timespec="seconds")
+    )
 
     try:
         _prefetch_hf_dataset_info(config)
@@ -570,7 +592,7 @@ Examples:
         "--target-dir",
         type=str,
         required=True,
-        help="Root directory where the page project will generate `assets/`.",
+        help="Assets root directory (will contain dataset_info/, videos/, info/, thumbnails/ directly)",
     )
     parser.add_argument(
         "--crf",

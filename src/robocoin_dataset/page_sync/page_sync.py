@@ -51,14 +51,26 @@ def _aggregate_consolidated_page_assets(
     logger: logging.Logger,
 ) -> None:
     """
-    Write consolidated_datasets.json, data_index.json, and robot aliases into info_dir.
+    Write consolidated_datasets.json, data_index.json, download_stats.json,
+    and robot aliases into info_dir.
+
     Safe to call after partial task success; logs errors without raising.
+
+    DESIGN NOTE:
+        download_stats.json generation depends on the git submodule:
+        src/download_stat/DownloadAnalyzer
+
+        It consumes info.yaml files from dataset_info_dir to determine which
+        datasets exist locally. This is the ONLY file in PageSync that has
+        an external submodule dependency beyond the standard library and
+        robocoin_dataset package.
     """
     from robocoin_dataset.page_sync._utils import (
         _copy_robot_aliases_and_exclude,
         _gen_consolidation,
         _gen_data_index,
     )
+    from robocoin_dataset.page_sync._download_stat import generate_download_stats_json
 
     logger.info("Generating consolidated metadata files...")
     try:
@@ -77,6 +89,23 @@ def _aggregate_consolidated_page_assets(
     except Exception as e:
         logger.error("Error generating consolidated metadata files: %s", e, exc_info=True)
 
+    # Generate download_stats.json (depends on external submodule)
+    # This is separated from the try block above because download stats
+    # should not block the core aggregation even if the submodule fails.
+    try:
+        download_stats_path = info_dir / "download_stats.json"
+        logger.debug("Generating download stats at: %s", download_stats_path)
+        generate_download_stats_json(
+            dataset_info_dir=str(dataset_info_dir),
+            output_path=str(download_stats_path),
+            hf_org_name="RoboCOIN",
+            ms_org_name="RoboCOIN",
+            logger=logger,
+        )
+    except Exception as e:
+        logger.error("Error generating download_stats.json: %s", e, exc_info=True)
+        logger.warning("Download stats generation failed, continuing without it")
+
 
 def construce_target_file(
     db: "DatasetDatabase",
@@ -92,22 +121,21 @@ def construce_target_file(
     The main orchestration function for page-needed-data construction.
 
     Target structure:
-    target_dir/ (root of page project)
-        assets/
-            dataset_info/
-                *.yml files
-            videos/
-                *.mp4 files
-            thumbnails/
-                *.jpg files
-            info/
-                consolidated_datasets.json
-                data_index.json
+    target_dir/ (THIS IS the assets root, no nested assets/ subdirectory)
+        dataset_info/
+            *.yml files
+        videos/
+            *.mp4 files
+        thumbnails/
+            *.jpg files
+        info/
+            consolidated_datasets.json
+            data_index.json
 
     Args:
         db: Database connection
         session: SQLAlchemy session
-        target_dir: Root directory of the page project
+        target_dir: Root directory for assets (will contain dataset_info/, videos/, info/, thumbnails/ directly)
         crf: CRF value for video compression (default: 18, range: 0-51, lower = better quality)
         update_videos: If True, always regenerate videos and thumbnails; if False, skip existing ones (default: False)
         force_regenerate: If True, ignore existing COMPLETED status and rebuild assets whenever prerequisites are ready
@@ -130,44 +158,32 @@ def construce_target_file(
     )
 
     _logger = logger or logging.getLogger(__name__)
-    target_root = Path(target_dir)
+    # target_dir IS the assets root directory (no nested assets/ subdirectory)
+    assets_dir = Path(target_dir)
 
-    # 1. Detect and create assets folder if it doesn't exist
-    assets_dir = target_root / "assets"
+    # 1. Create assets root directory if it doesn't exist
     if not assets_dir.exists():
         assets_dir.mkdir(parents=True, exist_ok=True)
-        _logger.debug(f"Created assets directory: {assets_dir}")
+        _logger.debug("Created assets directory: %s", assets_dir)
     else:
-        _logger.debug(f"Assets directory already exists: {assets_dir}")
+        _logger.debug("Assets directory already exists: %s", assets_dir)
 
-    # 2. Detect and create dataset_info and videos folders if they don't exist
+    # 2. Create dataset_info, videos, info, thumbnails subdirectories
     dataset_info_dir = assets_dir / "dataset_info"
-    if not dataset_info_dir.exists():
-        dataset_info_dir.mkdir(parents=True, exist_ok=True)
-        _logger.debug(f"Created dataset_info directory: {dataset_info_dir}")
-    else:
-        _logger.debug(f"Dataset_info directory already exists: {dataset_info_dir}")
+    dataset_info_dir.mkdir(parents=True, exist_ok=True)
+    _logger.debug("Dataset info directory: %s", dataset_info_dir)
 
     videos_dir = assets_dir / "videos"
-    if not videos_dir.exists():
-        videos_dir.mkdir(parents=True, exist_ok=True)
-        _logger.debug(f"Created videos directory: {videos_dir}")
-    else:
-        _logger.debug(f"Videos directory already exists: {videos_dir}")
+    videos_dir.mkdir(parents=True, exist_ok=True)
+    _logger.debug("Videos directory: %s", videos_dir)
 
     info_dir = assets_dir / "info"
-    if not info_dir.exists():
-        info_dir.mkdir(parents=True, exist_ok=True)
-        _logger.debug(f"Created info directory: {info_dir}")
-    else:
-        _logger.debug(f"Info directory already exists: {info_dir}")
+    info_dir.mkdir(parents=True, exist_ok=True)
+    _logger.debug("Info directory: %s", info_dir)
 
     thumbnails_dir = assets_dir / "thumbnails"
-    if not thumbnails_dir.exists():
-        thumbnails_dir.mkdir(parents=True, exist_ok=True)
-        _logger.debug(f"Created thumbnails directory: {thumbnails_dir}")
-    else:
-        _logger.debug(f"Thumbnails directory already exists: {thumbnails_dir}")
+    thumbnails_dir.mkdir(parents=True, exist_ok=True)
+    _logger.debug("Thumbnails directory: %s", thumbnails_dir)
 
     failed_dataset_ids: list[str] = []
     # 3. Process pending entries; 4. Always aggregate consolidated files in finally (below).
@@ -210,7 +226,9 @@ def construce_target_file(
                 # Consume info.yaml only for dataset name (no DB lookup for content).
                 dataset_name = _get_dataset_name_from_info_yaml(info_yaml_path, _logger)
                 if not dataset_name:
-                    err_msg = f"dataset_name missing in info.yaml and fallback empty: {info_yaml_path}"
+                    err_msg = (
+                        f"dataset_name missing in info.yaml and fallback empty: {info_yaml_path}"
+                    )
                     _mark_task_failed(session, dataset_uuid, err_msg)
                     failed_dataset_ids.append(dataset_uuid)
                     continue
@@ -234,7 +252,9 @@ def construce_target_file(
                     continue
 
                 _logger.info("Sampled video: %s", sampled_video_path)
-                _compress_video_to_dst(sampled_video_path, str(videos_dir), crf=crf, force_update=update_videos)
+                _compress_video_to_dst(
+                    sampled_video_path, str(videos_dir), crf=crf, force_update=update_videos
+                )
                 _logger.info("Compressed video into %s", videos_dir)
 
                 compressed_video_name = Path(sampled_video_path).name
@@ -244,7 +264,9 @@ def construce_target_file(
 
                 video_suffix = compressed_video_path.suffix
                 final_video_path = videos_dir / f"{dataset_name}{video_suffix}"
-                _gen_video_thumbnail(str(final_video_path), str(thumbnails_dir), force_update=update_videos)
+                _gen_video_thumbnail(
+                    str(final_video_path), str(thumbnails_dir), force_update=update_videos
+                )
                 _logger.info("Generated thumbnail for %s", dataset_name)
 
                 _mark_task_completed(session, dataset_uuid)
@@ -300,7 +322,8 @@ def main(
 
     Args:
         db_path: Path to the PostgreSQL YAML config file
-        target_dir: Root directory of the page project
+        target_dir: Assets root directory (will contain dataset_info/, videos/, info/, thumbnails/ directly,
+                    NOT nested under assets/)
         crf: CRF value for video compression (default: 18, range: 0-51, lower = better quality)
         update_videos: If True, always regenerate videos and thumbnails; if False, skip existing ones (default: False)
         force_regenerate: If True, ignore existing COMPLETED status and rebuild assets whenever prerequisites are ready
@@ -321,10 +344,7 @@ def main(
     logging.basicConfig(
         level=getattr(logging, log_level.upper()),
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.FileHandler(log_file, encoding='utf-8'),
-            logging.StreamHandler()
-        ]
+        handlers=[logging.FileHandler(log_file, encoding="utf-8"), logging.StreamHandler()],
     )
     logger = logging.getLogger(__name__)
     logger.info(f"Log file created at: {log_file}")
@@ -349,9 +369,7 @@ def main(
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Sync dataset information to page project"
-    )
+    parser = argparse.ArgumentParser(description="Sync dataset information to page project")
     parser.add_argument(
         "--db-cfg-path",
         type=str,
@@ -362,7 +380,7 @@ if __name__ == "__main__":
         "--target-dir",
         type=str,
         required=True,
-        help="Root directory of the page project",
+        help="Assets root directory (will contain dataset_info/, videos/, info/, thumbnails/ directly)",
     )
     parser.add_argument(
         "--crf",
