@@ -11,6 +11,13 @@ Public API:
 All heavy I/O (YAML/JSON/JSONL loading) is delegated to _yaml_io.
 All feature extraction is delegated to _feature_extractors.
 All auto-field and compat transforms are delegated to _auto_fields.
+
+Schema ``required`` (metadata/assets/info.yaml):
+    - ``true``: if the source does not resolve, fall back to schema ``default`` (legacy).
+    - ``strict``: must resolve from source; refuse schema defaults and refuse values that
+      still equal the schema default placeholder. Raises ValueError on failure.
+    - ``optional`` / ``false``: unchanged.
+
 """
 
 import logging
@@ -114,6 +121,100 @@ def _extract_scene_type_from_local_dataset_info(
         return normalized
 
     return None
+
+
+_SCENE_LEVEL_PLACEHOLDER_TOKENS: frozenset[str] = frozenset(
+    f"scene_level{i}" for i in range(1, 6)
+)
+
+
+def _scene_type_value_is_usable(resolved: Any) -> bool:
+    """
+    Return True if scene_type has at least one real label (not template tokens).
+
+    Supports dict (level1..level5), str, or list[str] from local_dataset_info.yaml.
+    """
+    if resolved in (None, ""):
+        return False
+    if isinstance(resolved, dict):
+        for i in range(1, 6):
+            k = f"level{i}"
+            v = resolved.get(k)
+            if not isinstance(v, str):
+                continue
+            s = v.strip()
+            if not s:
+                continue
+            if s in _SCENE_LEVEL_PLACEHOLDER_TOKENS:
+                continue
+            if s == f"scene_level{i}":
+                continue
+            return True
+        return False
+    if isinstance(resolved, list):
+        for item in resolved:
+            if not isinstance(item, str):
+                continue
+            s = item.strip()
+            if s and s not in _SCENE_LEVEL_PLACEHOLDER_TOKENS:
+                return True
+        return False
+    if isinstance(resolved, str):
+        s = resolved.strip()
+        return bool(s) and s not in _SCENE_LEVEL_PLACEHOLDER_TOKENS
+    return False
+
+
+def _required_is_strict(required_status: Any) -> bool:
+    return required_status == "strict"
+
+
+def _value_matches_schema_default(resolved: Any, default_value: Any) -> bool:
+    """True if resolved value is exactly the schema default (template placeholder)."""
+    if default_value is None:
+        return False
+    return resolved == default_value
+
+
+def _raise_scene_type_strict(*, reason: str, local_dataset_info_path: Path) -> None:
+    """Raise ValueError with a clear message; traceback is preserved by default."""
+    msg = (
+        "[scene_type] required: strict — no usable scene type. "
+        f"{reason} "
+        f"Fix local_dataset_info.yaml at {local_dataset_info_path}: set scene_level1..scene_level5 "
+        "and/or legacy scene_level with real labels from the scene library. "
+        "Placeholder defaults are refused."
+    )
+    raise ValueError(msg)
+
+
+def _raise_strict_unresolved(
+    field_name: str,
+    field_spec: Dict[str, Any],
+    *,
+    dataset_path: Path,
+    local_dataset_info_path: Path,
+) -> None:
+    src = field_spec.get("source")
+    raise ValueError(
+        f"[{field_name}] required: strict — could not resolve value from source={src!r}. "
+        f"dataset_path={dataset_path} local_dataset_info={local_dataset_info_path}. "
+        "Schema default is refused."
+    )
+
+
+def _raise_strict_resolved_equals_default(
+    field_name: str,
+    field_spec: Dict[str, Any],
+    *,
+    dataset_path: Path,
+    local_dataset_info_path: Path,
+) -> None:
+    src = field_spec.get("source")
+    raise ValueError(
+        f"[{field_name}] required: strict — resolved value equals schema default placeholder. "
+        f"source={src!r} dataset_path={dataset_path} local_dataset_info={local_dataset_info_path}."
+    )
 
 
 def _resolve_source_path(dataset_path: Path, source_rel: str) -> Path | None:
@@ -281,6 +382,9 @@ def resolve_context_from_schema(
             fields (dataset_size, data_structure, …), and template-compat
             transformations.
 
+    Raises:
+        ValueError: If any field has ``required: strict`` and resolution fails or matches a placeholder.
+
     Logic:
         1. Load schema and local_dataset_info.
         2. Iterate schema fields; for each field, resolve its value by source.
@@ -295,6 +399,8 @@ def resolve_context_from_schema(
     source_type_counter: Dict[str, int] = {}
 
     for field_name, field_spec in schema.items():
+        if str(field_name).startswith("_"):
+            continue
         if not isinstance(field_spec, dict):
             context_data[field_name] = field_spec
             continue
@@ -314,7 +420,7 @@ def resolve_context_from_schema(
             explicit_value = field_spec.get("value")
             if explicit_value not in (None, ""):
                 context_data[field_name] = explicit_value
-            elif required_status is True:
+            elif required_status in (True, "strict"):
                 context_data[field_name] = default_value
             elif required_status == "optional":
                 if default_value not in (None, ""):
@@ -338,9 +444,39 @@ def resolve_context_from_schema(
         if explicit_value not in (None, ""):
             context_data[field_name] = explicit_value
         elif resolved not in (None, ""):
-            if required_status is True or required_status == "optional":
+            if required_status in (True, "strict", "optional"):
+                if _required_is_strict(required_status):
+                    if field_name == "scene_type" and not _scene_type_value_is_usable(resolved):
+                        _raise_scene_type_strict(
+                            reason="Resolved scene_type is empty or only template placeholders.",
+                            local_dataset_info_path=local_dataset_info_path,
+                        )
+                    elif field_name != "scene_type" and _value_matches_schema_default(
+                        resolved, default_value
+                    ):
+                        _raise_strict_resolved_equals_default(
+                            field_name,
+                            field_spec,
+                            dataset_path=dataset_path,
+                            local_dataset_info_path=local_dataset_info_path,
+                        )
                 context_data[field_name] = resolved
-        elif required_status is True:
+        elif required_status in (True, "strict"):
+            if _required_is_strict(required_status):
+                if field_name == "scene_type":
+                    _raise_scene_type_strict(
+                        reason=(
+                            "Could not resolve scene hierarchy from local_dataset_info.yaml "
+                            "(no scene_level1..scene_level5 and no usable legacy scene_level)."
+                        ),
+                        local_dataset_info_path=local_dataset_info_path,
+                    )
+                _raise_strict_unresolved(
+                    field_name,
+                    field_spec,
+                    dataset_path=dataset_path,
+                    local_dataset_info_path=local_dataset_info_path,
+                )
             context_data[field_name] = default_value
         elif required_status == "optional":
             pass

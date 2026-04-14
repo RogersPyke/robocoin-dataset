@@ -253,15 +253,15 @@ class UploadUtil():
 
         self.logger = logging.getLogger(UPLOAD_LOGGER_NAME)
 
-    def upload(self, hardlink_path: Path) -> tuple[bool, str]:
+    def upload(self, hardlink_path: Path, dataset_name: str) -> tuple[bool, str]:
         """
         Upload a single, local dataset folder to the remote hub.
         """
         if not hardlink_path.exists():
             raise FileNotFoundError(f"Dataset path {hardlink_path} does not exist")
 
-        # Extract dataset name from hardlink path
-        dataset_name = self._folder_name_to_repo_name(hardlink_path.name)
+        # Extract canonical dataset name from validated info.yaml value.
+        dataset_name = self._folder_name_to_repo_name(dataset_name)
         self.logger.debug(f"Uploading dataset named: {dataset_name} from path: {hardlink_path}")
 
         # Get the correct namespace based on hub_name
@@ -337,6 +337,7 @@ class UploadUtil():
             self.logger.debug(f"{dataset_name}: Staging README for upload at {staging_readme}")
             return self.upload(
                 hardlink_path=staging_dir,
+                dataset_name=dataset_name,
             )
 
     # ---- inner helpers -----

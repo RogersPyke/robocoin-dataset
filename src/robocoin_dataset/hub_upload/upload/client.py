@@ -39,7 +39,7 @@ from robocoin_dataset.distribution_computation.constant import (
     TASK_RESULT,
 )
 from robocoin_dataset.distribution_computation.task_client import TaskClient
-from robocoin_dataset.hub_upload.check.val_readme import validate_readme
+from robocoin_dataset.hub_upload.check.val_readme import validate_upload_artifacts
 from robocoin_dataset.utils.log_config import (
     ANSI_GREEN,
     ANSI_RED,
@@ -171,7 +171,7 @@ class UploadClient(TaskClient):
                 "error_message": error_msg
             }
         hardlink_path = Path(hardlink_path)
-        dataset_name = hardlink_path.name.removesuffix("_qced_hardlink").removesuffix("_hardlink")
+        dataset_name = validate_upload_artifacts(hardlink_path)
 
         self.logger.info(f"[UploadClient._sync_process_task] Processing task | UUID: {dataset_uuid} | Dataset: {dataset_name}")
         log_url(self.logger, f"[UploadClient._sync_process_task] Task details | UUID: {dataset_uuid} | Path: {hardlink_path} | Hub: {hub_name} | Namespace: {namespace}", logging.DEBUG)
@@ -188,15 +188,15 @@ class UploadClient(TaskClient):
             ms_namespace=namespace if hub_name in ("modelscope", "ms") else self.config.ms_namespace,
         )
         
-        # Require README.md before upload
-        validate_readme(hardlink_path)
-
         # Create a new UploadUtil instance for this task
         # The instance will be automatically garbage collected after the task completes
         upload_util = self._create_upload_util(task_config)
 
         try:
-            upload_success, upload_error = upload_util.upload(hardlink_path)
+            upload_success, upload_error = upload_util.upload(
+                hardlink_path=hardlink_path,
+                dataset_name=dataset_name,
+            )
             if upload_success:
                 log_success(self.logger, f"[UploadClient._sync_process_task] Task completed | UUID: {dataset_uuid} | Success: True")
                 return {

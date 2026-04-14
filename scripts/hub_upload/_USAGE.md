@@ -1,4 +1,7 @@
-Before running this stage, first run `gen_readme.py` to generate README files.
+Before running this stage, follow strict stage order:
+1) Run metadata collection manually to generate `info.yaml`.
+2) Run `gen_readme.py` to generate `README.md`.
+3) Run hub upload.
 
 This stage is designed to do upload only. It:
 - never checks what to upload

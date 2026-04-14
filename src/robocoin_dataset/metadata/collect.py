@@ -237,6 +237,7 @@ class InfoCollector:
 
         Raises:
             FileNotFoundError: If schema YAML or local_dataset_info.yaml is missing.
+            ValueError: If strict metadata rules fail (e.g. scene_type missing or placeholder-only).
             IOError: If writing output info.yaml fails.
         """
         try:

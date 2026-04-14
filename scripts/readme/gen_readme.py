@@ -3,7 +3,7 @@ README CLI entry script.
 
 Purpose:
     Provide a command-line interface for generating dataset README files
-    via robocoin_dataset.readme.gen_readme.ReadmeGenerator.
+    from existing metadata `info.yaml`.
 
 Dependencies:
     - argparse: Parse command-line arguments
@@ -14,16 +14,8 @@ Dependencies:
     - robocoin_dataset.utils.log_config: Colored success/error logs
 
 Usage examples:
-    1) Use default metadata path under dataset directory:
+    1) Generate README from existing info.yaml:
        python scripts/readme/gen_readme.py --dataset-path /data/my_dataset
-
-    2) Use custom metadata path only:
-       python scripts/readme/gen_readme.py \
-           --dataset-path ~/projects/TestDatasets_0/Agilex_Cobot_Magic_pour_water_into_cup_0_qced_hardlink \
-           --local-dataset-info-path ~/projects/TestDatasets_0/local_dataset_info.yaml
-
-    3) Force re-collect metadata (regenerate info.yaml) then render:
-       python scripts/readme/gen_readme.py --dataset-path /data/my_dataset --force
 
 Input:
     Command-line arguments only.
@@ -59,18 +51,14 @@ def parse_cli_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
 
     Output:
         argparse.Namespace: Parsed arguments object with fields:
-            - dataset_path (str, required)
-            - local_dataset_info_path (Optional[str])
-            - force (bool): If True, force re-collect info.yaml.
+            - dataset_path (Optional[str])
+            - db_cfg_path (Optional[str])
+            - ignore_uploaded (bool)
+            - target_dataset_uuid (str)
 
     Scenario:
         Called by main() as the only CLI input entry.
 
-    Note:
-        The system uses priority-based YAML file location:
-        1. First searches for local_dataset_info.yaml in dataset_path (first level)
-        2. If not found, validates custom path from --local-dataset-info-path
-        3. If neither found, reports detailed error and exits
     """
     parser = argparse.ArgumentParser(
         prog="gen_readme.py",
@@ -85,18 +73,6 @@ def parse_cli_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         "--db-cfg-path",
         default=None,
         help="PostgreSQL config YAML path for batch README generation mode.",
-    )
-    parser.add_argument(
-        "--local-dataset-info-path",
-        default=None,
-        help="Optional custom path to local_dataset_info.yaml. "
-        "If omitted, system searches for 'local_dataset_info.yaml' at dataset_path first level. "
-        "If neither found, error is reported and process exits.",
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Force re-collect metadata (regenerate info.yaml) even if it already exists.",
     )
     parser.add_argument(
         "--ignore-uploaded",
@@ -164,11 +140,6 @@ def run_generation(args: argparse.Namespace, logger: logging.Logger) -> Path:
     Scenario:
         Main business call path for CLI mode.
 
-    Note:
-        The ReadmeGenerator will automatically locate the YAML file using:
-        1. Search in dataset_path first level for local_dataset_info.yaml
-        2. Validate custom path if provided via --local-dataset-info-path
-        3. Raise error if no valid file found
     """
     project_root = get_project_root()
     dataset_path = Path(args.dataset_path).expanduser().resolve()
@@ -177,24 +148,20 @@ def run_generation(args: argparse.Namespace, logger: logging.Logger) -> Path:
     fixed_log_dir = project_root / "logs" / "gen_readme"
 
     logger.info(f"[CLI] dataset_path={dataset_path}")
-    logger.info(f"[CLI] local_dataset_info_path={args.local_dataset_info_path}")
-    logger.info(f"[CLI] force={getattr(args, 'force', False)}")
     logger.info(f"[CLI] template_path={template_path}")
     logger.info(f"[CLI] output_path={output_path}")
     logger.info(f"[CLI] log_dir={fixed_log_dir}")
 
     generator = ReadmeGenerator(
         dataset_path=dataset_path,
-        local_dataset_info_path=args.local_dataset_info_path,
         template_path=template_path,
         output_path=output_path,
         log_dir=fixed_log_dir,
-        force_collect=getattr(args, "force", False),
     )
     return generator.generate_readme()
 
 
-def run_batch_generation(args: argparse.Namespace, logger: logging.Logger) -> list[Path]:
+def run_batch_generation(args: argparse.Namespace, logger: logging.Logger) -> tuple[list[Path], list[str]]:
     """
     Execute README generation in batch mode from database-selected datasets.
     """
@@ -204,7 +171,6 @@ def run_batch_generation(args: argparse.Namespace, logger: logging.Logger) -> li
 
     logger.info(f"[BATCH] db_cfg_path={db_cfg_path}")
     logger.info(f"[BATCH] ignore_uploaded={args.ignore_uploaded}")
-    logger.info(f"[BATCH] force={getattr(args, 'force', False)}")
     logger.info(f"[BATCH] target_dataset_uuid={args.target_dataset_uuid}")
 
     db = DatasetDatabase(db_cfg_path)
@@ -217,44 +183,35 @@ def run_batch_generation(args: argparse.Namespace, logger: logging.Logger) -> li
 
     if not tasks:
         logger.info("[BATCH] No eligible datasets found.")
-        return []
+        return [], []
 
     project_root = get_project_root()
     template_path = project_root / "src" / "robocoin_dataset" / "readme" / "assets" / "readme.j2"
     fixed_log_dir = project_root / "logs" / "gen_readme"
     results: list[Path] = []
+    failed_dataset_uuids: list[str] = []
 
     logger.info(f"[BATCH] Found {len(tasks)} eligible datasets.")
-    if args.local_dataset_info_path:
-        logger.warning(
-            "[BATCH] --local-dataset-info-path is ignored in DB mode; "
-            "using datasets.yaml_file_path from database."
-        )
-
-    for dataset_uuid, convert_path, yaml_file_path in tasks:
+    for dataset_uuid, convert_path in tasks:
         try:
             logger.info(
-                "[BATCH] Generating README for dataset_uuid=%s, convert_path=%s, local_dataset_info_path=%s",
+                "[BATCH] Generating README for dataset_uuid=%s, convert_path=%s",
                 dataset_uuid,
                 convert_path,
-                yaml_file_path,
             )
-            # [DB->Dataset-mode Wrapper] convert_path and yaml_file_path are mapped
-            # from DB fields so ReadmeGenerator/InfoCollector can run normally.
             generator = ReadmeGenerator(
                 dataset_path=convert_path,
-                local_dataset_info_path=yaml_file_path,
                 template_path=template_path,
                 output_path=convert_path / "README.md",
                 log_dir=fixed_log_dir,
-                force_collect=getattr(args, "force", False),
             )
             results.append(generator.generate_readme())
             log_success(logger, f"[BATCH] README generated for dataset_uuid={dataset_uuid}")
         except Exception as exc:
             log_error(logger, f"[BATCH] Failed for dataset_uuid={dataset_uuid}: {exc}")
             logger.error("[BATCH] traceback follows:\n%s", traceback.format_exc())
-    return results
+            failed_dataset_uuids.append(dataset_uuid)
+    return results, failed_dataset_uuids
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -278,13 +235,21 @@ def main(argv: Optional[list[str]] = None) -> int:
         project_root = get_project_root()
         logger = create_cli_logger(project_root=project_root)
         if args.db_cfg_path:
-            output_paths = run_batch_generation(args=args, logger=logger)
+            output_paths, failed_dataset_uuids = run_batch_generation(args=args, logger=logger)
             if output_paths:
                 log_success(logger, f"[CLI] Batch README generation completed: {len(output_paths)} dataset(s)")
                 for path in output_paths:
                     print(str(path))
             else:
                 logger.info("[CLI] Batch mode finished with no generated README.")
+            if failed_dataset_uuids:
+                log_error(
+                    logger,
+                    "[CLI] Batch finished with failures. "
+                    f"failed_count={len(failed_dataset_uuids)} "
+                    f"failed_dataset_uuids={','.join(failed_dataset_uuids)}",
+                )
+                return 1
         else:
             if not args.dataset_path:
                 raise ValueError("Either --dataset-path or --db-cfg-path must be provided.")

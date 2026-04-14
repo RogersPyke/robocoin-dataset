@@ -46,11 +46,10 @@ def load_collected_info_yaml(
 
     Output:
         Dict[str, Any]: Flat context dict; keys are field names, values are resolved.
-            Returns an empty dict if the file is empty.
 
     Raises:
         FileNotFoundError: If info_yaml_path does not exist.
-        ValueError: If YAML top-level type is not a mapping.
+        ValueError: If YAML is empty or top-level type is not a mapping.
         yaml.YAMLError: If YAML parsing fails.
     """
     info_yaml_path = Path(info_yaml_path)
@@ -68,8 +67,9 @@ def load_collected_info_yaml(
         raise
 
     if data is None:
-        logger.warning(f"[INFO_LOAD] Collected info.yaml is empty: {info_yaml_path}")
-        return {}
+        error_msg = f"[INFO_LOAD] Collected info.yaml is empty: {info_yaml_path}"
+        log_error(logger, error_msg)
+        raise ValueError(error_msg)
 
     if not isinstance(data, dict):
         error_msg = (

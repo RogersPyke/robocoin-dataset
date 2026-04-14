@@ -14,7 +14,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from robocoin_dataset.hub_upload.check.val_readme import validate_readme
+from robocoin_dataset.hub_upload.check.val_readme import validate_upload_artifacts
 
 from .task import (
     _gen_one_upload_task,
@@ -155,8 +155,8 @@ class UploadLocal(UploadUtil):
             self.logger.error(error_msg)
             raise
 
-        # Step 3: Require README.md before upload
-        validate_readme(hardlink_path)
+        # Step 3: Require README.md + info.yaml before upload
+        dataset_name = validate_upload_artifacts(hardlink_path)
 
         # Step 4: Execute actual upload via parent class
         # Parent class handles retry logic and hub API calls
@@ -164,7 +164,10 @@ class UploadLocal(UploadUtil):
             self.logger.info(
                 f"[UploadLocal.upload] Starting upload for dataset {dataset_uuid} from path {hardlink_path} (hub: {hub_name})"
             )
-            upload_result = super().upload(hardlink_path=hardlink_path)
+            upload_result = super().upload(
+                hardlink_path=hardlink_path,
+                dataset_name=dataset_name,
+            )
 
             # Check upload result
             # Parent class now always returns (bool, str) tuple: (success, error_msg)

@@ -2,9 +2,12 @@
 """
 Hub Upload Status Report Generator
 
-Writes two JSON files comparing datasets that should be uploaded vs. what exists on each hub:
-1. hf_comparison.json — HuggingFace comparison
-2. ms_comparison.json — ModelScope comparison
+Writes JSON reports:
+1. hf_comparison.json — HuggingFace vs DB/should-upload comparison
+2. ms_comparison.json — ModelScope vs DB/should-upload comparison
+3. hf.json — full HuggingFace namespace repo name list (datasets)
+4. ms.json — full ModelScope namespace repo name list (datasets)
+5. hf_ms_repo_diff.json — HF vs MS repo set difference (only_on_hf, only_on_ms; summary includes on_both_count)
 
 Each comparison file includes:
 - should_upload_but_missing: should upload but missing on the hub
@@ -399,6 +402,67 @@ def compare_datasets(
     return result
 
 
+def compare_hf_ms_repos(hf_repos: list[str], ms_repos: list[str]) -> dict:
+    """
+    Compare dataset repo names between HuggingFace and ModelScope (same logical namespace).
+
+    @input: hf_repos, ms_repos — list of repo names (folder names, no owner prefix).
+    @output: dict with only_on_hf, only_on_ms, on_both, summary counts.
+    @scenario: Find repos present on one hub but not the other.
+    """
+    hf_set = set(hf_repos)
+    ms_set = set(ms_repos)
+
+    only_hf = sorted(hf_set - ms_set)
+    only_ms = sorted(ms_set - hf_set)
+    on_both = sorted(hf_set & ms_set)
+
+    return {
+        "only_on_hf": only_hf,
+        "only_on_ms": only_ms,
+        "on_both": on_both,
+        "summary": {
+            "hf_count": len(hf_repos),
+            "ms_count": len(ms_repos),
+            "only_on_hf_count": len(only_hf),
+            "only_on_ms_count": len(only_ms),
+            "on_both_count": len(on_both),
+        },
+    }
+
+
+def hf_ms_diff_for_export(full: dict) -> dict:
+    """
+    Slim HF-vs-MS diff for JSON export: omit large on_both list (see hf.json / ms.json).
+
+    @input: full — return value of compare_hf_ms_repos.
+    @output: dict with only_on_hf, only_on_ms, summary.
+    @scenario: Avoid duplicating full intersection in hf_ms_repo_diff.json.
+    """
+    return {
+        "only_on_hf": full["only_on_hf"],
+        "only_on_ms": full["only_on_ms"],
+        "summary": full["summary"],
+    }
+
+
+def hub_repo_list_payload(namespace: str, platform: str, repos: list[str]) -> dict:
+    """
+    Serializable payload for hf.json / ms.json (full cloud repo list).
+
+    @input: namespace (hub org name), platform ("hf" or "ms"), repos (repo names).
+    @output: dict suitable for json.dump.
+    @scenario: Stable export of raw hub dataset lists for diffing or auditing.
+    """
+    sorted_repos = sorted(repos)
+    return {
+        "platform": platform,
+        "namespace": namespace,
+        "count": len(sorted_repos),
+        "repos": sorted_repos,
+    }
+
+
 def save_json(data: dict | list, filepath: Path) -> None:
     """Write JSON with UTF-8 encoding."""
     with open(filepath, "w", encoding="utf-8") as f:
@@ -480,6 +544,20 @@ def main() -> None:
 
     save_json(hf_comparison, OUTPUT_DIR / "hf_comparison.json")
     save_json(ms_comparison, OUTPUT_DIR / "ms_comparison.json")
+
+    hf_repo_payload = hub_repo_list_payload(HF_NAMESPACE, "hf", hf_cloud)
+    ms_repo_payload = hub_repo_list_payload(MS_NAMESPACE, "ms", ms_cloud)
+    save_json(hf_repo_payload, OUTPUT_DIR / "hf.json")
+    save_json(ms_repo_payload, OUTPUT_DIR / "ms.json")
+
+    hf_ms_diff = compare_hf_ms_repos(hf_cloud, ms_cloud)
+    save_json(hf_ms_diff_for_export(hf_ms_diff), OUTPUT_DIR / "hf_ms_repo_diff.json")
+    logger.info("")
+
+    logger.info("HF vs MS repo diff: only_on_hf=%s only_on_ms=%s on_both=%s",
+                hf_ms_diff["summary"]["only_on_hf_count"],
+                hf_ms_diff["summary"]["only_on_ms_count"],
+                hf_ms_diff["summary"]["on_both_count"])
     logger.info("")
 
     logger.info("=" * 60)
@@ -559,6 +637,14 @@ def main() -> None:
         "  WARN same and present on hub: %s",
         ms_comparison["summary"].get("should_not_upload_but_marked_and_in_cloud_count", 0),
     )
+
+    logger.info("")
+    logger.info("HF vs ModelScope (cloud repo names):")
+    logger.info("  HF repos: %s", hf_ms_diff["summary"]["hf_count"])
+    logger.info("  MS repos: %s", hf_ms_diff["summary"]["ms_count"])
+    logger.info("  on both hubs: %s", hf_ms_diff["summary"]["on_both_count"])
+    logger.info("  only on HuggingFace: %s", hf_ms_diff["summary"]["only_on_hf_count"])
+    logger.info("  only on ModelScope: %s", hf_ms_diff["summary"]["only_on_ms_count"])
 
     logger.info("")
     logger.info("=" * 60)

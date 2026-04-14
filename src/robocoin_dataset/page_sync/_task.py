@@ -217,12 +217,19 @@ def _mark_task_failed(session: "Session", dataset_uuid: str, error_msg: str = ""
         DatasetDB.dataset_uuid == dataset_uuid
     )
     item = query.first()
+    _log = logging.getLogger(__name__)
 
     if item:
         item.dataset_info_sync_status = TaskStatus.FAILED
         item.dataset_info_sync_err_msg = error_msg if error_msg else None
         session.commit()
-        logging.getLogger(__name__).error(f"Marked dataset {dataset_uuid} as FAILED: {error_msg}")
+        _log.error("Marked dataset %s as FAILED: %s", dataset_uuid, error_msg)
+    else:
+        _log.error(
+            "Cannot mark dataset_info_sync_status FAILED: no row for dataset_uuid=%s. "
+            "Database may still show PROCESSING for this UUID.",
+            dataset_uuid,
+        )
 
 
 def get_pending_page_sync_entries(
@@ -240,7 +247,7 @@ def get_pending_page_sync_entries(
         force_regenerate: If True, same as in _sync_page_sync_status (mark eligible as PENDING).
 
     Output:
-        list of (hardlink_path, dataset_uuid). Paths are validated to exist on disk.
+        list of (hardlink_path, dataset_uuid). Hardlink paths are validated to exist on disk.
     """
     from sqlalchemy.sql.expression import and_
 

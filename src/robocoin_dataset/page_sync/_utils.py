@@ -18,8 +18,7 @@ def _get_dataset_name_from_info_yaml(info_yaml_path: str, logger: logging.Logger
     """
     Read dataset_name from a collected info.yaml file.
 
-    Uses info.yaml key "dataset_name"; fallback is the basename of the
-    info.yaml parent directory (hardlink dir name). DB convert_path is not used.
+    Uses info.yaml key "dataset_name". No fallback is allowed.
 
     Input:
         info_yaml_path: Absolute path to info.yaml produced by metadata collect.
@@ -37,7 +36,7 @@ def _get_dataset_name_from_info_yaml(info_yaml_path: str, logger: logging.Logger
     name = (data.get("dataset_name") or "").strip()
     if name:
         return name
-    return Path(info_yaml_path).resolve().parent.name
+    raise ValueError(f"dataset_name is missing or empty in info.yaml: {info_yaml_path}")
 
 
 # ------- VALIDATION -------#
@@ -348,8 +347,9 @@ def _gen_consolidation(dataset_info_dir: str, output_path: str) -> None:
                     data = yaml.safe_load(f)
 
                 if not isinstance(data, dict):
-                    _logger.warning("YAML root is not a mapping in %s, skip", yaml_file)
-                    continue
+                    raise ValueError(
+                        f"YAML root is not a mapping in {yaml_file}: {type(data).__name__}"
+                    )
 
                 # Use the filename (without extension) as the key
                 dataset_name = yaml_file.stem
@@ -358,7 +358,7 @@ def _gen_consolidation(dataset_info_dir: str, output_path: str) -> None:
 
             except Exception as e:  # noqa: PERF203
                 _logger.error(f"Failed to read or parse {yaml_file}: {e}", exc_info=True)
-                continue
+                raise
 
     # Create output directory if it doesn't exist
     output_file.parent.mkdir(parents=True, exist_ok=True)

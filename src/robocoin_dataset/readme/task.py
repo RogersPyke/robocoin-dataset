@@ -34,7 +34,7 @@ def list_readme_tasks(
     session: "Session",
     ignore_uploaded: bool = False,
     target_dataset_uuid: str = "",
-) -> list[tuple[str, Path, Path]]:
+) -> list[tuple[str, Path]]:
     """List datasets eligible for README generation.
 
     Eligibility rules:
@@ -45,8 +45,6 @@ def list_readme_tasks(
     Output tuple fields:
         - dataset_uuid (str): Unique dataset identifier.
         - hardlink_path (Path): Dataset root directory (hardlink directory).
-        - yaml_file_path (Path): Explicit path to `local_dataset_info.yaml`
-          stored in the database's `datasets.yaml_file_path` field.
     """
     hf_status_field, ms_status_field = _get_upload_status_field_names()
 
@@ -67,7 +65,7 @@ def list_readme_tasks(
     if not datasets:
         return []
 
-    task_items: list[tuple[str, Path, Path]] = []
+    task_items: list[tuple[str, Path]] = []
     for ds in datasets:
         hardlink_item = session.query(DatasetHardLinkDB).filter(
             DatasetHardLinkDB.dataset_uuid == ds.dataset_uuid
@@ -78,14 +76,7 @@ def list_readme_tasks(
         hardlink_path = Path(hardlink_item.hard_link_path).expanduser()
         if not hardlink_path.exists():
             continue
-        if not ds.yaml_file_path:
-            continue
-
-        # DB field `yaml_file_path` is treated as the explicit
-        # local_dataset_info.yaml input for dataset-mode processing.
-        yaml_file_path = Path(ds.yaml_file_path).expanduser()
-
-        task_items.append((ds.dataset_uuid, hardlink_path, yaml_file_path))
+        task_items.append((ds.dataset_uuid, hardlink_path))
 
     return task_items
 

@@ -5,6 +5,11 @@
 # - Canonical field names are the top-level keys in this file.
 # - `alias` is DEPRECATED and kept only for backward compatibility.
 # - External metadata should use canonical keys only.
+#
+# required: strict — field MUST be resolved from its source; refuse schema default placeholders.
+#   If resolution fails or the value equals the schema default template, collect raises ValueError.
+# required: true — missing resolution may fall back to schema default (legacy behaviour).
+# required: optional | false — optional / skipped as before.
 
 # ========== HuggingFace Hub Configuration (README yaml)==========
 # ---------- Start of the Yaml part of README ----------
@@ -94,7 +99,7 @@ codebase_version:
 
 dataset_name:
   value: null
-  required: true
+  required: strict
   source: "local_dataset_info.yaml"
   alias:
     - "task_name"
@@ -112,7 +117,7 @@ dataset_uuid:
 # ========== Environment Information ==========
 scene_type:
   value: null
-  required: true
+  required: strict
   source: "local_dataset_info.yaml"
   alias:
     - "scene_level1"
@@ -146,7 +151,7 @@ env_type:
 
 objects:
   value: null
-  required: true
+  required: strict
   source: "local_dataset_info.yaml"
   alias: null
   default:
@@ -195,7 +200,7 @@ task_instruction:
   value: null
   # e.g.
   #   "put_apple_into_basket"
-  required: true
+  required: strict
   source: "local_dataset_info.yaml"
   alias:
     - "tasks"
@@ -215,7 +220,7 @@ task_instruction:
 
 sub_tasks:
   value: null
-  required: true
+  required: strict
   source: "annotations/subtask_annotations.jsonl"
   alias:
     - "task_description"
@@ -230,7 +235,7 @@ sub_tasks:
 
 atomic_actions:
   value: null
-  required: true
+  required: strict
   source: "local_dataset_info.yaml"
   alias: null
   default:
@@ -245,7 +250,7 @@ robot_name:
   value: null
   # e.g.
   #   "Agibot_g1"
-  required: true
+  required: strict
   source: "local_dataset_info.yaml"
   alias:
     - "device_model"
@@ -257,7 +262,7 @@ end_effector_type:
   value: null
   # e.g.
   #   "two_finger_gripper"
-  required: true
+  required: strict
   source: "local_dataset_info.yaml"
   alias: null
   default: "end_effector_type"
@@ -273,7 +278,7 @@ tele_type:
 
 sensor_list:
   value: null
-  required: true
+  required: strict
   source: "meta/info.json"
   alias: null
   default: 
@@ -285,7 +290,7 @@ sensor_list:
 
 came_info:
   value: null
-  required: true
+  required: strict
   source: "meta/info.json"
   alias:
     - "camera_info"
@@ -296,7 +301,7 @@ came_info:
 
 depth_enabled:
   value: null
-  required: true
+  required: strict
   source: "meta/info.json"
   alias: null
   default: "depth_enabled"
@@ -331,7 +336,7 @@ origin_xyz:
 
 joint_rotation_dim:
   value: null
-  required: true
+  required: strict
   source: "meta/info.json"
   alias: null
   default: "joint_rotation_dim"
@@ -340,7 +345,7 @@ joint_rotation_dim:
 
 end_rotation_dim:
   value: null
-  required: true
+  required: strict
   source: "meta/info.json"
   alias: null
   default: "end_rotation_dim"
@@ -350,7 +355,7 @@ end_rotation_dim:
 
 end_translation_dim:
   value: null
-  required: true
+  required: strict
   source: "meta/info.json"
   alias: null
   default: "end_translation_dim"
@@ -406,7 +411,7 @@ operation_platform_height:
 
 statistics:
   value: null
-  required: true
+  required: strict
   source: "meta/episodes_stats.jsonl"
   alias: null
   default:
@@ -422,7 +427,7 @@ statistics:
 
 frame_num:
   value: null
-  required: true
+  required: strict
   source: "meta/info.json"
   alias: null
   default: "frame_num"
@@ -460,7 +465,7 @@ data_structure:
 
 splits:
   value: null
-  required: true
+  required: strict
   source: "meta/info.json"
   alias: null
   default:
@@ -487,7 +492,7 @@ video_path:
 # ========== Feature Definitions ==========
 features:
   value: null
-  required: true
+  required: strict
   source: "meta/info.json"
   alias: null
   default: 
