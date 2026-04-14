@@ -24,15 +24,26 @@ async def run_client_process(
         level=logging.ERROR,
     )
 
-    client = LeFormatConverterTaskClient(
-        server_uri=server_uri,
-        heartbeat_interval=heartbeat_interval,
-        logger=logger,
-    )
+    # 🔥 核心修复：无限循环，处理完一个任务自动取下一个
+    while True:
+        try:
+            client = LeFormatConverterTaskClient(
+                server_uri=server_uri,
+                heartbeat_interval=heartbeat_interval,
+                logger=logger,
+            )
 
-    # ✅ 核心修复：把整个 client 运行逻辑丢到线程池
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, client_run_sync, client)
+            # 每次执行一个任务
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, client_run_sync, client)
+
+            # 正常完成 → 继续循环取下一个任务
+            logger.info(f"✅ 客户端 {process_id} 任务完成，等待下一个任务...")
+
+        except Exception as e:
+            # 出错不崩溃，等待后重试
+            logger.error(f"⚠️ 客户端 {process_id} 出错，5秒后重试: {e}")
+            await asyncio.sleep(5)
 
 
 def client_process_main(
@@ -41,6 +52,7 @@ def client_process_main(
     log_path: str,
     process_id: int,
 ) -> None:
+    # 🔥 去掉 try/except 让上层循环处理异常
     asyncio.run(
         run_client_process(
             server_uri=server_uri,
@@ -49,6 +61,7 @@ def client_process_main(
             process_id=process_id,
         )
     )
+
 
 
 def main() -> None:
