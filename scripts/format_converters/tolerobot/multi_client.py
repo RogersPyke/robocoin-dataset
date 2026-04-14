@@ -2,21 +2,24 @@ import argparse
 import asyncio
 import logging
 import multiprocessing as mp
+import time  # 用于判断执行时长
 
 from robocoin_dataset.format_converter.tolerobot.client import LeFormatConverterTaskClient
 from robocoin_dataset.utils.logger import setup_logger
 
-# 🔥 关键：用线程池执行阻塞任务，不卡住 asyncio
+# 执行同步任务，并返回执行耗时
 def client_run_sync(client):
-    # 注意：这里不能 await，直接调用同步逻辑
-    # 你的 client.run() 内部会执行阻塞 convert()
+    start = time.time()
     asyncio.run(client.run())
+    cost = time.time() - start
+    return cost  # 返回任务执行耗时
 
 async def run_client_process(
     server_uri: str,
     heartbeat_interval: float,
     log_path: str,
     process_id: int,
+    min_task_cost: float = 1.0,  # 大于这个时间，才算【真正执行了任务】
 ) -> None:
     logger = setup_logger(
         name=f"client_{process_id}",
@@ -24,25 +27,34 @@ async def run_client_process(
         level=logging.ERROR,
     )
 
-    # 🔥 核心修复：无限循环，处理完一个任务自动取下一个
+    logger.info(f"✅ 客户端 {process_id} 已启动，准备接收任务")
+
     while True:
         try:
+            # 1. 创建客户端，尝试连服务端拿任务
             client = LeFormatConverterTaskClient(
                 server_uri=server_uri,
                 heartbeat_interval=heartbeat_interval,
                 logger=logger,
             )
 
-            # 每次执行一个任务
+            # 2. 执行任务，并获取耗时
             loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, client_run_sync, client)
+            task_cost = await loop.run_in_executor(None, client_run_sync, client)
 
-            # 正常完成 → 继续循环取下一个任务
-            logger.info(f"✅ 客户端 {process_id} 任务完成，等待下一个任务...")
+            # 3. 通过执行时长判断：是否真的跑了任务
+            if task_cost >= min_task_cost:
+                logger.info(f"✅ 客户端 {process_id} 完成一个有效任务，耗时：{task_cost:.2f}s，继续取下一个...")
+                # 回到循环开头，继续取下一个任务
+                continue
+
+            else:
+                # 耗时极短 = 服务端没有任务分配
+                logger.info(f"🛑 客户端 {process_id} 未获取到新任务，进程自动停止")
+                break  # 退出循环 → 关闭客户端
 
         except Exception as e:
-            # 出错不崩溃，等待后重试
-            logger.error(f"⚠️ 客户端 {process_id} 出错，5秒后重试: {e}")
+            logger.error(f"⚠️ 客户端 {process_id} 异常，5秒后重试: {str(e)}")
             await asyncio.sleep(5)
 
 
@@ -52,7 +64,6 @@ def client_process_main(
     log_path: str,
     process_id: int,
 ) -> None:
-    # 🔥 去掉 try/except 让上层循环处理异常
     asyncio.run(
         run_client_process(
             server_uri=server_uri,
@@ -61,7 +72,6 @@ def client_process_main(
             process_id=process_id,
         )
     )
-
 
 
 def main() -> None:
@@ -101,6 +111,8 @@ def main() -> None:
         for proc in processes:
             proc.terminate()
             proc.join(timeout=2)
+
+    print("✅ 所有客户端已安全退出")
 
 
 if __name__ == "__main__":
