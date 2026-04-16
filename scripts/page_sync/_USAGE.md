@@ -16,7 +16,7 @@ Run this after upload.
 # Basic usage
 python scripts/page_sync/sync.py \
   --db-cfg-path db/postgresql_config.yaml \
-  --target-dir /path/to/page-project
+  --target-dir ~/projects/DataManager/robocoin_datamanager_assets
 
 # Force regenerate videos and thumbnails
 python scripts/page_sync/sync.py \

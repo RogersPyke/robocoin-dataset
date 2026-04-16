@@ -4,6 +4,7 @@ Download statistics collection module for PageSync.
 Purpose:
     Collect download statistics from HuggingFace and ModelScope for all datasets
     under a given organization. Generate a consolidated JSON file for web consumption.
+    ONLY call for submodule, do nothing else.
 
 Design:
     This module is the ONLY component in PageSync that depends on the external
@@ -75,6 +76,7 @@ import logging
 import os
 import subprocess
 import sys
+import math
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -129,6 +131,47 @@ def _normalize_dataset_name(full_name: str) -> str:
     if "/" in full_name:
         return full_name.split("/")[-1]
     return full_name
+
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    """
+    Convert value to int safely for CSV fields.
+
+    @input:
+        value [Any]: Raw value from CSV cell.
+        default [int]: Fallback value on conversion failure.
+
+    @output:
+        int: Parsed integer value.
+
+    @scenario:
+        CSV may contain empty string, NaN, float, or formatted numeric strings.
+        This helper prevents one malformed row from breaking whole stats parsing.
+    """
+    if value is None:
+        return default
+
+    if isinstance(value, bool):
+        return int(value)
+
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, float):
+        if math.isnan(value):
+            return default
+        return int(value)
+
+    try:
+        text = str(value).strip()
+        if not text:
+            return default
+        lowered = text.lower()
+        if lowered in {"nan", "none", "null"}:
+            return default
+        return int(float(text.replace(",", "")))
+    except Exception:
+        return default
 
 
 def _fetch_download_stats_from_submodule(
@@ -276,12 +319,16 @@ def _read_csv_to_dict(csv_path: str, logger: logging.Logger) -> dict[str, dict[s
         df = pd.read_csv(csv_path)
 
         result = {}
+        skipped_rows = 0
         for _, row in df.iterrows():
             raw_name = str(row.get("dataset_name", ""))
             normalized_name = _normalize_dataset_name(raw_name)
+            if not normalized_name:
+                skipped_rows += 1
+                continue
 
-            downloads = int(row.get("downloads", 0) or 0)
-            likes = int(row.get("likes", 0) or 0)
+            downloads = _safe_int(row.get("downloads", 0), default=0)
+            likes = _safe_int(row.get("likes", 0), default=0)
 
             result[normalized_name] = {
                 "downloads": downloads,
@@ -289,6 +336,8 @@ def _read_csv_to_dict(csv_path: str, logger: logging.Logger) -> dict[str, dict[s
             }
 
         logger.info("Parsed %d entries from CSV: %s", len(result), csv_path)
+        if skipped_rows > 0:
+            logger.warning("Skipped %d malformed CSV rows: %s", skipped_rows, csv_path)
         return result
 
     except Exception as e:
@@ -316,7 +365,17 @@ def _filter_by_existing_datasets(
         HF/MS org may contain datasets not in local assets. Filter to only include
         datasets that exist in assets/dataset_info/.
     """
-    filtered = {name: data for name, data in stats_dict.items() if name in existing_names}
+    exact_filtered = {name: data for name, data in stats_dict.items() if name in existing_names}
+    if exact_filtered:
+        filtered = exact_filtered
+    else:
+        # Fallback to case-insensitive matching for environments with filename casing drift.
+        existing_lower_map = {name.lower(): name for name in existing_names}
+        filtered = {}
+        for name, data in stats_dict.items():
+            matched = existing_lower_map.get(name.lower())
+            if matched is not None:
+                filtered[matched] = data
 
     excluded_count = len(stats_dict) - len(filtered)
     if excluded_count > 0:
