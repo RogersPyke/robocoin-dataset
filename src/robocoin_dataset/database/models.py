@@ -188,7 +188,7 @@ class SceneTypeDB(Base):
     id = Column(Integer, primary_key=True, index=True)
     level_id = Column(Integer, nullable=False, default=1)
     name = Column(String(100), unique=True, nullable=False)
-    chinese_name = Column(String(100), unique=True, nullable=False)
+    chinese_name = Column(String(100), nullable=True)
     datasets = relationship(
         "DatasetDB", secondary="dataset_scene_types", back_populates="scene_types"
     )
@@ -216,7 +216,7 @@ class ObjectDB(Base):
     __tablename__ = "object"
     id = Column(Integer, primary_key=True, index=True)
     object_name = Column(String(100), nullable=False, index=True)
-    object_chinese_name = Column(String(100), nullable=False, index=True)
+    object_chinese_name = Column(String(100), nullable=True, index=True)
     datasets = relationship("DatasetDB", secondary="dataset_objects", back_populates="objects")
 
 
