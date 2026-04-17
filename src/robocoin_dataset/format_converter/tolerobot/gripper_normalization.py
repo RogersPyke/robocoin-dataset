@@ -339,7 +339,7 @@ class GripperOpenNormalizer:
                 # 保存修改后的文件
                 if modified:
                     df.to_parquet(file)
-                    logger.info(f"已处理文件: {file}")
+                    # logger.info(f"已处理文件: {file}")
                     has_processed = True
                 else:
                     logger.info(f"文件无需要处理的字段: {file}")

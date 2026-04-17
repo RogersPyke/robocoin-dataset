@@ -940,7 +940,7 @@ class LerobotFormatConverter(ABC):
                 dataset = LeRobotDataset(
                     repo_id=self.repo_id,
                     root=self.output_path,
-                    local_files_only=True  # 只使用本地文件，不从Hub下载
+                    revision=None
                 )
                 
                 if self.logger:
@@ -1270,30 +1270,15 @@ class LerobotFormatConverter(ABC):
             ConfigError: 检测到配置错误（前N个episode高失败率）
         """
         if is_test:
-            # 1. 定义基础temp目录路径（优先使用当前工作目录下的temp）
-            base_temp_dir = Path.cwd() / "temp"
-            
-            # 2. 匹配 temp/ 下所有 robocoin_* 格式的目录/文件
-            if base_temp_dir.exists():
-                # 构建匹配模式：temp/robocoin_*
-                cache_pattern = str(base_temp_dir / "robocoin_*")
-                
-                # 查找所有匹配的路径
-                cache_paths = glob.glob(cache_pattern)
-                
-                for cache_path in cache_paths:
-                    cache_path = Path(cache_path)
-                    try:
-                        # 删除目录（递归删除）
-                        if cache_path.is_dir():
-                            shutil.rmtree(cache_path, ignore_errors=True)
-                            self.logger.info(f"🧹 测试模式：已清理缓存目录 {cache_path}")
-                        # 删除文件
-                        elif cache_path.is_file():
-                            cache_path.unlink(missing_ok=True)
-                            self.logger.info(f"🧹 测试模式：已清理缓存文件 {cache_path}")
-                    except Exception as e:
-                        self.logger.warning(f"⚠️  测试模式：清理缓存 {cache_path} 失败: {e}")
+            # ✅ 修复：只清理【当前任务专属】的temp目录，不影响其他并发任务
+            # 拼接当前任务唯一temp路径（和报错里的路径格式完全一致）
+            task_temp_dir = Path.cwd() / f"temp/robocoin_{self.repo_id}"
+            if task_temp_dir.exists():
+                try:
+                    shutil.rmtree(task_temp_dir, ignore_errors=True)
+                    self.logger.info(f"🧹 测试模式：已清理【当前任务专属】缓存目录 {task_temp_dir}")
+                except Exception as e:
+                    self.logger.warning(f"⚠️ 测试模式：清理缓存 {task_temp_dir} 失败: {e}")
 
         # 🆕 初始化self.lerobot_dataset，确保清理代码可以访问
         self.lerobot_dataset = None

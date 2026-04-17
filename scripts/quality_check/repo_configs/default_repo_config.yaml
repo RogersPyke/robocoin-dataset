@@ -1,7 +1,21 @@
 # 质检仓库生成配置
 min_episodes_num: 30
-state_data_score_threshold: 0.75
-action_data_score_threshold: 0.75
-video_score_threshold: 0.87
-consecutive_static_frames_threshold: 0.6
 
+# 原维度总分阈值（保留，可同时生效）
+state_data_score_threshold: 0.7
+action_data_score_threshold: 0.7
+video_score_threshold: 0.8
+
+# ==================== State 数据算子阈值 ====================
+state_static_frame_rate_threshold: 0.7       # 静止帧占比
+state_static_joint_threshold: 0.4           # 静态关节比例
+
+# ==================== Action 数据算子阈值 ====================
+action_static_frame_rate_threshold: 0.7      # 静止帧占比
+action_static_joint_threshold: 0.4           # 静态关节比例
+
+# ==================== Video 算子阈值 ====================
+video_max_frame_stable_then_jump_rate_threshold: 0.6  # 画面突跳
+video_max_frame_jump_dist_threshold: 0.6              # 帧间跳变距离
+video_color_shift_threshold: 0.75                     # 颜色突变
+video_consecutive_static_threshold: 0.7              # 连续静止帧占比

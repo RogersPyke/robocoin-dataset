@@ -541,8 +541,19 @@ def _get_bad_episodes(
     dataset_uuid: str,
     state_data_score_threshold: float = 0.75,
     action_data_score_threshold: float = 0.75,
-    video_score: float = 0.87,
-    consecutive_static_frames_threshold: float = 0.6,
+    video_score_threshold: float = 0.87,
+
+    # State 算子阈值
+    state_static_frame_rate_threshold: float = 0.7,
+    state_static_joint_threshold: float = 0.4,
+    # Action 算子阈值
+    action_static_frame_rate_threshold: float = 0.7,
+    action_static_joint_threshold: float = 0.4,
+    # Video 算子阈值
+    video_max_frame_stable_then_jump_rate_threshold: float = 0.8,
+    video_max_frame_jump_dist_threshold: float = 0.8,
+    video_color_shift_threshold: float = 0.75,
+    video_consecutive_static_threshold: float = 0.7,
 ) -> set[int]:
     items = (
         session.query(EpisodeQcDB)
@@ -556,23 +567,51 @@ def _get_bad_episodes(
 
     bad_episodes = set()
     for item in items:
-        if item.is_bad_episode:
+         # ==================== 强制坏片段（优先级最高） ====================
+        if item.is_bad_episode or item.is_state_frame_diff:
             bad_episodes.add(item.episode_idx)
             continue
+
+        # ==================== 维度总分判断 ====================
         if item.state_data_score < state_data_score_threshold:
             bad_episodes.add(item.episode_idx)
             continue
         if item.action_data_score < action_data_score_threshold:
             bad_episodes.add(item.episode_idx)
             continue
-        if item.video_score < video_score:
+        if item.video_score < video_score_threshold:
             bad_episodes.add(item.episode_idx)
             continue
-        if item.episode_video_consecutive_static_frames_score < consecutive_static_frames_threshold:
+
+        # ==================== State 算子单独判断 ====================
+        if item.episode_state_static_frame_rate_score < state_static_frame_rate_threshold:
             bad_episodes.add(item.episode_idx)
             continue
-        if item.is_state_frame_diff:
+        if item.episode_state_static_joint_score < state_static_joint_threshold:
             bad_episodes.add(item.episode_idx)
+            continue
+
+        # ==================== Action 算子单独判断 ====================
+        if item.episode_action_static_frame_rate_score < action_static_frame_rate_threshold:
+            bad_episodes.add(item.episode_idx)
+            continue
+        if item.episode_action_static_joint_score < action_static_joint_threshold:
+            bad_episodes.add(item.episode_idx)
+            continue
+
+        # ==================== Video 算子单独判断 ====================
+        if item.episode_video_max_frame_stable_then_jump_rate_score < video_max_frame_stable_then_jump_rate_threshold:
+            bad_episodes.add(item.episode_idx)
+            continue
+        if item.episode_video_max_frame_jump_dist_score < video_max_frame_jump_dist_threshold:
+            bad_episodes.add(item.episode_idx)
+            continue
+        if item.episode_video_color_shift_detection_score < video_color_shift_threshold:
+            bad_episodes.add(item.episode_idx)
+            continue
+        if item.episode_video_consecutive_static_frames_score < video_consecutive_static_threshold:
+            bad_episodes.add(item.episode_idx)
+            continue
 
     return bad_episodes
 
@@ -584,6 +623,16 @@ class QualityCheckedRepoGenerator:
         state_data_score_threshold: float = 0.85,
         action_data_score_threshold: float = 0.85,
         video_score_threshold: float = 0.9,
+        # 新增所有算子阈值
+        state_static_frame_rate_threshold: float = 0.7,
+        state_static_joint_threshold: float = 0.4,
+        action_static_frame_rate_threshold: float = 0.7,
+        action_static_joint_threshold: float = 0.4,
+        video_max_frame_stable_then_jump_rate_threshold: float = 0.8,
+        video_max_frame_jump_dist_threshold: float = 0.8,
+        video_color_shift_threshold: float = 0.75,
+        video_consecutive_static_threshold: float = 0.7,
+        # 原有参数
         min_episodes_num: int = 10,
         ds_api_key: str | None = None,
         logger: logging.Logger | None = None,
@@ -591,9 +640,20 @@ class QualityCheckedRepoGenerator:
         self.db_file_path: Path = Path(db_file_path).expanduser().absolute()
         self.db = DatasetDatabase(self.db_file_path)
         self.logger = logger or logging.getLogger(__name__)
+        # 原总分
         self.state_data_score_threshold = state_data_score_threshold
         self.action_data_score_threshold = action_data_score_threshold
         self.video_score_threshold = video_score_threshold
+        # 新增算子阈值
+        self.state_static_frame_rate_threshold = state_static_frame_rate_threshold
+        self.state_static_joint_threshold = state_static_joint_threshold
+        self.action_static_frame_rate_threshold = action_static_frame_rate_threshold
+        self.action_static_joint_threshold = action_static_joint_threshold
+        self.video_max_frame_stable_then_jump_rate_threshold = video_max_frame_stable_then_jump_rate_threshold
+        self.video_max_frame_jump_dist_threshold = video_max_frame_jump_dist_threshold
+        self.video_color_shift_threshold = video_color_shift_threshold
+        self.video_consecutive_static_threshold = video_consecutive_static_threshold
+        # 原有
         self.min_episodes_num = min_episodes_num
         self.ds_api_key = ds_api_key
 
@@ -605,11 +665,20 @@ class QualityCheckedRepoGenerator:
             bad_episodes = _get_bad_episodes(
                 session=session,
                 dataset_uuid=dataset_uuid,
+                # 原总分
                 state_data_score_threshold=self.state_data_score_threshold,
                 action_data_score_threshold=self.action_data_score_threshold,
-                video_score=self.video_score_threshold,
+                video_score_threshold=self.video_score_threshold,
+                # 新增所有算子阈值（完整传参）
+                state_static_frame_rate_threshold=self.state_static_frame_rate_threshold,
+                state_static_joint_threshold=self.state_static_joint_threshold,
+                action_static_frame_rate_threshold=self.action_static_frame_rate_threshold,
+                action_static_joint_threshold=self.action_static_joint_threshold,
+                video_max_frame_stable_then_jump_rate_threshold=self.video_max_frame_stable_then_jump_rate_threshold,
+                video_max_frame_jump_dist_threshold=self.video_max_frame_jump_dist_threshold,
+                video_color_shift_threshold=self.video_color_shift_threshold,
+                video_consecutive_static_threshold=self.video_consecutive_static_threshold,
             )
-
         if not dataset_uuid:
             return
 
@@ -683,11 +752,21 @@ class QualityCheckedRepoGeneratorServer(TaskServer):
         self.db = DatasetDatabase(self.db_file_path)
         self.logger = logger or logging.getLogger(__name__)
 
+         # 原配置读取
         self.state_data_score_threshold = qc_config.get("state_data_score_threshold", 0.75)
         self.action_data_score_threshold = qc_config.get("action_data_score_threshold", 0.75)
         self.video_score_threshold = qc_config.get("video_score_threshold", 0.87)
         self.min_episodes_num = qc_config.get("min_episodes_num", 30)
-        self.consecutive_static_frames_threshold = qc_config.get("consecutive_static_frames_threshold", 0.6)
+        # 新增：读取所有算子阈值
+        self.state_static_frame_rate_threshold = qc_config.get("state_static_frame_rate_threshold", 0.7)
+        self.state_static_joint_threshold = qc_config.get("state_static_joint_threshold", 0.4)
+        self.action_static_frame_rate_threshold = qc_config.get("action_static_frame_rate_threshold", 0.7)
+        self.action_static_joint_threshold = qc_config.get("action_static_joint_threshold", 0.4)
+        self.video_max_frame_stable_then_jump_rate_threshold = qc_config.get("video_max_frame_stable_then_jump_rate_threshold", 0.8)
+        self.video_max_frame_jump_dist_threshold = qc_config.get("video_max_frame_jump_dist_threshold", 0.8)
+        self.video_color_shift_threshold = qc_config.get("video_color_shift_threshold", 0.75)
+        self.video_consecutive_static_threshold = qc_config.get("video_consecutive_static_threshold", 0.7)
+
         self.ds_api_key = ds_api_key
         self.target_dataset_uuid = target_dataset_uuid  # 新增：保存指定UUID
 
@@ -733,8 +812,16 @@ class QualityCheckedRepoGeneratorServer(TaskServer):
                     dataset_uuid=dataset_uuid,
                     state_data_score_threshold=self.state_data_score_threshold,
                     action_data_score_threshold=self.action_data_score_threshold,
-                    video_score=self.video_score_threshold,
-                    consecutive_static_frames_threshold=self.consecutive_static_frames_threshold,
+                    video_score_threshold=self.video_score_threshold,
+                    # 新增所有算子参数
+                    state_static_frame_rate_threshold=self.state_static_frame_rate_threshold,
+                    state_static_joint_threshold=self.state_static_joint_threshold,
+                    action_static_frame_rate_threshold=self.action_static_frame_rate_threshold,
+                    action_static_joint_threshold=self.action_static_joint_threshold,
+                    video_max_frame_stable_then_jump_rate_threshold=self.video_max_frame_stable_then_jump_rate_threshold,
+                    video_max_frame_jump_dist_threshold=self.video_max_frame_jump_dist_threshold,
+                    video_color_shift_threshold=self.video_color_shift_threshold,
+                    video_consecutive_static_threshold=self.video_consecutive_static_threshold,
                 )
             else:
                 # 原有逻辑：自动筛选待处理任务
@@ -746,8 +833,16 @@ class QualityCheckedRepoGeneratorServer(TaskServer):
                         dataset_uuid=dataset_uuid,
                         state_data_score_threshold=self.state_data_score_threshold,
                         action_data_score_threshold=self.action_data_score_threshold,
-                        video_score=self.video_score_threshold,
-                        consecutive_static_frames_threshold=self.consecutive_static_frames_threshold,
+                        video_score_threshold=self.video_score_threshold,
+                        # 新增所有算子参数
+                        state_static_frame_rate_threshold=self.state_static_frame_rate_threshold,
+                        state_static_joint_threshold=self.state_static_joint_threshold,
+                        action_static_frame_rate_threshold=self.action_static_frame_rate_threshold,
+                        action_static_joint_threshold=self.action_static_joint_threshold,
+                        video_max_frame_stable_then_jump_rate_threshold=self.video_max_frame_stable_then_jump_rate_threshold,
+                        video_max_frame_jump_dist_threshold=self.video_max_frame_jump_dist_threshold,
+                        video_color_shift_threshold=self.video_color_shift_threshold,
+                        video_consecutive_static_threshold=self.video_consecutive_static_threshold,
                     )
 
             if not dataset_uuid:

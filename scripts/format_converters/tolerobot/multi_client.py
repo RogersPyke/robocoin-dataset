@@ -2,58 +2,64 @@ import argparse
 import asyncio
 import logging
 import multiprocessing as mp
-import time  # 用于判断执行时长
 
 from robocoin_dataset.format_converter.tolerobot.client import LeFormatConverterTaskClient
 from robocoin_dataset.utils.logger import setup_logger
-
-# 执行同步任务，并返回执行耗时
-def client_run_sync(client):
-    start = time.time()
-    asyncio.run(client.run())
-    cost = time.time() - start
-    return cost  # 返回任务执行耗时
 
 async def run_client_process(
     server_uri: str,
     heartbeat_interval: float,
     log_path: str,
     process_id: int,
-    min_task_cost: float = 1.0,  # 大于这个时间，才算【真正执行了任务】
+    max_empty_tasks: int = 3,  # 连续3次无任务 → 退出
+    empty_sleep_time: float = 2.0,  # 无任务时休眠2秒
 ) -> None:
     logger = setup_logger(
         name=f"client_{process_id}",
         log_dir=log_path,
-        level=logging.ERROR,
+        level=logging.INFO,  # 提升日志级别，方便调试
     )
 
-    logger.info(f"✅ 客户端 {process_id} 已启动，准备接收任务")
+    logger.info(f"✅ 客户端 {process_id} 已启动，任务处理模式:")
+    logger.info(f"   - 有任务 → 立即处理")
+    logger.info(f"   - 无任务 → 休眠{empty_sleep_time}秒，连续{max_empty_tasks}次无任务自动退出")
 
+    empty_task_count = 0  # 无任务计数器
+    
     while True:
         try:
-            # 1. 创建客户端，尝试连服务端拿任务
             client = LeFormatConverterTaskClient(
                 server_uri=server_uri,
                 heartbeat_interval=heartbeat_interval,
                 logger=logger,
             )
 
-            # 2. 执行任务，并获取耗时
-            loop = asyncio.get_running_loop()
-            task_cost = await loop.run_in_executor(None, client_run_sync, client)
+            # 执行任务
+            result = await client.run()
 
-            # 3. 通过执行时长判断：是否真的跑了任务
-            if task_cost >= min_task_cost:
-                logger.info(f"✅ 客户端 {process_id} 完成一个有效任务，耗时：{task_cost:.2f}s，继续取下一个...")
-                # 回到循环开头，继续取下一个任务
-                continue
-
+            # ====================== 核心逻辑 ======================
+            # 1. 判断是否真的执行了任务（通过返回结果判断）
+            if result is None or (isinstance(result, dict) and result.get("converted_episodes", 0) == 0):
+                empty_task_count += 1
+                logger.info(f"🛑 无任务，连续无任务次数: {empty_task_count}/{max_empty_tasks}")
+                
+                # 2. 达到阈值 → 自动退出
+                if empty_task_count >= max_empty_tasks:
+                    logger.info(f"✅ 连续{max_empty_tasks}次无任务，客户端{process_id}自动退出")
+                    break
+                
+                # 3. 未达阈值 → 休眠后重试
+                await asyncio.sleep(empty_sleep_time)
+                
             else:
-                # 耗时极短 = 服务端没有任务分配
-                logger.info(f"🛑 客户端 {process_id} 未获取到新任务，进程自动停止")
-                break  # 退出循环 → 关闭客户端
+                # 有任务执行 → 重置计数器，立即继续
+                empty_task_count = 0
+                logger.info(f"✅ 任务处理完成，继续接收下一个任务")
+                await asyncio.sleep(0.1)  # 短暂休眠，避免CPU空转
 
         except Exception as e:
+            # 异常处理：重置计数器，避免误判退出
+            empty_task_count = 0
             logger.error(f"⚠️ 客户端 {process_id} 异常，5秒后重试: {str(e)}")
             await asyncio.sleep(5)
 
@@ -82,6 +88,9 @@ def main() -> None:
     argparser.add_argument("--timeout", type=float, default=1.0)
     argparser.add_argument("--heartbeat-interval", type=float, default=10.0)
     argparser.add_argument("--num-clients", type=int, default=1)
+    # 🆕 新增参数：连续无任务次数阈值（默认3次）
+    argparser.add_argument("--max-empty-tasks", type=int, default=3, 
+                         help="连续无任务次数达到此值时自动退出（默认3）")
 
     args = argparser.parse_args()
     num_clients = max(1, min(args.num_clients, 8))
@@ -96,7 +105,7 @@ def main() -> None:
                 heartbeat_interval=args.heartbeat_interval,
                 log_path=args.log_path,
                 process_id=i,
-            ),
+            )
         )
         proc.start()
         processes.append(proc)

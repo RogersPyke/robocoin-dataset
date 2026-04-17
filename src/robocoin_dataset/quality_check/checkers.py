@@ -202,11 +202,15 @@ def clear_video_decode_cache():
 
 @dataset_data_checker_registry("few_episode_frames")
 def detect_short_episodes(
-    episode_frame_nums: dict[int, int], ignored_indices: set[int], threshold: int = 150,  episode_idx: int = None
+    episode_frame_nums: dict[int, int], ignored_indices: set[int], threshold: int = 150
 ) -> set[int]:
     """
     【数据集级算子】检测单Episode帧数过少的异常
     功能：筛选出帧数小于阈值的Episode，判定为异常Episode
+    入参说明：
+            - episode_frame_nums：字典，key=Episode索引，value=该Episode的帧数
+            - ignored_indices：已被标记为异常的Episode索引集合，检测时会跳过这些Episode
+            - threshold：帧数阈值，默认150帧，低于该值的Episode会被判定为异常
     得分影响因素：
         1. threshold（阈值）：默认150帧，阈值越小越容易判定为正常，越大越严格
         2. episode_frame_nums：各Episode的实际帧数
@@ -227,11 +231,15 @@ def detect_short_episodes(
 
 @dataset_data_checker_registry("too_few_episodes")
 def detect_few_episodes(
-    episode_frame_nums: dict[int, int], ignored_indices: set[int], threshold: int = 30,  episode_idx: int = None
+    episode_frame_nums: dict[int, int], ignored_indices: set[int], threshold: int = 30,
 ) -> set[int]:
     """
     【数据集级算子】检测数据集总有效Episode数量过少的异常
     功能：若数据集内有效Episode数量（排除ignored_indices）小于阈值，判定整个数据集所有Episode为异常
+    入参说明：
+        - episode_frame_nums：字典，key=Episode索引，value=该Episode的帧数
+        - ignored_indices：已被标记为异常的Episode索引集合，最终会从总数中扣除这些Episode
+        - threshold：Episode数量阈值，默认30个Episode，低于该值的数据集会被判定为异常
     得分影响因素：
         1. threshold（阈值）：默认30个Episode，阈值越小越容易判定为正常，越大越严格
         2. episode_frame_nums：数据集内所有Episode的索引集合
@@ -248,18 +256,22 @@ def detect_few_episodes(
 
 @dataset_data_checker_registry("abnormal_episode_length")
 def detect_frame_num_outliers_mad_idx(
-    episode_frame_nums: dict[int, int], ignored_indices: set[int], threshold: float = 2.0,  episode_idx: int = None
+    episode_frame_nums: dict[int, int], ignored_indices: set[int], threshold: float = 5.0
 ) -> set[int]:
     """
     【数据集级算子】基于MAD（中位数绝对偏差）检测Episode帧数离群值
     功能：找出帧数显著偏离数据集整体分布的Episode（过短/过长），判定为异常
+    入参说明：
+        - episode_frame_nums：字典，key=Episode索引，value=该Episode的帧数
+        - ignored_indices：已被标记为异常的Episode索引集合，检测时会跳过这些Episode
+        - threshold：MAD阈值，默认5.0，值越大越宽松（更少Episode被判定为离群），值越小越严格
     得分影响因素：
-        1. threshold（MAD阈值）：默认2.0，值越大越宽松（更少Episode被判定为离群），值越小越严格
+        1. threshold（MAD阈值）：默认5.0，值越大越宽松（更少Episode被判定为离群），值越小越严格
         2. episode_frame_nums：各Episode的实际帧数（仅检测未被忽略的Episode）
         3. 数据集整体帧数分布：中位数越集中，越容易检测出离群值
     分数/返回值：
         - 返回值：帧数离群的Episode索引集合（set[int]）
-        - 无直接分数，被判定为异常的Episode会被加入bad_episodes，最终标记为is_bad=1
+        - 无直接分数，被判定为异常的Episode会被加入bad_episodes
     判定逻辑：
         1. 计算所有有效Episode帧数的中位数
         2. 计算每个Episode帧数相对中位数的比值
@@ -358,14 +370,16 @@ def is_window_static(window_data: np.ndarray, threshold: float = 0.01) -> bool:
 
 @episode_data_checker_registry("static_frame_rate")
 def count_total_static_frames_rate(
-    data: np.ndarray, window_size: int = 5, threshold: float = 0.01,  skipsize: float = 0.05, episode_idx: int = None
+    data: np.ndarray, window_size: int = 5, threshold: float = 0.02,  skipsize: float = 0.05
 ) -> float:
     """
     【Episode数据算子】统计数据中静止帧的占比
     功能：通过滑动窗口检测每个窗口是否静止，统计所有被标记为静止的帧的总占比
-    新增改动：
-        - 新增可配置参数skipsize（默认0.05），控制前后跳过的帧比例
-        - 仅基于中间 (1-2*skipsize) 的有效帧计算静止占比
+    入参说明：
+        - data：形状为 (T, D) 的数值型数组，T为帧数，D为维度数
+        - window_size（窗口大小）：默认5帧，表示滑动窗口的长度，越大越容易检测到静止（单帧抖动不影响），越小越敏感
+        - threshold（静止阈值）：默认0.02，表示相对标准差的阈值，值越小越严格（更少帧被判定为静止），值越大越宽松
+        - skipsize（跳过比例）：默认0.05，表示在统计静止占比时跳过前后一定比例的帧（避免开头结尾的过渡帧），值越大跳过越多，有效帧范围越小  
     得分影响因素：
         1. window_size（窗口大小）：默认5帧，窗口越大越容易检测到静止（单帧抖动不影响），越小越敏感
         2. threshold（静止阈值）：默认0.01，值越小越严格（更少帧被判定为静止），值越大越宽松
@@ -426,43 +440,39 @@ def count_total_static_frames_rate(
 
 @episode_data_checker_registry("static_joint")
 def detect_static_joint(
-    data: np.ndarray, static_joints_percent: float = 0.4, epsilon: float = 1e-3,  episode_idx: int = None
+    data: np.ndarray, epsilon: float = 0.001
 ) -> float:
     """
-    【Episode数据算子】检测机械臂关节数据的静态状态
-    功能：全局判断机械臂是否处于静止（足够多关节的标准差小于阈值）
-    得分影响因素：
-        1. static_joints_percent（静态关节占比阈值）：默认40%，值越小越容易判定为静态，越大越严格
-        2. epsilon（标准差阈值）：默认1e-3，值越小越严格（更少关节被判定为静态），值越大越宽松
-        3. 关节数据的标准差：每个关节的全局标准差越小，越容易被判定为静态
-        4. 关节数量（维度数）：维度越多，需要满足静态的关节数越多
-    分数/返回值：
-        - 返回值：0.0 或 1.0 的浮点数
-        - 1.0：静态（≥40%的关节标准差<1e-3），质检得分越低（最终会用1 - 该值计算得分）
-        - 0.0：非静态（<40%的关节满足静态条件），质检得分越高
-        - 特殊值：
-          - 无维度（dim=0）：返回1.0
-          - 单帧数据：返回1.0（所有关节视为静态）
+    【Episode数据算子】计算机械臂关节数据的**静态关节占比**
+    功能：返回 【标准差 < epsilon 的关节数量 / 总关节数】
+    入参说明：
+    - data：形状为 (T, D) 的数值型数组，T为帧数，D为关节维度数
+    - epsilon：标准差阈值，用于判断关节数是否静止，默认0.001，值越小越严格（更少关节被判定为静止），值越大越宽松
+    
+    返回值：0.0 ~ 1.0 之间的浮点数
+        - 0.0：所有关节都在运动
+        - 0.5：一半关节静止
+        - 1.0：所有关节全程不动
     """
     if data.ndim != 2:
         raise ValueError("Input data must be 2D array of shape (time_steps, dimensions).")
 
     frame_num, dim = data.shape
-    static_joint_threshold = int(dim * static_joints_percent)
     if dim == 0:
         return 1.0  # 无维度，默认静态
 
     if frame_num <= 1:
-        # 只有一帧或空数据：所有维度视为不变
-        static_dim_count = dim
-    else:
-        # 计算每个维度的全局标准差
-        stds = np.std(data, axis=0)  # shape (D,)
-        is_static_dim = stds < epsilon
-        static_dim_count = np.sum(is_static_dim)
+        # 只有一帧：所有关节都视为静止
+        return 1.0
 
-    return 1.0 if static_dim_count >= static_joint_threshold else 0.0
+    # 计算每个关节的全局标准差
+    stds = np.std(data, axis=0)
+    is_static_dim = stds < epsilon
+    static_dim_count = np.sum(is_static_dim)
 
+    # 直接返回【静态关节比例】
+    static_ratio = static_dim_count / dim
+    return static_ratio
 
 def detect_stable_then_jump_frames(
     video_path: str,
@@ -527,12 +537,13 @@ def dectect_max_frame_stable_then_jump(video_paths: list[str | Path], episode_id
         2. 视频文件有效性：视频不存在/无法解码，直接返回1.0（最高异常分）
         3. 关键帧数量：关键帧越少，越难检测到跳变，分数越低
     分数/返回值：
-        - 返回值：0.0 ~ 1.0 的浮点数（max_jump / 100）
+        - 返回值：0.0 ~ 1.0 的浮点数（max_jump / 125）
         - 分数越高：跳变越严重，视频越异常，质检得分越低（最终会用1 - 该值计算得分）
         - 特殊值：
           - 0.0：无跳变（所有关键帧稳定）
-          - 1.0：跳变汉明距离≥100 或 视频无效
-          - 无关键帧：返回0.0
+          - 1.0：跳变汉明距离≥125 或 视频无效
+          - 中间值：跳变汉明距离在0~125之间，分数线性映射（跳变越大分数越高）
+
     """
     max_jump = 0
     for video_path in video_paths:
@@ -540,39 +551,54 @@ def dectect_max_frame_stable_then_jump(video_paths: list[str | Path], episode_id
             return 1
         current_jump, _ = detect_stable_then_jump_frames(str(video_path), episode_idx=episode_idx)
         max_jump = max(max_jump, current_jump)
-    return max_jump / 100
+    if max_jump > 125:
+        max_jump = 125  # 限制最大值，避免极端跳变导致分数过高
+    return max_jump / 125  # 归一化，假设100以上视为严重异常，125是为了让分数在0~1范围内更平滑
+
 
 @episode_video_checker_registry("max_frame_jump_dist")
 def detect_max_frame_jump_dist(
-    video_paths: list[str | Path], max_dist_threshold: int = 50, episode_idx: int = None
+    video_paths: list[str | Path], max_dist_threshold: int = 250, episode_idx: int = None
 ) -> float:
     """
-    【Episode视频算子】检测视频关键帧的最大跳变距离是否超标
-    功能：判断视频关键帧的最大汉明距离是否超过阈值，返回二值结果
-    得分影响因素：
-        1. max_dist_threshold（跳变阈值）：默认50，值越小越容易判定为异常，越大越宽松
-        2. 关键帧汉明距离：距离越大，越容易超过阈值
-        3. 视频文件有效性：视频不存在/无法解码，直接返回1.0（异常）
-    分数/返回值：
-        - 返回值：0.0 或 1.0 的浮点数
-        - 1.0：最大跳变距离>50 或 视频无效 → 视频异常，质检得分低
-        - 0.0：最大跳变距离≤50 → 视频正常，质检得分高
-        - 特殊值：无关键帧时返回0.0（视为正常）
+    【Episode视频算子】检测视频帧的最大跳变距离
+    功能：计算视频中最大的画面跳变值，并归一化为 0~1 的连续分数
+    入参说明：
+        - video_paths：视频文件路径列表
+        - max_dist_threshold：跳变阈值，默认250，越小越严格
+        - episode_idx：Episode索引，用于解码缓存
+    返回值（0 ~ 1）：
+        - 0.0：无任何跳变
+        - 0~1：跳变距离线性映射（距离越大分数越高）
+        - 1.0：跳变超过阈值 或 视频文件无效
     """
     max_jump = 0
+    
+    # 遍历所有视频
     for video_path in video_paths:
+        # 文件无效 → 直接返回最高异常分
         if not Path(video_path).exists() or not Path(video_path).is_file():
-            return 1
+            return 1.0
+        
+        # 计算当前视频最大跳变
         current_jump, _ = detect_stable_then_jump_frames(
-            str(video_path), stable_distance_threshold=1, min_stable_frames=0, episode_idx=episode_idx
+            str(video_path),
+            stable_distance_threshold=1,
+            min_stable_frames=0,
+            episode_idx=episode_idx
         )
         max_jump = max(max_jump, current_jump)
 
-    return 1 if max_jump > max_dist_threshold else 0
+    # 封顶，防止分数超过 1
+    max_jump = min(max_jump, max_dist_threshold)
 
+    # 归一化到 0~1，防止除零
+    if max_dist_threshold <= 0:
+        return 1.0
+    return max_jump / max_dist_threshold
 
 @data_video_consistency_checker_registry("LengthConsistencyChecker")
-def decect_inconsistent_length(video_paths: list[str | Path], frame_num: int,  episode_idx: int = None) -> bool:
+def decect_inconsistent_length(video_paths: list[str | Path], frame_num: int) -> bool:
     """
     【数据-视频一致性算子】检测视频帧数与数据帧数是否一致
     功能：验证每个视频的帧数是否等于给定的frame_num，不一致则判定为异常
@@ -684,14 +710,14 @@ def hamming_distance(hash1: str, hash2: str) -> int:
 def detect_consecutive_static_frames(
     video_paths: list[str | Path],
     phash_dist_threshold: int = 5,
-    static_frames_threshold: int = 10,
-    sample_count: int = 4,  # 均匀采样的关键帧数量
+    sample_count: int = 8,  # 均匀采样的关键帧数量
+    skipsize: float = 0.05,  # 统计静止占比时跳过首尾帧的比例
     episode_idx: int = None
 ) -> float:
     """
     【Episode视频算子】混合检测视频卡死+连续静止帧占比（适配机器人左右手交替场景）
     核心优化：
-        1. 卡死判定：先统计关键帧总数，再均匀采样4个关键帧比对，避免局部连续重复误判；
+        1. 卡死判定：先统计关键帧总数，再均匀采样8个关键帧比对，避免局部连续重复误判；
         2. 静止占比：基于全部视频帧（剔除首尾5%）计算，保证统计全面性；
         3. 日志输出关键帧数量，方便调试。
     返回值规则：
@@ -700,7 +726,6 @@ def detect_consecutive_static_frames(
         0~1 之间 = 中间90%全帧内连续静止占比（越高越异常）
     """
     max_abnormal_score = 1.0
-    TRIM_RATIO = 0.05  # 统计静止占比时剔除首尾5%的帧
 
     for video_path in video_paths:
         video_path = Path(video_path)
@@ -764,7 +789,7 @@ def detect_consecutive_static_frames(
         max_static_frames = 0
         if total_frames >= 2 and len(all_frame_hashes) == total_frames:
             # 剔除首尾5%的帧
-            trim_count = int(total_frames * TRIM_RATIO)
+            trim_count = int(total_frames * skipsize)
             start_frame_idx = trim_count
             end_frame_idx = total_frames - trim_count
             middle_frame_hashes = all_frame_hashes[start_frame_idx:end_frame_idx]
@@ -844,7 +869,6 @@ def detect_camera_resolution_consistency(
             info_data = json.load(f)
         
         # 构建相机分辨率映射表：{相机完整名: (标准宽, 标准高)}
-        # 修复点1：直接遍历features的一级key，筛选出相机相关的key
         camera_resolution_map = {}
         features = info_data.get("features", {})
         
@@ -853,7 +877,6 @@ def detect_camera_resolution_consistency(
             if not cam_full_key.startswith("observation.images."):
                 continue  # 跳过非相机的key（如state/action等）
             
-            # 修复点2：正确提取分辨率（从info里拿）
             cam_detail_info = cam_info.get("info", {})
             standard_width = cam_detail_info.get("video.width", 0)
             standard_height = cam_detail_info.get("video.height", 0)
@@ -866,7 +889,6 @@ def detect_camera_resolution_consistency(
             print(f"info.json中未找到有效相机分辨率配置，camera_resolution_map={camera_resolution_map}")
             return 1.0
         
-        # print(f"成功解析相机分辨率：{camera_resolution_map}")  # 调试用，可保留
             
     except Exception as e:
         print(f"解析info.json失败：{str(e)}")
@@ -925,7 +947,7 @@ def detect_camera_resolution_consistency(
 def get_valid_motion_frame_range_from_data(
     data: np.ndarray,
     window_size: int = 5,
-    threshold: float = 0.01
+    threshold: float = 0.02
 ) -> tuple[int, int]:
     """
     【Episode数据算子】基于运动数据获取有效帧区间（剔除首尾静止帧，留1帧余量）

@@ -72,7 +72,7 @@ class LeFormatConverterTaskClient(TaskClient):
             module_path = task_content.get(CONVERTER_MODULE_PATH)
             class_name = task_content.get(CONVERTER_CLASS_NAME)
             video_backend = task_content.get(VIDEO_BACKEND)
-            image_writer_proecesses = task_content.get(IMAGE_WRITER_PROCESSES, 4)
+            image_writer_processes = task_content.get(IMAGE_WRITER_PROCESSES, 4)
             image_writer_threads = task_content.get(IMAGE_WRITER_THREADS, 4)
             converter_log_dir = task_content.get(CONVERTER_LOG_DIR)
             converter_log_name = task_content.get(CONVERTER_LOG_NAME)
@@ -96,7 +96,7 @@ class LeFormatConverterTaskClient(TaskClient):
                     converter_class_name=class_name,
                     repo_id=repo_id,
                     video_backend=video_backend,
-                    image_writer_processes=image_writer_proecesses,
+                    image_writer_processes=image_writer_processes,
                     image_writer_threads=image_writer_threads,
                     logger=logger,
                     auto_reencode=auto_reencode,
