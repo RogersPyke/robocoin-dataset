@@ -724,84 +724,65 @@ class DatasetQualityCheckServer(TaskServer):
             return
 
         try:
-            task_status = task_result_content.get(TASK_RESULT_STATUS)
+            # ==============================
+            # 🔥 适配你的原生架构：固定两层嵌套
+            # ==============================
+            # 外层状态（框架封装）
+            comm_status = task_result_content.get(TASK_RESULT_STATUS)
+            # 第一层封装（框架自动加的）
+            first_layer = task_result_content.get(TASK_RESULT_CONTENT, {})
+            # 第二层封装（你的业务数据）
+            business_layer = first_layer.get(TASK_RESULT_CONTENT, {})
+            
+            # 提取业务数据
+            qc_results = business_layer.get(QC_RESULT, {})
+            business_status = first_layer.get(TASK_RESULT_STATUS)
             err_msg = task_result_content.get(ERR_MSG, "")
-            task_content_dict = task_result_content.get(TASK_RESULT_CONTENT, {})
-            qc_results = task_content_dict.get(QC_RESULT, {})
 
             with self.db.with_session() as session:
                 item = session.query(DatasetDB).filter(DatasetDB.dataset_uuid == ds_uuid).first()
                 if not item:
-                    self.logger.error(f"Handle task result failed: dataset {ds_uuid} not found in DB.")
+                    self.logger.error(f"Dataset {ds_uuid} not found in DB")
                     return
 
-                if task_status == TASK_SUCCESS:
+                if comm_status == TASK_SUCCESS and business_status == TASK_SUCCESS:
                     item.qc_status = TaskStatus.COMPLETED
-                    item.qc_err_msg = ""
+                    # 清空历史数据
                     session.query(EpisodeQcDB).filter(EpisodeQcDB.dataset_uuid == ds_uuid).delete()
+                    session.flush()
 
+                    # ✅ 正常进入循环，写入数据库
                     for episode_idx_str, summary in qc_results.items():
-                        try:
-                            episode_idx = int(episode_idx_str)
-                        except (ValueError, TypeError):
-                            self.logger.warning(f"Skip invalid episode index: {episode_idx_str}")
-                            continue
-
-                        # 提取所有字段（汇总+单独算子）
-                        is_bad = summary.get("is_bad", False)
-                        is_diff = summary.get("is_diff", False)
-                        state_score = summary.get("state_data_score", 0.0)
-                        action_score = summary.get("action_data_score", 0.0)
-                        video_score = summary.get("video_score", 0.0)
-                        # Episode Data 算子单独得分
-                        state_static_frame_rate_score = summary.get("episode_state_static_frame_rate_score", 0.0)
-                        state_static_joint_score = summary.get("episode_state_static_joint_score", 0.0)
-                        action_static_frame_rate_score = summary.get("episode_action_static_frame_rate_score", 0.0)
-                        action_static_joint_score = summary.get("episode_action_static_joint_score", 0.0)
-                        # Episode Video 算子单独得分
-                        max_frame_stable_then_jump_rate_score = summary.get("episode_video_max_frame_stable_then_jump_rate_score", 0.0)
-                        max_frame_jump_dist_score = summary.get("episode_video_max_frame_jump_dist_score", 0.0)
-                        episode_video_color_shift_detection_score = summary.get("episode_video_color_shift_detection_score", 0.0)
-                        consecutive_static_frames_score = summary.get("episode_video_consecutive_static_frames_score", 0.0)
-                        camera_resolution_consistency_score = summary.get("episode_video_camera_resolution_consistency_score", 0.0)
-                        max_start = summary.get("max_start", 0)
-                        max_end =  summary.get("max_end", 0)
-
+                        episode_idx = int(episode_idx_str)
                         episode_qc_item = EpisodeQcDB(
                             dataset_uuid=ds_uuid,
                             episode_idx=episode_idx,
-                            is_bad_episode=is_bad,
-                            is_state_frame_diff=is_diff,
-                            # 原有分组汇总得分
-                            state_data_score=state_score,
-                            action_data_score=action_score,
-                            video_score=video_score,
-                            # Episode Data 算子单独得分
-                            episode_state_static_frame_rate_score=state_static_frame_rate_score,
-                            episode_state_static_joint_score=state_static_joint_score,
-                            episode_action_static_frame_rate_score=action_static_frame_rate_score,
-                            episode_action_static_joint_score=action_static_joint_score,
-                            # Episode Video 算子单独得分
-                            episode_video_max_frame_stable_then_jump_rate_score=max_frame_stable_then_jump_rate_score,
-                            episode_video_max_frame_jump_dist_score=max_frame_jump_dist_score,
-                            episode_video_color_shift_detection_score=episode_video_color_shift_detection_score,
-                            episode_video_consecutive_static_frames_score=consecutive_static_frames_score,
-                            episode_video_camera_resolution_consistency_score=camera_resolution_consistency_score,
-                            start_frame = max_start,
-                            end_frame = max_end,
+                            is_bad_episode=summary.get("is_bad", False),
+                            is_state_frame_diff=bool(summary.get("is_diff", 0)),
+                            state_data_score=summary.get("state_data_score", 0.0),
+                            action_data_score=summary.get("action_data_score", 0.0),
+                            video_score=summary.get("video_score", 0.0),
+                            episode_state_static_frame_rate_score=summary.get("episode_state_static_frame_rate_score", 0.0),
+                            episode_state_static_joint_score=summary.get("episode_state_static_joint_score", 0.0),
+                            episode_action_static_frame_rate_score=summary.get("episode_action_static_frame_rate_score", 0.0),
+                            episode_action_static_joint_score=summary.get("episode_action_static_joint_score", 0.0),
+                            episode_video_max_frame_stable_then_jump_rate_score=summary.get("episode_video_max_frame_stable_then_jump_rate_score", 0.0),
+                            episode_video_max_frame_jump_dist_score=summary.get("episode_video_max_frame_jump_dist_score", 0.0),
+                            episode_video_color_shift_detection_score=summary.get("episode_video_color_shift_detection_score", 0.0),
+                            episode_video_consecutive_static_frames_score=summary.get("episode_video_consecutive_static_frames_score", 0.0),
+                            episode_video_camera_resolution_consistency_score=summary.get("episode_video_camera_resolution_consistency_score", 1.0),
+                            start_frame=summary.get("max_start", 0),
+                            end_frame=summary.get("max_end", 0),
                         )
                         session.add(episode_qc_item)
 
-                    self.logger.info(f"Dataset {ds_uuid} quality check completed successfully.")
+                    self.logger.info(f"✅ Dataset {ds_uuid} 质检完成，数据已入库")
                 else:
                     item.qc_status = TaskStatus.FAILED
                     item.qc_err_msg = err_msg[:1000]
-                    self.logger.error(f"Dataset {ds_uuid} quality check failed: {err_msg}")
-
-                session.commit()
 
         except Exception as e:
-            self.logger.error(f"Handle task result for {ds_uuid} failed with exception: {str(e)}\n{traceback.format_exc()}")
+            self.logger.error(f"❌ 处理质检结果失败: {str(e)}\n{traceback.format_exc()}")
 
 
 class DatasetQualityCheckClient(TaskClient):
@@ -836,30 +817,28 @@ class DatasetQualityCheckClient(TaskClient):
                 data_feature=MERGED_DATA_FEATURE,
             )
 
-            # 新增：打印关键日志，确认results是否为空（核心验证）
             print(f"[Client] _check_repo返回结果长度: {len(results)}")
             print(f"[Client] _check_repo返回结果前1条: {list(results.items())[:1] if results else '空'}")
-
-            # 转换为字符串键（避免服务端解析问题），并转为纯原生字典（避免defaultdict序列化问题）
             results_send = {str(episode_idx): dict(v) for episode_idx, v in results.items()}
-
-            # 新增：打印转换后的results_send
             print(f"[Client] 转换后results_send长度: {len(results_send)}")
 
-            # 修复：确保这是唯一的返回语句，无多余缩进和不可达代码
-            # return {
-            #     TASK_RESULT_STATUS: TASK_SUCCESS,  # 标记任务成功
-            #     TASK_RESULT_CONTENT: {QC_RESULT: results_send},  # 包装QC结果
-            #     ERR_MSG: ""  # 清空错误信息
-            # }
-            return {QC_RESULT: results_send}
+            # ✅ 修复关键：内层必须添加业务状态 TASK_RESULT_STATUS
+            return {
+                TASK_RESULT_STATUS: TASK_SUCCESS,
+                TASK_RESULT_CONTENT: {
+                    QC_RESULT: results_send,
+                    TASK_RESULT_STATUS: TASK_SUCCESS  # 🔥 新增这一行！
+                },
+                ERR_MSG: ""
+            }
 
         except Exception as e:
-            # 优化：捕获异常并返回标准错误格式，方便服务端记录
             error_msg = f"Dataset quality check for {repo_path} failed: {str(e)}"
             self.logger.error(error_msg, exc_info=True)
             return {
                 TASK_RESULT_STATUS: "FAILED",
-                TASK_RESULT_CONTENT: {},
+                TASK_RESULT_CONTENT: {
+                    TASK_RESULT_STATUS: "FAILED"  # 失败也补全字段
+                },
                 ERR_MSG: error_msg[:1000]
             }
