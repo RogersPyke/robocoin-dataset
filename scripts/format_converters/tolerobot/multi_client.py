@@ -11,57 +11,49 @@ async def run_client_process(
     heartbeat_interval: float,
     log_path: str,
     process_id: int,
-    max_empty_tasks: int = 3,  # 连续3次无任务 → 退出
-    empty_sleep_time: float = 2.0,  # 无任务时休眠2秒
+    max_empty_tasks: int = 3,
+    empty_sleep_time: float = 2.0,
 ) -> None:
     logger = setup_logger(
         name=f"client_{process_id}",
         log_dir=log_path,
-        level=logging.INFO,  # 提升日志级别，方便调试
+        level=logging.INFO,
     )
 
-    logger.info(f"✅ 客户端 {process_id} 已启动，任务处理模式:")
-    logger.info(f"   - 有任务 → 立即处理")
-    logger.info(f"   - 无任务 → 休眠{empty_sleep_time}秒，连续{max_empty_tasks}次无任务自动退出")
+    logger.info(f"✅ 客户端 {process_id} 已启动，长连接模式运行")
+    empty_task_count = 0
 
-    empty_task_count = 0  # 无任务计数器
-    
+    # 🔴 核心修复：只创建1次客户端，复用长连接
+    client = LeFormatConverterTaskClient(
+        server_uri=server_uri,
+        heartbeat_interval=heartbeat_interval,
+        logger=logger,
+    )
+
     while True:
         try:
-            client = LeFormatConverterTaskClient(
-                server_uri=server_uri,
-                heartbeat_interval=heartbeat_interval,
-                logger=logger,
-            )
-
-            # 执行任务
+            # 执行任务（复用同一个客户端/连接）
             result = await client.run()
 
-            # ====================== 核心逻辑 ======================
-            # 1. 判断是否真的执行了任务（通过返回结果判断）
+            # 无任务判断
             if result is None or (isinstance(result, dict) and result.get("converted_episodes", 0) == 0):
                 empty_task_count += 1
                 logger.info(f"🛑 无任务，连续无任务次数: {empty_task_count}/{max_empty_tasks}")
-                
-                # 2. 达到阈值 → 自动退出
                 if empty_task_count >= max_empty_tasks:
-                    logger.info(f"✅ 连续{max_empty_tasks}次无任务，客户端{process_id}自动退出")
+                    logger.info(f"✅ 连续无任务，客户端{process_id}自动退出")
                     break
-                
-                # 3. 未达阈值 → 休眠后重试
                 await asyncio.sleep(empty_sleep_time)
-                
             else:
-                # 有任务执行 → 重置计数器，立即继续
+                # 任务完成，重置计数器，继续等待下一个任务（不关闭连接）
                 empty_task_count = 0
-                logger.info(f"✅ 任务处理完成，继续接收下一个任务")
-                await asyncio.sleep(0.1)  # 短暂休眠，避免CPU空转
+                logger.info(f"✅ 任务处理完成，等待下一个任务...")
+                await asyncio.sleep(0.1)
 
         except Exception as e:
-            # 异常处理：重置计数器，避免误判退出
             empty_task_count = 0
             logger.error(f"⚠️ 客户端 {process_id} 异常，5秒后重试: {str(e)}")
             await asyncio.sleep(5)
+
 
 
 def client_process_main(

@@ -126,12 +126,20 @@ class TaskServer(ABC):
         if not info:
             return
 
+        # 1. 生成任务内容
         task_content = await asyncio.to_thread(self.generate_task_content)
+        
+        # 2. 无任务时发送消息（增加异常捕获）
         if not task_content:
-            await websocket.send(json.dumps({MSG_TYPE: NO_TASK}))
-            self.logger.debug(f"No tasks available | Client: {info[CLIENT_ID]}")
+            try:
+                await websocket.send(json.dumps({MSG_TYPE: NO_TASK}))
+                self.logger.debug(f"No tasks available | Client: {info[CLIENT_ID]}")
+            except ConnectionClosed:
+                self.logger.warning(f"发送无任务消息失败，客户端{info[CLIENT_ID]}已断开连接")
+                await self.unregister_client(websocket)
             return
 
+        # 3. 生成任务ID
         async with self._lock:
             task_id = self.current_task_id
             self._current_task_idx += 1
@@ -139,7 +147,6 @@ class TaskServer(ABC):
         task_content[TASK_ID] = task_id
         client_id = info[CLIENT_ID]
         dataset_uuid = task_content.get(DATASET_UUID, "")
-        # Try common hardlink path keys
         hardlink_path = task_content.get("leformat_path") or task_content.get("hardlink_path") or ""
 
         msg = json.dumps(
@@ -152,13 +159,25 @@ class TaskServer(ABC):
         )
 
         self._task_content_dict[task_id] = task_content
-        await websocket.send(msg)
-        if dataset_uuid or hardlink_path:
-            self.logger.info(
-                f"Task assigned | Task: {task_id} | UUID: {dataset_uuid} | Path: {hardlink_path} | Client: {client_id}"
-            )
-        else:
-            self.logger.info(f"Task assigned | Task: {task_id} | Client: {client_id}")
+
+        # ====================== 核心修复：捕获连接关闭异常 ======================
+        try:
+            # 发送任务给客户端
+            await websocket.send(msg)
+            
+            # 发送成功，打印日志
+            if dataset_uuid or hardlink_path:
+                self.logger.info(
+                    f"Task assigned | Task: {task_id} | UUID: {dataset_uuid} | Path: {hardlink_path} | Client: {client_id}"
+                )
+            else:
+                self.logger.info(f"Task assigned | Task: {task_id} | Client: {client_id}")
+                
+        # 捕获WebSocket连接关闭的所有异常（包含 ConnectionClosedOK）
+        except ConnectionClosed:
+            self.logger.warning(f"发送任务失败，客户端{client_id}已断开连接，自动清理")
+            # 自动清理失效客户端
+            await self.unregister_client(websocket)
 
     @abstractmethod
     def handle_task_result(self, task_content: dict, task_result_content: dict) -> None:
