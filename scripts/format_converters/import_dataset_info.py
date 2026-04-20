@@ -135,21 +135,23 @@ def load_and_patch(yaml_path: Path, session, dry_run: bool = False) -> dict[str,
     new_name_id = max_id + 1
     data["dataset_name_id"] = new_name_id
     
+    # 原始路径（关键：不提前写文件，只记录路径）
     old_folder_path = yaml_path.parent
     new_folder_path = old_folder_path.parent / f"{old_folder_path.name}_{new_name_id}"
     new_yaml_path = new_folder_path / yaml_path.name
     
+    # 存储路径信息，不写入文件
     data["yaml_file_path"] = str(new_yaml_path.resolve())
     data["data_path"] = str(new_folder_path.resolve())
     data["old_folder_path"] = old_folder_path
     data["new_folder_path"] = new_folder_path
     data["yaml_path"] = yaml_path
 
-    if new_name_id > 0:
-        existing_uuid = None
-    else:
+    # 读取已有UUID
+    existing_uuid = None
+    if new_name_id == 0:
         existing_uuid = data.get("dataset_uuid")
-    
+
     if not existing_uuid:
         uuid_yaml_path = yaml_path.parent / "dataset_uuid.yaml"
         try:
@@ -168,37 +170,32 @@ def load_and_patch(yaml_path: Path, session, dry_run: bool = False) -> dict[str,
             used_uuids_global.add(existing_uuid)
         logging.info(f"[{original_dataset_name}] (ID: {new_name_id}) 使用已有 UUID: {existing_uuid}")
     else:
+        # 生成UUID（修复：使用原始yaml路径，不使用未创建的新路径）
         task_desc = data.get("task_instruction")
         device_model = data.get("device_model") or "unknown_device"
 
         try:
             registry_file = PROJECT_ROOT / "dataset_registry.yaml"
             new_uuid = get_or_create_uuid(
-                task=task_desc, device=device_model, yaml_path=str(data["yaml_file_path"]),
+                task=task_desc, device=device_model, yaml_path=str(yaml_path.resolve()),
                 registry_file=str(registry_file), used_uuids=used_uuids_global,
             )
             data["dataset_uuid"] = new_uuid
             with lock:
                 used_uuids_global.add(new_uuid)
 
-            if not dry_run:
-                with new_yaml_path.open("w", encoding="utf-8") as f:
-                    yaml.dump(data, f, allow_unicode=True, default_flow_style=False, indent=2, sort_keys=False)
-                logging.info(f"已写入新 UUID: {new_yaml_path} → {new_uuid}")
-            else:
-                logging.info(f"[dry-run] 将生成 UUID: {new_yaml_path} → {new_uuid}")
+            logging.info(f"生成 UUID: {new_uuid} (将在重命名后写入文件)")
 
         except Exception as e:
-            logging.error(f"自动生成 UUID 失败 {new_yaml_path}: {e}")
+            logging.error(f"生成 UUID 失败 {yaml_path}: {e}")
             return None
 
+    # 清理数据格式
     for key in ["device_model", "end_effector_type", "operation_platform_height"]:
         if key in data:
             data[key] = clean_data_value(data[key])
 
     logging.info(f"[{original_dataset_name}] (ID: {new_name_id}) -> {data['dataset_uuid']}")
-    logging.info(f"数据集路径已设置为: {data['data_path']}")
-    logging.info(f"YAML文件路径已更新为: {data['yaml_file_path']}")
     assert "dataset_name_id" in data, "dataset_name_id 字段缺失！"
     return data
 
@@ -288,7 +285,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="递归查找 local_dataset_info.yaml/.yml，检查 dataset_uuid 并批量入库")
     parser.add_argument("scan_root", type=str, nargs='+', help="要扫描的根目录（支持传入多个路径）")
     parser.add_argument("--db-path", type=str, default="./db/postgresql_config.yaml", help="PostgreSQL配置文件路径")
-    parser.add_argument("--workers", type=int, default=1, help="并行工作线程数（默认单线程，保证数据库安全）")
+    parser.add_argument("--workers", type=int, default=1, help="并行工作线程数")
     parser.add_argument("--collect-only", action="store_true", help="仅收集 yaml 文件，不做数据库导入")
     parser.add_argument("--collect-output", type=Path, default=Path("./collected_yamls"), help="收集模式输出目录")
     parser.add_argument("--dry-run", action="store_true", help="只扫描和模拟，不写入文件或数据库")
@@ -338,26 +335,37 @@ def main() -> None:
 
         with db.with_session() as session:
             for record in datasets:
-                # 1. 先入库数据库
+                # 1. 数据库入库
                 upsert_dataset_info(yaml_data=record, session=session)
-                # 2. 再重命名文件夹
+                logging.info(f"数据集已入库: {record['dataset_name']}")
+                
+                # 2. 重命名文件夹
                 rename_success = rename_folder_and_yaml(
                     yaml_path=record["yaml_path"],
                     old_folder_path=record["old_folder_path"],
                     new_folder_path=record["new_folder_path"],
                     dry_run=args.dry_run
                 )
-                # 3. 🔥 文件夹重命名成功后，再写UUID文件（修复核心！）
-                if rename_success and not args.dry_run:
+
+                if rename_success:
+                    # 3. 更新重命名后的YAML文件
+                    new_yaml = record["new_folder_path"] / record["yaml_path"].name
+                    with new_yaml.open("w", encoding="utf-8") as f:
+                        yaml.dump(record, f, allow_unicode=True, default_flow_style=False, indent=2, sort_keys=False)
+                    logging.info(f"已更新YAML: {new_yaml}")
+                    
+                    # 4. 写入UUID文件
                     write_dataset_uuid_yaml(
                         folder_path=record["new_folder_path"],
                         dataset_uuid=record["dataset_uuid"],
                         dry_run=args.dry_run
                     )
+
             session.commit()
         
         logging.info(f"成功导入 {len(datasets)} 个数据集到数据库")
 
+        # 执行后续脚本
         logging.info("正在执行 separate.py 脚本...")
         separate_script = PROJECT_ROOT / "scripts" / "format_converters" / "separate.py"
         if not separate_script.exists():
