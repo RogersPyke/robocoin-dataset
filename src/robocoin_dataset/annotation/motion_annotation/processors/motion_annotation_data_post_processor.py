@@ -101,7 +101,7 @@ class MotionAnnotationDataPostProcessor(DataPostProcessorBase):
         )
 
         # 创建 simulator（使用父类已经设置的 self.convert_path）
-        self.simulator = LerobotSimReplayer(self.sim_replay_config, self.convert_path)
+        self.simulator = LerobotSimReplayer(self.sim_replay_config, self.convert_path,replay_source="data")
 
     # }
     def prepare_processing(self) -> None:
@@ -593,32 +593,32 @@ class MotionAnnotationDataPostProcessor(DataPostProcessorBase):
     # 该方法将ori_state_data进行后处理，返回结果为后处理后的数据
     def process_episode_state_data(self, ori_state_data: np.ndarray) -> np.ndarray:
         episode_idx = self.episode_idx
-        results = self.simulator.replay_episode_background(episode_index=episode_idx, is_state=True)
+        results = self.simulator.replay_episode_background(episode_index=episode_idx, is_state=True, is_sa_dpp=True)
 
         eef_data = np.array(results)
 
-        # 计算EEF位姿数据的列数（每个site 6维：pos(3) + ori(3)）
-        num_sites = len(self.sim_replay_config.mjcf_site_names)
-        num_eef_cols = num_sites * 6
+        # # 计算EEF位姿数据的列数（每个site 6维：pos(3) + ori(3)）
+        # num_sites = len(self.sim_replay_config.mjcf_site_names)
+        # num_eef_cols = num_sites * 6
 
-        # 如果没有夹爪，只返回EEF位姿数据
-        if not self.sim_replay_config.state_gripper_lerobot_names:
-            return eef_data
+        # # 如果没有夹爪，只返回EEF位姿数据
+        # if not self.sim_replay_config.state_gripper_lerobot_names:
+        #     return eef_data
 
-        # 有夹爪：归一化夹爪数据后返回完整数据（EEF + 夹爪）
-        if eef_data.shape[1] > num_eef_cols:
-            # 提取夹爪数据（EEF位姿之后的列）
-            gripper_data = eef_data[:, num_eef_cols:]
+        # # 有夹爪：归一化夹爪数据后返回完整数据（EEF + 夹爪）
+        # if eef_data.shape[1] > num_eef_cols:
+        #     # 提取夹爪数据（EEF位姿之后的列）
+        #     gripper_data = eef_data[:, num_eef_cols:]
 
-            # 归一化到 [0, 1] 范围
-            # 使用公式: (value - min) / (max - min)
-            if self.gripper_value_open != self.gripper_value_close:
-                gripper_normalized = gripper_data
-                # 限制在 [0, 1] 范围内
-                gripper_normalized = np.clip(gripper_normalized, 0.0, 1.0)
+        #     # 归一化到 [0, 1] 范围
+        #     # 使用公式: (value - min) / (max - min)
+        #     if self.gripper_value_open != self.gripper_value_close:
+        #         gripper_normalized = gripper_data
+        #         # 限制在 [0, 1] 范围内
+        #         gripper_normalized = np.clip(gripper_normalized, 0.0, 1.0)
 
-                # 替换原始夹爪数据
-                eef_data[:, num_eef_cols:] = gripper_normalized
+        #         # 替换原始夹爪数据
+        #         eef_data[:, num_eef_cols:] = gripper_normalized
 
         return eef_data
 
@@ -626,34 +626,34 @@ class MotionAnnotationDataPostProcessor(DataPostProcessorBase):
     def process_episode_action_data(self, ori_action_data: np.ndarray) -> np.ndarray:
         episode_idx = self.episode_idx
         results = self.simulator.replay_episode_background(
-            episode_index=episode_idx, is_state=False
+            episode_index=episode_idx, is_state=False, is_sa_dpp=True
         )
 
         eef_data = np.array(results)
 
-        # 计算EEF位姿数据的列数（每个site 6维：pos(3) + ori(3)）
-        num_sites = len(self.sim_replay_config.mjcf_site_names)
-        num_eef_cols = num_sites * 6
+        # # 计算EEF位姿数据的列数（每个site 6维：pos(3) + ori(3)）
+        # num_sites = len(self.sim_replay_config.mjcf_site_names)
+        # num_eef_cols = num_sites * 6
 
-        # 如果没有夹爪，只返回EEF位姿数据
+        # # 如果没有夹爪，只返回EEF位姿数据
 
-        if not self.sim_replay_config.state_gripper_lerobot_names:
-            return eef_data
+        # if not self.sim_replay_config.state_gripper_lerobot_names:
+        #     return eef_data
 
-        # 有夹爪：归一化夹爪数据后返回完整数据（EEF + 夹爪）
-        if eef_data.shape[1] > num_eef_cols:
-            # 提取夹爪数据（EEF位姿之后的列）
-            gripper_data = eef_data[:, num_eef_cols:]
+        # # 有夹爪：归一化夹爪数据后返回完整数据（EEF + 夹爪）
+        # if eef_data.shape[1] > num_eef_cols:
+        #     # 提取夹爪数据（EEF位姿之后的列）
+        #     gripper_data = eef_data[:, num_eef_cols:]
 
-            # 归一化到 [0, 1] 范围
-            # 使用公式: (value - min) / (max - min)
-            if self.gripper_value_open != self.gripper_value_close:
-                gripper_normalized = gripper_data
-                # 限制在 [0, 1] 范围内
-                gripper_normalized = np.clip(gripper_normalized, 0.0, 1.0)
+        #     # 归一化到 [0, 1] 范围
+        #     # 使用公式: (value - min) / (max - min)
+        #     if self.gripper_value_open != self.gripper_value_close:
+        #         gripper_normalized = gripper_data
+        #         # 限制在 [0, 1] 范围内
+        #         gripper_normalized = np.clip(gripper_normalized, 0.0, 1.0)
 
-                # 替换原始夹爪数据
-                eef_data[:, num_eef_cols:] = gripper_normalized
+        #         # 替换原始夹爪数据
+        #         eef_data[:, num_eef_cols:] = gripper_normalized
 
-        # 返回完整数据（EEF + 归一化后的夹爪），在 process_episode_data 中会分离
+        # # 返回完整数据（EEF + 归一化后的夹爪），在 process_episode_data 中会分离
         return eef_data

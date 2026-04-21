@@ -143,9 +143,9 @@ def load_and_patch(yaml_path: Path, session, dry_run: bool = False) -> dict[str,
     # 存储路径信息，不写入文件
     data["yaml_file_path"] = str(new_yaml_path.resolve())
     data["data_path"] = str(new_folder_path.resolve())
-    data["old_folder_path"] = old_folder_path
-    data["new_folder_path"] = new_folder_path
-    data["yaml_path"] = yaml_path
+    data["old_folder_path"] = str(old_folder_path)
+    data["new_folder_path"] = str(new_folder_path)
+    data["yaml_path"] = str(yaml_path)
 
     # 读取已有UUID
     existing_uuid = None
@@ -339,17 +339,20 @@ def main() -> None:
                 upsert_dataset_info(yaml_data=record, session=session)
                 logging.info(f"数据集已入库: {record['dataset_name']}")
                 
+                yaml_path = Path(record["yaml_path"])
+                old_folder_path = Path(record["old_folder_path"])
+                new_folder_path = Path(record["new_folder_path"])
                 # 2. 重命名文件夹
                 rename_success = rename_folder_and_yaml(
-                    yaml_path=record["yaml_path"],
-                    old_folder_path=record["old_folder_path"],
-                    new_folder_path=record["new_folder_path"],
+                    yaml_path=yaml_path,
+                    old_folder_path=old_folder_path,
+                    new_folder_path=new_folder_path,
                     dry_run=args.dry_run
                 )
 
                 if rename_success:
-                    # 3. 更新重命名后的YAML文件
-                    new_yaml = record["new_folder_path"] / record["yaml_path"].name
+                    # 正确拼接路径
+                    new_yaml = new_folder_path / yaml_path.name
                     with new_yaml.open("w", encoding="utf-8") as f:
                         yaml.dump(record, f, allow_unicode=True, default_flow_style=False, indent=2, sort_keys=False)
                     logging.info(f"已更新YAML: {new_yaml}")

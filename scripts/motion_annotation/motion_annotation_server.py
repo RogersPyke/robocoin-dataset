@@ -113,8 +113,8 @@ python scripts/motion_annotation/motion_annotation_server.py \
     --host 0.0.0.0 \
     --port 8766 \
     --sim_replay_config_path ./scripts/sim_replay/configs/sim_replay_config_path.yaml \
-    --device_model Agilex_Cobot_Magic \
-    --device_model_version default_version \
+    --device_model AI2_Alphabot_2 \
+    --device_model_version dual_arm_with_pose \
     --log_dir ./logs/
 
 # 新增指定UUID用法
