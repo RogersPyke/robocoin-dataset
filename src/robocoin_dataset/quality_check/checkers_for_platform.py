@@ -370,7 +370,7 @@ def is_window_static(window_data: np.ndarray, threshold: float = 0.01) -> bool:
 
 @episode_data_checker_registry("static_frame_rate")
 def count_total_static_frames_rate(
-    data: np.ndarray, window_size: int = 5, threshold: float = 0.01,  skipsize: float = 0.05
+    data: np.ndarray, window_size: int = 5, threshold: float = 0.02,  skipsize: float = 0.05
 ) -> float:
     """
     【Episode数据算子】统计数据中静止帧的占比
@@ -378,7 +378,7 @@ def count_total_static_frames_rate(
     入参说明：
         - data：形状为 (T, D) 的数值型数组，T为帧数，D为维度数
         - window_size（窗口大小）：默认5帧，表示滑动窗口的长度，越大越容易检测到静止（单帧抖动不影响），越小越敏感
-        - threshold（静止阈值）：默认0.01，表示相对标准差的阈值，值越小越严格（更少帧被判定为静止），值越大越宽松
+        - threshold（静止阈值）：默认0.02，表示相对标准差的阈值，值越小越严格（更少帧被判定为静止），值越大越宽松
         - skipsize（跳过比例）：默认0.05，表示在统计静止占比时跳过前后一定比例的帧（避免开头结尾的过渡帧），值越大跳过越多，有效帧范围越小  
     得分影响因素：
         1. window_size（窗口大小）：默认5帧，窗口越大越容易检测到静止（单帧抖动不影响），越小越敏感
@@ -947,7 +947,7 @@ def detect_camera_resolution_consistency(
 def get_valid_motion_frame_range_from_data(
     data: np.ndarray,
     window_size: int = 5,
-    threshold: float = 0.01
+    threshold: float = 0.02
 ) -> tuple[int, int]:
     """
     【Episode数据算子】基于运动数据获取有效帧区间（剔除首尾静止帧，留1帧余量）

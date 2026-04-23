@@ -1,0 +1,4774 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="Bot2_ROHAND">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="-0.013614 0.0013566 0.082469"
+        rpy="0 0 0" />
+      <mass
+        value="64.788" />
+      <inertia
+        ixx="0.99205478"
+        ixy="0.00406848"
+        ixz="-0.19481445"
+        iyy="1.90969301"
+        iyz="0.00939842"
+        izz="2.03360002" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.50196 0.50196 0.50196 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="driven_wheel_lf_link_v">
+    <inertial>
+      <origin
+        xyz="-0.0062589 -0.00011075 -0.026242"
+        rpy="0 0 0" />
+      <mass
+        value="0.14099" />
+      <inertia
+        ixx="7.1508E-05"
+        ixy="-1.482E-07"
+        ixz="-1.8383E-05"
+        iyy="6.6786E-05"
+        iyz="-3.9314E-07"
+        izz="3.6174E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driven_wheel_lf_link_v.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.50196 0.50196 0.50196 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driven_wheel_lf_link_v.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="driven_wheel_lf_joint_v"
+    type="continuous">
+    <origin
+      xyz="0.215 0.15 0.0895"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="driven_wheel_lf_link_v" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="driven_wheel_lf_link_h">
+    <inertial>
+      <origin
+        xyz="1.14E-07 -1.5917E-10 -3.7309E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.011636" />
+      <inertia
+        ixx="4.54E-06"
+        ixy="-1.763E-13"
+        ixz="-1.5907E-12"
+        iyy="4.5401E-06"
+        iyz="-4.6248E-12"
+        izz="8.3204E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driven_wheel_lf_link_h.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.84314 0.81569 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driven_wheel_lf_link_h.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="driven_wheel_lf_joint_h"
+    type="continuous">
+    <origin
+      xyz="-0.016001 0 -0.052"
+      rpy="-1.5707963267948966192313216916398 0 0" />
+    <parent
+      link="driven_wheel_lf_link_v" />
+    <child
+      link="driven_wheel_lf_link_h" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="driven_wheel_rf_link_v">
+    <inertial>
+      <origin
+        xyz="-0.0062589 -0.00011075 -0.026242"
+        rpy="0 0 0" />
+      <mass
+        value="0.14099" />
+      <inertia
+        ixx="7.1508E-05"
+        ixy="-1.482E-07"
+        ixz="-1.8383E-05"
+        iyy="6.6786E-05"
+        iyz="-3.9314E-07"
+        izz="3.6174E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driven_wheel_rf_link_v.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.50196 0.50196 0.50196 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driven_wheel_rf_link_v.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="driven_wheel_rf_joint_v"
+    type="continuous">
+    <origin
+      xyz="0.215 -0.15 0.0895"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="driven_wheel_rf_link_v" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="driven_wheel_rf_link_h">
+    <inertial>
+      <origin
+        xyz="1.14E-07 -1.5917E-10 -3.7309E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.011636" />
+      <inertia
+        ixx="4.54E-06"
+        ixy="-1.763E-13"
+        ixz="-1.5907E-12"
+        iyy="4.5401E-06"
+        iyz="-4.6248E-12"
+        izz="8.3204E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driven_wheel_rf_link_h.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.84314 0.81569 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driven_wheel_rf_link_h.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="driven_wheel_rf_joint_h"
+    type="continuous">
+    <origin
+      xyz="-0.016001 0 -0.052"
+      rpy="-1.5707963267948966192313216916398 0 0" />
+    <parent
+      link="driven_wheel_rf_link_v" />
+    <child
+      link="driven_wheel_rf_link_h" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="driven_wheel_lr_link_v">
+    <inertial>
+      <origin
+        xyz="-0.0062589 -0.00011075 -0.026242"
+        rpy="0 0 0" />
+      <mass
+        value="0.14099" />
+      <inertia
+        ixx="7.1508E-05"
+        ixy="-1.482E-07"
+        ixz="-1.8383E-05"
+        iyy="6.6786E-05"
+        iyz="-3.9314E-07"
+        izz="3.6174E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driven_wheel_lr_link_v.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.50196 0.50196 0.50196 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driven_wheel_lr_link_v.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="driven_wheel_lr_joint_v"
+    type="continuous">
+    <origin
+      xyz="-0.215 0.15 0.0895"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="driven_wheel_lr_link_v" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="driven_wheel_lr_link_h">
+    <inertial>
+      <origin
+        xyz="1.14E-07 -1.5917E-10 -3.7309E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.011636" />
+      <inertia
+        ixx="4.54E-06"
+        ixy="-1.763E-13"
+        ixz="-1.5907E-12"
+        iyy="4.5401E-06"
+        iyz="-4.6248E-12"
+        izz="8.3204E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driven_wheel_lr_link_h.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.84314 0.81569 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driven_wheel_lr_link_h.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="driven_wheel_lr_joint_h"
+    type="continuous">
+    <origin
+      xyz="-0.016001 0 -0.052"
+      rpy="-1.5707963267948966192313216916398 0 0" />
+    <parent
+      link="driven_wheel_lr_link_v" />
+    <child
+      link="driven_wheel_lr_link_h" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="driven_wheel_rr_link_v">
+    <inertial>
+      <origin
+        xyz="-0.0062589 -0.00011075 -0.026242"
+        rpy="0 0 0" />
+      <mass
+        value="0.14099" />
+      <inertia
+        ixx="7.1508E-05"
+        ixy="-1.482E-07"
+        ixz="-1.8383E-05"
+        iyy="6.6786E-05"
+        iyz="-3.9314E-07"
+        izz="3.6174E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driven_wheel_rr_link_v.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.50196 0.50196 0.50196 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driven_wheel_rr_link_v.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="driven_wheel_rr_joint_v"
+    type="continuous">
+    <origin
+      xyz="-0.215 -0.15 0.0895"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="driven_wheel_rr_link_v" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="driven_wheel_rr_link_h">
+    <inertial>
+      <origin
+        xyz="1.14E-07 -1.5917E-10 -3.7309E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.011636" />
+      <inertia
+        ixx="4.54E-06"
+        ixy="-1.763E-13"
+        ixz="-1.5907E-12"
+        iyy="4.5401E-06"
+        iyz="-4.6248E-12"
+        izz="8.3204E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driven_wheel_rr_link_h.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.84314 0.81569 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driven_wheel_rr_link_h.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="driven_wheel_rr_joint_h"
+    type="continuous">
+    <origin
+      xyz="-0.016001 0 -0.052"
+      rpy="-1.5707963267948966192313216916398 0 0" />
+    <parent
+      link="driven_wheel_rr_link_v" />
+    <child
+      link="driven_wheel_rr_link_h" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="driving_wheel_left_link">
+    <inertial>
+      <origin
+        xyz="-1.0152E-05 -9.7036E-06 -0.00069667"
+        rpy="0 0 0" />
+      <mass
+        value="0.11728" />
+      <inertia
+        ixx="0.00030283"
+        ixy="5.0979E-09"
+        ixz="-2.3984E-08"
+        iyy="0.00030283"
+        iyz="-2.2922E-08"
+        izz="0.00052364" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driving_wheel_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.84314 0.81569 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driving_wheel_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="driving_wheel_left_joint"
+    type="continuous">
+    <origin
+      xyz="0 0.208 0.084496"
+      rpy="-1.5707963267948966192313216916398 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="driving_wheel_left_link" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="driving_wheel_right_link">
+    <inertial>
+      <origin
+        xyz="1.0152E-05 -9.7036E-06 0.00069667"
+        rpy="0 0 0" />
+      <mass
+        value="0.11728" />
+      <inertia
+        ixx="0.00030283"
+        ixy="-5.0979E-09"
+        ixz="-2.3984E-08"
+        iyy="0.00030283"
+        iyz="2.2922E-08"
+        izz="0.00052364" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driving_wheel_right_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.84314 0.81569 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/driving_wheel_right_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="driving_wheel_right_joint"
+    type="continuous">
+    <origin
+      xyz="0 -0.208 0.084496"
+      rpy="-1.5707963267948966192313216916398 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="driving_wheel_right_link" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="ankle_pitch_link">
+    <inertial>
+      <origin
+        xyz="0.007218 -0.20487 -0.0035761"
+        rpy="0 0 0" />
+      <mass
+        value="8.5011" />
+      <inertia
+        ixx="0.22356729"
+        ixy="-0.00693333"
+        ixz="0.00006349"
+        iyy="0.02417721"
+        iyz="0.00309390"
+        izz="0.21862928" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ankle_pitch_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ankle_pitch_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ankle_pitch_joint"
+    type="revolute">
+    <origin
+      xyz="0.19155 0 0.294"
+      rpy="-1.5707963267948966192313216916398 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="ankle_pitch_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1.0122909661567111546157406457234"
+      upper="0"
+      effort="436"
+      velocity="1.8849555921538759430775860299677" />
+  </joint>
+  <link
+    name="knee_pitch_link">
+    <inertial>
+      <origin
+        xyz="-0.0081586 -0.16006 -0.0056456"
+        rpy="0 0 0" />
+      <mass
+        value="5.79212892" />
+      <inertia
+        ixx="0.08594305"
+        ixy="0.00086789"
+        ixz="0.00011374"
+        iyy="0.02871122"
+        iyz="0.00206740"
+        izz="0.07294545" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/knee_pitch_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.98824 0.73725 0.51765 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/knee_pitch_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="knee_pitch_joint"
+    type="revolute">
+    <origin
+      xyz="0 -0.38704 0"
+      rpy="0 0 0" />
+    <parent
+      link="ankle_pitch_link" />
+    <child
+      link="knee_pitch_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-0.38397243543875250692321196906749"
+      upper="2.757620218151040731539431414212"
+      effort="436"
+      velocity="1.8849555921538759430775860299677" />
+  </joint>
+  <link
+    name="waist_pitch_link">
+    <inertial>
+      <origin
+        xyz="0.021609 -0.060846 -0.0029909"
+        rpy="0 0 0" />
+      <mass
+        value="3.22349986" />
+      <inertia
+        ixx="0.01504137"
+        ixy="-0.00099278"
+        ixz="-0.00007505"
+        iyy="0.00672130"
+        iyz="0.00060806"
+        izz="0.01661499" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/waist_pitch_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.86667 0.9098 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/waist_pitch_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="waist_pitch_jiont"
+    type="revolute">
+    <origin
+      xyz="0 -0.27 0"
+      rpy="0 0 0" />
+    <parent
+      link="knee_pitch_link" />
+    <child
+      link="waist_pitch_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1.5707963267948966192313216916398"
+      upper="0.69813170079773183076947630739545"
+      effort="207"
+      velocity="2.4085543677521748161546932605143" />
+  </joint>
+  <link
+    name="waist_yaw_link">
+    <inertial>
+      <origin
+        xyz="-0.017441 -2.4383E-05 0.18695"
+        rpy="0 0 0" />
+      <mass
+        value="7.91655445" />
+      <inertia
+        ixx="0.16473322"
+        ixy="-0.00073755"
+        ixz="0.02363322"
+        iyy="0.15656268"
+        iyz="0.00274727"
+        izz="0.06707301" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/waist_yaw_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.50196 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/waist_yaw_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="waist_yaw_jiont"
+    type="revolute">
+    <origin
+      xyz="0 -0.1734 0"
+      rpy="1.5707963267948966192313216916398 0 0" />
+    <parent
+      link="waist_pitch_link" />
+    <child
+      link="waist_yaw_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1.5707963267948966192313216916398"
+      upper="1.5707963267948966192313216916398"
+      effort="66"
+      velocity="3.5604716740684323369243291677168" />
+  </joint>
+  <link
+    name="head_yaw_link">
+    <inertial>
+      <origin
+        xyz="2.4383E-14 -0.0035392 0.028924"
+        rpy="0 0 0" />
+      <mass
+        value="0.33917222" />
+      <inertia
+        ixx="0.00012187"
+        ixy="-0.00000206"
+        ixz="0.00000294"
+        iyy="0.00009797"
+        iyz="-0.00000454"
+        izz="0.00009465" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/head_yaw_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/head_yaw_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="head_yaw_joint"
+    type="revolute">
+    <origin
+      xyz="-0.04106 0 0.46024"
+      rpy="0 0 0" />
+    <parent
+      link="waist_yaw_link" />
+    <child
+      link="head_yaw_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1.5707963267948966192313216916398"
+      upper="1.5707963267948966192313216916398"
+      effort="3.3"
+      velocity="9.4247779607693797153879301498385" />
+  </joint>
+  <link
+    name="head_pitch_link">
+    <inertial>
+      <origin
+        xyz="0.021184 -0.061522 -0.0018641"
+        rpy="0 0 0" />
+      <mass
+        value="0.65872687" />
+      <inertia
+        ixx="0.00349851"
+        ixy="-0.00077037"
+        ixz="-0.00003921"
+        iyy="0.00307799"
+        iyz="0.00002984"
+        izz="0.00401558" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/head_pitch_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.98824 0.73725 0.51765 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/head_pitch_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="head_pitch_joint"
+    type="revolute">
+    <origin
+      xyz="0 0 0.0402"
+      rpy="-1.5707963267948966192313216916398 0 0" />
+    <parent
+      link="head_yaw_link" />
+    <child
+      link="head_pitch_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-0.52359877559829887307710723054658"
+      upper="0.52359877559829887307710723054658"
+      effort="3.3"
+      velocity="9.4247779607693797153879301498385" />
+  </joint>
+  <link
+    name="ZPF_left_base_link">
+    <inertial>
+      <origin
+        xyz="1.7227967e-05 -2.7405976e-04  6.7417875e-02"
+        rpy="0 0 0" />
+      <mass
+        value="1.39" />
+      <inertia
+        ixx="1.7468022e-03"
+        ixy="4.4167244e-07"
+        ixz="8.1232278e-07"
+        iyy="1.7511135e-03"
+        iyz="-1.7950155e-05"
+        izz="1.1806738e-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.86667 0.9098 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_left_base_joint_0"
+    type="fixed">
+    <origin
+      xyz="-0.061 0.0485 0.3174"
+      rpy="-1.5707963267948966192313216916398 -1.5707963267948966192313216916398 0" />
+    <parent
+      link="waist_yaw_link" />
+    <child
+      link="ZPF_left_base_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="ZPF_left_Link1">
+    <inertial>
+      <origin
+        xyz="-1.1436e-3 -1.5043e-2 -3.0119e-2"
+        rpy="0 0 0" />
+      <mass
+        value="0.6469" />
+      <inertia
+        ixx="1.7020262e-03"
+        ixy="-5.9529311e-05"
+        ixz="1.5086619e-04"
+        iyy="1.6194527e-03"
+        iyz="2.1354425e-04"
+        izz="1.5939956e-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_Link1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_Link1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_left_Joint1"
+    type="revolute">
+    <origin
+      xyz="0 0 0.1785"
+      rpy="0 0 0" />
+    <parent
+      link="ZPF_left_base_link" />
+    <child
+      link="ZPF_left_Link1" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.1066860685499066469241695679097"
+      upper="3.1066860685499066469241695679097"
+      effort="60"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="ZPF_left_Link2">
+    <inertial>
+      <origin
+        xyz="1.255e-4 -6.489e-3 -1.5096e-2"
+        rpy="0 0 0" />
+      <mass
+        value="1.37" />
+      <inertia
+        ixx="1.7992218e-03"
+        ixy="-1.1620208e-06"
+        ixz="-3.9132877e-06"
+        iyy="1.2916690e-03"
+        iyz="1.1836315e-04"
+        izz="1.5723054e-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_Link2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_Link2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_left_Joint2"
+    type="revolute">
+    <origin
+      xyz="0 0 0"
+      rpy="-1.5707963267948966192313216916398 -1.5707963267948966192313216916398 0" />
+    <parent
+      link="ZPF_left_Link1" />
+    <child
+      link="ZPF_left_Link2" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-0.43982297150257105338477007365913"
+      upper="3.1066860685499066469241695679097"
+      effort="60"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="ZPF_left_Link3">
+    <inertial>
+      <origin
+        xyz="4.7568e-3 3.1731e-3 -9.229e-2"
+        rpy="0 0 0" />
+      <mass
+        value="2.25" />
+      <inertia
+        ixx="3.7492999e-02"
+        ixy="-6.5328616e-05"
+        ixz="6.1380090e-05"
+        iyy="3.7362685e-02"
+        iyz="-5.4729831e-05"
+        izz="1.8817538e-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_Link3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_Link3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_left_Joint3"
+    type="revolute">
+    <origin
+      xyz="0 -0.28998 0"
+      rpy="1.5707963267948966192313216916398 -1.5707963267948966192313216916398 0" />
+    <parent
+      link="ZPF_left_Link2" />
+    <child
+      link="ZPF_left_Link3" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.1066860685499066469241695679097"
+      upper="3.1066860685499066469241695679097"
+      effort="30"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="ZPF_left_Link4">
+    <inertial>
+      <origin
+        xyz="-9.542e-3 8.999e-2 -4.374e-3"
+        rpy="0 0 0" />
+      <mass
+        value="0.86" />
+      <inertia
+        ixx="3.0979180e-03"
+        ixy="2.2400381e-05"
+        ixz="-3.5082686e-05"
+        iyy="7.6662000e-04"
+        iyz="-2.7748587e-04"
+        izz="2.9734939e-03"  />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_Link4.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_Link4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_left_Joint4"
+    type="revolute">
+    <origin
+      xyz="0.01 0 0"
+      rpy="1.5707963267948966192313216916398 0 0" />
+    <parent
+      link="ZPF_left_Link3" />
+    <child
+      link="ZPF_left_Link4" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2.26892802759262845000079799903520"
+      upper="0"
+      effort="30"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="ZPF_left_Link5">
+    <inertial>
+      <origin
+        xyz="-2.3965e-5 -2.247e-2 -8.5293e-2"
+        rpy="0 0 0" />
+      <mass
+        value="1.02" />
+      <inertia
+        ixx="2.2579574e-03"
+        ixy="2.0270009e-07"
+        ixz="3.2535431e-08"
+        iyy="2.0417531e-03"
+        iyz="3.7131069e-04"
+        izz="9.5194483e-04" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_Link5.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_Link5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_left_Joint5"
+    type="revolute">
+    <origin
+      xyz="-0.01 0.3088 0"
+      rpy="-1.5707963267948966192313216916398 0 0" />
+    <parent
+      link="ZPF_left_Link4" />
+    <child
+      link="ZPF_left_Link5" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.1066860685499066469241695679097"
+      upper="3.1066860685499066469241695679097"
+      effort="10"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="ZPF_left_Link6">
+    <inertial>
+      <origin
+        xyz="9.154e-3 -8.103e-3 2.957e-3"
+        rpy="0 0 0" />
+      <mass
+        value="0.55" />
+      <inertia
+        ixx="3.7382788e-04"
+        ixy="3.1477249e-06"
+        ixz="1.5645983e-05"
+        iyy="2.7467239e-04"
+        iyz="-1.1682175e-05"
+        izz="3.2231106e-04" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_Link6.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_Link6.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_left_Joint6"
+    type="revolute">
+    <origin
+      xyz="0 0 0"
+      rpy="1.5707963267948966192313216916398 -1.5707963267948966192313216916398 0" />
+    <parent
+      link="ZPF_left_Link5" />
+    <child
+      link="ZPF_left_Link6" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1.221730476396030703846583537942"
+      upper="1.221730476396030703846583537942"
+      effort="10"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="ZPF_left_Link7">
+    <inertial>
+      <origin
+        xyz="1.547e-4 5.483e-2 5.55e-3"
+        rpy="0 0 0" />
+      <mass
+        value="0.278" />
+      <inertia
+        ixx="0.000132576941913423"
+        ixy="9.13805899339808E-06"
+        ixz="-9.14363365511958E-08"
+        iyy="0.000151676252224174"
+        iyz="-2.82790388376229E-05"
+        izz="0.000142517590749322" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_Link7.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_Link7.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_left_Joint7"
+    type="revolute">
+    <origin
+      xyz="0.01 0 0"
+      rpy="1.5707963267948966192313216916398 -1.5707963267948966192313216916398 0" />
+    <parent
+      link="ZPF_left_Link6" />
+    <child
+      link="ZPF_left_Link7" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2.0943951023931954923084289221863"
+      upper="0.48869219055841228153863341517681"
+      effort="10"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="ZPF_left_Link8">
+    <inertial>
+      <origin
+        xyz="-0.000223537609806423 8.8367558294447E-05 -0.0171573759779855"
+        rpy="0 0 0" />
+      <mass
+        value="0.165822774021484" />
+      <inertia
+        ixx="4.88486899397696E-05"
+        ixy="-9.4591722796062E-08"
+        ixz="3.0611887075293E-07"
+        iyy="4.94603620572993E-05"
+        iyz="8.02154219939052E-09"
+        izz="7.6901626133018E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_Link8.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_left_Link8.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_left_Joint8"
+    type="fixed">
+    <origin
+      xyz="0 -0.11462 0"
+      rpy="1.5707963267948966192313216916398 0 0" />
+    <parent
+      link="ZPF_left_Link7" />
+    <child
+      link="ZPF_left_Link8" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <!-- 上面是ZPFL的左臂 -->
+  <link
+    name="rohand_left_baselink">
+    <inertial>
+      <origin
+        xyz="-0.0600175992226992 0.00173674758946424 0.003647460158999"
+        rpy="0 0 0" />
+      <mass
+        value="0.0559618850523164" />
+      <inertia
+        ixx="2.50232879484508E-05"
+        ixy="1.21179219483759E-06"
+        ixz="1.3120954628882E-06"
+        iyy="3.35110967631875E-05"
+        iyz="4.46372025543979E-07"
+        izz="5.16602242361882E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/rohand_left_baselink.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/rohand_left_baselink.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="rohand_left_baselink_joint"
+    type="fixed">
+    <origin
+      xyz="0 0 0.003"
+      rpy="0 1.5708 0" />
+      <!-- Z改为0 -->
+    <parent
+      link="ZPF_left_Link8" />
+    <child
+      link="rohand_left_baselink" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="if_slider_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0138317508854737 -0.00115448052302192 1.02779733464993E-06"
+        rpy="0 0 0" />
+      <mass
+        value="0.000489138281878773" />
+      <inertia
+        ixx="4.60375865761165E-09"
+        ixy="-2.8127148800347E-09"
+        ixz="-3.80386613632835E-12"
+        iyy="3.82335085784227E-08"
+        iyz="-7.1416734141464E-11"
+        izz="3.92716908725489E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/if_slider_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/if_slider_left_link.STL" />
+      </geometry>
+    </collision>
+    </link>
+  <joint
+    name="if_slider_left_link"
+    type="prismatic">
+    <origin
+      xyz="-0.074396 0.026655 -0.0059032"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_left_baselink" />
+    <child
+      link="if_slider_left_link" />
+    <axis
+      xyz="0.99655 -0.083049 0" />
+    <limit
+      lower="0"
+      upper="0.019"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="if_slider_abpart_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0107864188255613 -0.00263940611058044 -0.00013913226482987"
+        rpy="0 0 0" />
+      <mass
+        value="0.000419595822746572" />
+      <inertia
+        ixx="1.75917796784222E-09"
+        ixy="2.74325143413962E-10"
+        ixz="-6.61499697224064E-10"
+        iyy="5.7335166061789E-09"
+        iyz="9.56844870518539E-11"
+        izz="6.20984539277726E-09" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/if_slider_abpart_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/if_slider_abpart_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="if_slider_abpart_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.02861 0.0058839 -0.00030477"
+      rpy="0 0 0" />
+    <parent
+      link="if_slider_left_link" />
+    <child
+      link="if_slider_abpart_left_link" />
+    <axis
+      xyz="0.082734 0.99276 -0.087135" />
+  </joint>
+  <link
+    name="if_proximal_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0180401934810981 -0.00594318681409531 -0.00214940799795962"
+        rpy="0 0 0" />
+      <mass
+        value="0.00154987032874225" />
+      <inertia
+        ixx="6.20379278686707E-08"
+        ixy="7.89401144100231E-09"
+        ixz="2.15078751193785E-09"
+        iyy="1.54247144894286E-07"
+        iyz="1.11019132631612E-09"
+        izz="1.69493178080606E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/if_proximal_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/if_proximal_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="if_proximal_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.11211 0.037738 0.0020371"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_left_baselink" />
+    <child
+      link="if_proximal_left_link" />
+    <axis
+      xyz="0.082428 0.99278 -0.087177" />
+  </joint>
+  <link
+    name="if_distal_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0242417824734568 -0.00576634331785811 -0.00601095840966076"
+        rpy="0 0 0" />
+      <mass
+        value="0.0042269383122795" />
+      <inertia
+        ixx="9.82682026496381E-08"
+        ixy="2.86098057670537E-08"
+        ixz="-1.10777302806872E-07"
+        iyy="5.59160651416525E-07"
+        iyz="7.3813015969809E-09"
+        izz="5.40423175644971E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/if_distal_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/if_distal_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="if_distal_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.035776 0.0028401 -0.0014841"
+      rpy="0 0 0" />
+    <parent
+      link="if_proximal_left_link" />
+    <child
+      link="if_distal_left_link" />
+    <axis
+      xyz="0.082428 0.99278 -0.087177" />
+  </joint>
+  <link
+    name="if_connecting_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0154529830298678 -0.00300880066164064 -0.00700719055867323"
+        rpy="0 0 0" />
+      <mass
+        value="0.000197692348310411" />
+      <inertia
+        ixx="4.07223389206408E-09"
+        ixy="1.11280581546581E-09"
+        ixz="-9.07369152604057E-09"
+        iyy="2.70145409777339E-08"
+        iyz="4.0263808141139E-10"
+        izz="2.30774689922599E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/if_connecting_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/if_connecting_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="if_connecting_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.11976 0.03521 0.0067299"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_left_baselink" />
+    <child
+      link="if_connecting_left_link" />
+    <axis
+      xyz="0.082428 0.99278 -0.087177" />
+  </joint>
+  <link
+    name="mf_slider_left_link">
+    <inertial>
+      <origin
+        xyz="-0.013878747077534 0.000185328089726128 8.622740372069E-08"
+        rpy="0 0 0" />
+      <mass
+        value="0.000489112305392741" />
+      <inertia
+        ixx="4.3759626088488E-09"
+        ixy="4.42668858430006E-10"
+        ixz="-1.30309167879349E-11"
+        iyy="3.84519195282787E-08"
+        iyz="4.98468697390903E-13"
+        izz="3.92755372638914E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/mf_slider_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/mf_slider_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="mf_slider_left_link"
+    type="prismatic">
+    <origin
+      xyz="-0.076974 0.010077 -0.0016353"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_left_baselink" />
+    <child
+      link="mf_slider_left_link" />
+    <axis
+      xyz="0.99991 -0.013228 0.00010039" />
+    <limit
+      lower="0"
+      upper="0.019"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="mf_slider_abpart_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0105596379857566 -0.00336124088471218 -0.000727211243021133"
+        rpy="0 0 0" />
+      <mass
+        value="0.000419595848489683" />
+      <inertia
+        ixx="1.78090578752483E-09"
+        ixy="5.23866893151899E-11"
+        ixz="-7.88313295390851E-10"
+        iyy="5.74728451250454E-09"
+        iyz="1.04756066269533E-11"
+        izz="6.17435090190752E-09" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/mf_slider_abpart_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/mf_slider_abpart_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="mf_slider_abpart_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.028951 0.0038841 0"
+      rpy="0 0 0" />
+    <parent
+      link="mf_slider_left_link" />
+    <child
+      link="mf_slider_abpart_left_link" />
+    <axis
+      xyz="0.013228 0.99991 -7.2594E-05" />
+  </joint>
+  <link
+    name="mf_proximal_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0199797334891479 -0.00693582390555644 -0.00446806914321724"
+        rpy="0 0 0" />
+      <mass
+        value="0.00189508780970619" />
+      <inertia
+        ixx="7.7805923733235E-08"
+        ixy="2.0676177672704E-09"
+        ixz="-1.00300119994739E-08"
+        iyy="2.3404709814833E-07"
+        iyz="1.32133235333923E-10"
+        izz="2.46206545141109E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/mf_proximal_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/mf_proximal_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="mf_proximal_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.11587 0.017792 0.0069665"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_left_baselink" />
+    <child
+      link="mf_proximal_left_link" />
+    <axis
+      xyz="0.013244 0.99991 4.2699E-05" />
+  </joint>
+  <link
+    name="mf_distal_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0237385164850207 -0.00688494079178079 -0.00679220850075163"
+        rpy="0 0 0" />
+      <mass
+        value="0.0042269628029676" />
+      <inertia
+        ixx="9.80058679932351E-08"
+        ixy="6.06231538286094E-09"
+        ixz="-1.13827652906676E-07"
+        iyy="5.60810951030143E-07"
+        iyz="1.48885023943624E-09"
+        izz="5.39048309363154E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/mf_distal_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/mf_distal_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="mf_distal_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.040851 0.00054126 -0.0035367"
+      rpy="0 0 0" />
+    <parent
+      link="mf_proximal_left_link" />
+    <child
+      link="mf_distal_left_link" />
+    <axis
+      xyz="0.013244 0.99991 2.1055E-05" />
+  </joint>
+  <link
+    name="mf_connecting_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0173259476733337 -0.00342060961323612 -0.00839513952079128"
+        rpy="0 0 0" />
+      <mass
+        value="0.000216184518525667" />
+      <inertia
+        ixx="5.71913358376963E-09"
+        ixy="4.34632649617872E-10"
+        ixz="-1.31282895880665E-08"
+        iyy="3.85063451062604E-08"
+        iyz="1.74009446649164E-10"
+        izz="3.28217930253539E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/mf_connecting_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/mf_connecting_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="mf_connecting_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.12334 0.014341 0.011366"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_left_baselink" />
+    <child
+      link="mf_connecting_left_link" />
+    <axis
+      xyz="0.013244 0.99991 2.1054E-05" />
+  </joint>
+  <link
+    name="rf_slider_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0138578672671499 -0.00078324248832945 1.59405782883433E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.000489112303078988" />
+      <inertia
+        ixx="4.48016318899327E-09"
+        ixy="-1.93283010934183E-09"
+        ixz="-1.28464378602607E-11"
+        iyy="3.834771866864E-08"
+        iyz="-3.94300598627811E-13"
+        izz="3.92755371230416E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/rf_slider_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/rf_slider_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="rf_slider_left_link"
+    type="prismatic">
+    <origin
+      xyz="-0.074498 -0.0072492 -0.0023801"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_left_baselink" />
+    <child
+      link="rf_slider_left_link" />
+    <axis
+      xyz="0.9984 0.056554 9.5082E-05" />
+    <limit
+      lower="0"
+      upper="0.019"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="rf_slider_abpart_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0103066808663681 -0.00409004748705058 -0.000613628353270297"
+        rpy="0 0 0" />
+      <mass
+        value="0.000419595841745906" />
+      <inertia
+        ixx="1.77645736028942E-09"
+        ixy="-2.25058409313133E-10"
+        ixz="-7.39578165961404E-10"
+        iyy="5.73522260886412E-09"
+        iyz="-4.18409260159825E-11"
+        izz="6.19086108929486E-09" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/rf_slider_abpart_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/rf_slider_abpart_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="rf_slider_abpart_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.029152 0.0018551 0"
+      rpy="0 0 0" />
+    <parent
+      link="rf_slider_left_link" />
+    <child
+      link="rf_slider_abpart_left_link" />
+    <axis
+      xyz="-0.056554 0.9984 -7.942E-05" />
+  </joint>
+  <link
+    name="rf_proximal_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0169549089835899 -0.00817221852533054 -0.00333737800773532"
+        rpy="0 0 0" />
+      <mass
+        value="0.00154985371268108" />
+      <inertia
+        ixx="6.16430441306532E-08"
+        ixy="-5.27625854931828E-09"
+        ixz="-1.35085566211527E-09"
+        iyy="1.54505752798055E-07"
+        iyz="-7.80848576926748E-11"
+        izz="1.69627005510225E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/rf_proximal_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/rf_proximal_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="rf_proximal_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.11364 -0.0022565 0.0062163"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_left_baselink" />
+    <child
+      link="rf_proximal_left_link" />
+    <axis
+      xyz="-0.05658 0.9984 2.102E-05" />
+  </joint>
+  <link
+    name="rf_distal_left_link">
+    <inertial>
+      <origin
+        xyz="-0.022696111452442 -0.00849649226724736 -0.00835478756750876"
+        rpy="0 0 0" />
+      <mass
+        value="0.00422730983553646" />
+      <inertia
+        ixx="1.16496262714894E-07"
+        ixy="-2.5261364839183E-08"
+        ixz="-1.41993969994743E-07"
+        iyy="5.59567957009536E-07"
+        iyz="-8.07053877471632E-09"
+        izz="5.22034079641838E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/rf_distal_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/rf_distal_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="rf_distal_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.035766 -0.0020268 -0.0026198"
+      rpy="0 0 0" />
+    <parent
+      link="rf_proximal_left_link" />
+    <child
+      link="rf_distal_left_link" />
+    <axis
+      xyz="-0.05658 0.9984 2.102E-05" />
+  </joint>
+  <link
+    name="rf_connecting_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0182151281756033 0.0164706758619828 -0.00574282817068492"
+        rpy="0 0 0" />
+      <mass
+        value="0.000197692354337264" />
+      <inertia
+        ixx="4.92838052690555E-09"
+        ixy="-1.25465921189233E-09"
+        ixz="-9.87171474508207E-09"
+        iyy="2.70004879799029E-08"
+        iyz="-5.59333811535522E-10"
+        izz="2.22353755729308E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/rf_connecting_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/rf_connecting_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="rf_connecting_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.11723 -0.027174 0.008365"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_left_baselink" />
+    <child
+      link="rf_connecting_left_link" />
+    <axis
+      xyz="-0.05658 0.9984 2.102E-05" />
+  </joint>
+  <link
+    name="lf_slider_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0144167564876969 -0.00171205925869156 3.81352530457336E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.000510662528391611" />
+      <inertia
+        ixx="4.9365491500063E-09"
+        ixy="-3.99382130462206E-09"
+        ixz="-3.82896929119076E-12"
+        iyy="3.79994364556094E-08"
+        iyz="-7.87026435487919E-11"
+        izz="3.93595008041777E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/lf_slider_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/lf_slider_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="lf_slider_left_link"
+    type="prismatic">
+    <origin
+      xyz="-0.070847 -0.024182 -0.0048997"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_left_baselink" />
+    <child
+      link="lf_slider_left_link" />
+    <axis
+      xyz="0.99301 0.11803 8.2704E-05" />
+    <limit
+      lower="0"
+      upper="0.019"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="lf_slider_abpart_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0100358483607181 -0.00463982379624511 -0.00104236140669513"
+        rpy="0 0 0" />
+      <mass
+        value="0.000419595826532552" />
+      <inertia
+        ixx="1.82121196852816E-09"
+        ixy="-3.9802967870408E-10"
+        ixz="-7.80769700533061E-10"
+        iyy="5.71210051864852E-09"
+        iyz="-1.29906442115816E-10"
+        izz="6.16922773505282E-09" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/lf_slider_abpart_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/lf_slider_abpart_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="lf_slider_abpart_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.029209 4.0116E-05 0.00030326"
+      rpy="0 0 0" />
+    <parent
+      link="lf_slider_left_link" />
+    <child
+      link="lf_slider_abpart_left_link" />
+    <axis
+      xyz="-0.11759 0.98923 0.08715" />
+  </joint>
+  <link
+    name="lf_proximal_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0146179038371213 -0.00865933449081624 -0.00404765240562847"
+        rpy="0 0 0" />
+      <mass
+        value="0.00136661208486985" />
+      <inertia
+        ixx="5.65517835433433E-08"
+        ixy="-6.43465965682621E-09"
+        ixz="-2.86652645878912E-09"
+        iyy="1.12186752570062E-07"
+        iyz="-1.61029658148309E-09"
+        izz="1.27246247373284E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/lf_proximal_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/lf_proximal_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="lf_proximal_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.11032 -0.022406 0.0042916"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_left_baselink" />
+    <child
+      link="lf_proximal_left_link" />
+    <axis
+      xyz="-0.11759 0.98923 0.087106" />
+  </joint>
+  <link
+    name="lf_distal_left_link">
+    <inertial>
+      <origin
+        xyz="-0.014370796499536 -0.008390245956126 -0.00657795990320131"
+        rpy="0 0 0" />
+      <mass
+        value="0.00262042947413116" />
+      <inertia
+        ixx="5.14865241597797E-08"
+        ixy="-8.72354900376063E-09"
+        ixz="-3.78475585620367E-08"
+        iyy="1.52166371803539E-07"
+        iyz="-3.91942047531457E-09"
+        izz="1.45327848752015E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/lf_distal_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/lf_distal_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="lf_distal_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.031562 -0.0034532 -0.003392"
+      rpy="0 0 0" />
+    <parent
+      link="lf_proximal_left_link" />
+    <child
+      link="lf_distal_left_link" />
+    <axis
+      xyz="-0.11759 0.98923 0.087106" />
+  </joint>
+  <link
+    name="lf_connecting_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0121624488477445 -0.00439577388851597 -0.00839995412997622"
+        rpy="0 0 0" />
+      <mass
+        value="0.000176980932045691" />
+      <inertia
+        ixx="4.93706927346499E-09"
+        ixy="-1.08018597686527E-09"
+        ixz="-8.19110691260071E-09"
+        iyy="2.00115768299624E-08"
+        iyz="-5.47674876971474E-10"
+        izz="1.52537402638674E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/lf_connecting_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/lf_connecting_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="lf_connecting_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.11723 -0.027174 0.008365"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_left_baselink" />
+    <child
+      link="lf_connecting_left_link" />
+    <axis
+      xyz="-0.11759 0.98924 0.087085" />
+  </joint>
+  <link
+    name="th_root_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0182055985206398 0.00620277969837987 -0.00602504691008154"
+        rpy="0 0 0" />
+      <mass
+        value="0.00217782401907458" />
+      <inertia
+        ixx="1.92048266024776E-07"
+        ixy="8.02008085705929E-08"
+        ixz="-1.58292817167637E-08"
+        iyy="1.97385210109919E-07"
+        iyz="2.8437183719772E-08"
+        izz="2.25369870005598E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/th_root_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/th_root_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="th_root_left_link"
+    type="revolute">
+    <origin
+      xyz="-0.024656 0.019554 -0.018266"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_left_baselink" />
+    <child
+      link="th_root_left_link" />
+    <axis
+      xyz="-0.97616 0.01293 -0.21667" />
+    <limit
+      lower="0"
+      upper="1.57"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="th_proximal_left_link">
+    <inertial>
+      <origin
+        xyz="-0.00770018684827107 0.011788302524247 -0.0170644760229541"
+        rpy="0 0 0" />
+      <mass
+        value="0.00501318922026079" />
+      <inertia
+        ixx="2.07793414915373E-06"
+        ixy="-3.98829361861836E-12"
+        ixz="3.13964194356435E-13"
+        iyy="1.50672511173197E-06"
+        iyz="6.80394768150803E-07"
+        izz="6.75564984341832E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/th_proximal_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/th_proximal_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="th_proximal_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.025097 0.021667 -0.015581"
+      rpy="0.14303 1.3497 0.14655" />
+    <parent
+      link="th_root_left_link" />
+    <child
+      link="th_proximal_left_link" />
+    <axis
+      xyz="1 0 0" />
+  </joint>
+  <link
+    name="th_slider_left_link">
+    <inertial>
+      <origin
+        xyz="-0.0119352170255541 0.00825053452681332 -0.00238381819650774"
+        rpy="0 0 0" />
+      <mass
+        value="0.000966918573679238" />
+      <inertia
+        ixx="4.78147534251827E-08"
+        ixy="2.60369555753437E-08"
+        ixz="-1.95859134260407E-09"
+        iyy="5.57308268866282E-08"
+        iyz="5.63509107044141E-09"
+        izz="6.02170914313473E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/th_slider_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/th_slider_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="th_slider_left_link"
+    type="prismatic">
+    <origin
+      xyz="-0.0077 0.0027693 -0.00023667"
+      rpy="0 -1.352 -0.032034" />
+    <parent
+      link="th_proximal_left_link" />
+    <child
+      link="th_slider_left_link" />
+    <axis
+      xyz="-0.76198 0.63028 -0.14877" />
+    <limit
+      lower="0"
+      upper="0.01"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="th_connecting_left_link">
+    <inertial>
+      <origin
+        xyz="-0.00506957828509727 0.0022529909165182 0.00365191633381741"
+        rpy="0 0 0" />
+      <mass
+        value="0.000334843777726033" />
+      <inertia
+        ixx="2.97269012068611E-09"
+        ixy="1.34809608463028E-09"
+        ixz="-4.23656553440134E-10"
+        iyy="5.01992883871934E-09"
+        iyz="2.98232658947671E-10"
+        izz="4.99074064887975E-09" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/th_connecting_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/th_connecting_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="th_connecting_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.027697 0.024088 -0.010084"
+      rpy="0 0 0" />
+    <parent
+      link="th_slider_left_link" />
+    <child
+      link="th_connecting_left_link" />
+    <axis
+      xyz="0.21699 0.032029 -0.97565" />
+  </joint>
+  <link
+    name="th_distal_left_link">
+    <inertial>
+      <origin
+        xyz="-0.00470321656966432 0.0108131649563331 0.00709251414154711"
+        rpy="0 0 0" />
+      <mass
+        value="0.00509494222453049" />
+      <inertia
+        ixx="2.72112772656721E-07"
+        ixy="5.86600483065481E-08"
+        ixz="8.76444627770057E-09"
+        iyy="2.01886474111303E-07"
+        iyz="1.17477856405696E-08"
+        izz="2.43694502794788E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/th_distal_left_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/th_distal_left_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="th_distal_left_link"
+    type="continuous">
+    <origin
+      xyz="-0.00010351 0.023735 -0.046849"
+      rpy="0 -1.352 -0.032034" />
+    <parent
+      link="th_proximal_left_link" />
+    <child
+      link="th_distal_left_link" />
+    <axis
+      xyz="0.21698 0.032029 -0.97565" />
+  </joint>
+  <link
+    name="ZPF_right_base_link">
+    <inertial>
+      <origin
+        xyz="2.6156962e-04 -8.8049196e-05 3.9913685e-02"
+        rpy="0 0 0" />
+      <mass
+        value="1.39" />
+      <inertia
+        ixx="1.7514573e-03"
+        ixy="-7.1608268e-07"
+        ixz="1.7226023e-05"
+        iyy="1.7472324e-03"
+        iyz="-5.4661047e-06"
+        izz="1.1808076e-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.86667 0.9098 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_right_base_joint_0"
+    type="fixed">
+    <origin
+      xyz="-0.061 -0.0485 0.3174"
+      rpy="1.5708 -1.5708 0" />
+    <parent
+      link="waist_yaw_link" />
+    <child
+      link="ZPF_right_base_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+<link
+    name="ZPF_right_Link1">
+    <inertial>
+      <origin
+        xyz="-2.0626e-3 1.692e-2 -2.885e-2"
+        rpy="0 0 0" />
+      <mass
+        value="0.6469" />
+      <inertia
+        ixx="1.7020262e-03"
+        ixy="5.9529311e-05"
+        ixz="1.5086619e-04"
+        iyy="1.6194527e-03"
+        iyz="-2.1354425e-04"
+        izz="1.5939956e-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_Link1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_Link1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_right_Joint1"
+    type="revolute">
+    <origin
+      xyz="0 0 0.1785"
+      rpy="0 0 0" />
+    <parent
+      link="ZPF_right_base_link" />
+    <child
+      link="ZPF_right_Link1" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.1066860685499066469241695679097"
+      upper="3.1066860685499066469241695679097"
+      effort="60"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="ZPF_right_Link2">
+    <inertial>
+      <origin
+        xyz="1.168e-4 -6.557e-3 1.5049e-2"
+        rpy="0 0 0" />
+      <mass
+        value="1.37" />
+      <inertia
+        ixx="1.8034273e-03"
+        ixy="-1.0921536e-06"
+        ixz="4.0562036e-06"
+        iyy="1.2896722e-03"
+        iyz="-1.1968272e-04"
+        izz="1.5737028e-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_Link2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_Link2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_right_Joint2"
+    type="revolute">
+    <origin
+      xyz="0 0 0"
+      rpy="-1.5707963267948966192313216916398 -1.5707963267948966192313216916398 0" />
+    <parent
+      link="ZPF_right_Link1" />
+    <child
+      link="ZPF_right_Link2" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.1066860685499066469241695679097"
+      upper="0.43982297150257105338477007365913"
+      effort="60"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="ZPF_right_Link3">
+    <inertial>
+      <origin
+        xyz="4.7865e-3 -3.192e-3 -9.2988e-2"
+        rpy="0 0 0" />
+      <mass
+        value="2.25" />
+      <inertia
+        ixx="1.7835120e-02"
+        ixy="2.9186739e-05"
+        ixz="-9.4187028e-04"
+        iyy="1.7664305e-02"
+        iyz="7.1721148e-04"
+        izz="1.7726268e-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_Link3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_Link3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_right_Joint3"
+    type="revolute">
+    <origin
+      xyz="0 -0.28998 0"
+      rpy="1.5707963267948966192313216916398 1.5707963267948966192313216916398 0" />
+    <parent
+      link="ZPF_right_Link2" />
+    <child
+      link="ZPF_right_Link3" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.1066860685499066469241695679097"
+      upper="3.1066860685499066469241695679097"
+      effort="30"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="ZPF_right_Link4">
+    <inertial>
+      <origin
+        xyz="-9.4244e-3 8.6907e-2 4.949e-3"
+        rpy="0 0 0" />
+      <mass
+        value="0.86" />
+      <inertia
+        ixx="3.0979180e-03"
+        ixy="-2.2400381e-05"
+        ixz="-3.5082686e-05"
+        iyy="7.6662000e-04"
+        iyz="2.7748587e-04"
+        izz="2.9734939e-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_Link4.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_Link4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_right_Joint4"
+    type="revolute">
+    <origin
+      xyz="0.01 0 0"
+      rpy="1.5707963267948966192313216916398 0 0" />
+    <parent
+      link="ZPF_right_Link3" />
+    <child
+      link="ZPF_right_Link4" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2.2689280275926284500007979990352"
+      upper="0"
+      effort="30"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="ZPF_right_Link5">
+    <inertial>
+      <origin
+        xyz="-2.4492e-5 2.26e-2 -8.511e-2"
+        rpy="0 0 0" />
+      <mass
+        value="1.02" />
+      <inertia
+        ixx="2.2862825e-03"
+        ixy="-1.8499609e-07"
+        ixz="4.9891167e-08"
+        iyy="2.0659134e-03"
+        iyz="-3.7974533e-04"
+        izz="9.6048783e-04" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_Link5.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_Link5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_right_Joint5"
+    type="revolute">
+    <origin
+      xyz="-0.01 0.3088 0"
+      rpy="-1.5707963267948966192313216916398 0 0" />
+    <parent
+      link="ZPF_right_Link4" />
+    <child
+      link="ZPF_right_Link5" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.1066860685499066469241695679097"
+      upper="3.1066860685499066469241695679097"
+      effort="10"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="ZPF_right_Link6">
+    <inertial>
+      <origin
+        xyz="9.1493e-3 -8.101e-3 -3.00667e-3"
+        rpy="0 0 0" />
+      <mass
+        value="0.55" />
+      <inertia
+        ixx="3.7537073e-04"
+        ixy="3.1868444e-06"
+        ixz="-1.5769918e-05"
+        iyy="2.7629393e-04"
+        iyz="1.1957640e-05"
+        izz="3.2291903e-04" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_Link6.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_Link6.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_right_Joint6"
+    type="revolute">
+    <origin
+      xyz="0 0 0"
+      rpy="1.5707963267948966192313216916398 -1.5707963267948966192313216916398 0" />
+    <parent
+      link="ZPF_right_Link5" />
+    <child
+      link="ZPF_right_Link6" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1.221730476396030703846583537942"
+      upper="1.221730476396030703846583537942"
+      effort="10"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="ZPF_right_Link7">
+    <inertial>
+      <origin
+        xyz="-6.8522e-4 5.4274e-2 5.44e-3"
+        rpy="0 0 0" />
+      <mass
+        value="0.278" />
+      <inertia
+        ixx="0.000132576283150348"
+        ixy="-9.13925548006411E-06"
+        ixz="4.20109574651154E-07"
+        iyy="0.000151675646214133"
+        iyz="2.83539055428198E-05"
+        izz="0.000142517526382716" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_Link7.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_Link7.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_right_Joint7"
+    type="revolute">
+    <origin
+      xyz="0.01 0 0"
+      rpy="1.5707963267948966192313216916398 1.5707963267948966192313216916398 0" />
+    <parent
+      link="ZPF_right_Link6" />
+    <child
+      link="ZPF_right_Link7" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-0.48869219055841228153863341517681"
+      upper="2.0943951023931954923084289221863"
+      effort="10"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="ZPF_right_Link8">
+    <inertial>
+      <origin
+        xyz="-0.000223537301525578 8.83815960186004E-05 -0.0171573736296614"
+        rpy="0 0 0" />
+      <mass
+        value="0.165822770817375" />
+      <inertia
+        ixx="4.88486835315513E-05"
+        ixy="-9.4591517590295E-08"
+        ixz="3.06121334035521E-07"
+        iyy="4.94603562925533E-05"
+        iyz="8.02679892105756E-09"
+        izz="7.69016251075802E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_Link8.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/ZPF_right_Link8.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="ZPF_right_Joint8"
+    type="fixed">
+    <origin
+      xyz="0 0.11462 0"
+      rpy="-1.5707963267948966192313216916398 0 0" />
+    <parent
+      link="ZPF_right_Link7" />
+    <child
+      link="ZPF_right_Link8" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <!-- 上面是ZPFR的右臂 -->
+  <link
+    name="rohand_right_baselink">
+    <inertial>
+      <origin
+        xyz="1.5645E-05 -4.1838E-06 0.003246"
+        rpy="0 0 0" />
+      <mass
+        value="0.0941614898718946" />
+      <inertia
+        ixx="4.1962895621209E-05"
+        ixy="-3.95936210501525E-07"
+        ixz="3.71581889924585E-06"
+        iyy="6.1906439028121E-05"
+        iyz="-7.5091963461847E-07"
+        izz="8.90989074913989E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/rohand_right_baselink.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/rohand_right_baselink.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="rohand_right_baselink_joint"
+    type="fixed">
+    <origin
+      xyz="0 0 0.003"
+      rpy="0 1.5708 0" />
+      <!-- Z改为0 -->
+    <parent
+      link="ZPF_right_Link8" />
+    <child
+      link="rohand_right_baselink" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="if_slider_link">
+    <inertial>
+      <origin
+        xyz="-0.0138317508854737 -0.00115448052302192 1.02779733464993E-06"
+        rpy="0 0 0" />
+      <mass
+        value="0.000489138281878773" />
+      <inertia
+        ixx="4.60375865761165E-09"
+        ixy="-2.8127148800347E-09"
+        ixz="-3.80386613632835E-12"
+        iyy="3.82335085784227E-08"
+        iyz="-7.1416734141464E-11"
+        izz="3.92716908725489E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/if_slider_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/if_slider_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="if_slider_link"
+    type="prismatic">
+    <origin
+      xyz="-0.074396 -0.026655 -0.0059032"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_right_baselink" />
+    <child
+      link="if_slider_link" />
+    <axis
+      xyz="0.99655 0.083049 0" />
+    <limit
+      lower="0"
+      upper="0.019"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="if_slider_abpart_link">
+    <inertial>
+      <origin
+        xyz="-0.00954720518211122 -0.00427267015401807 -0.000544594201914366"
+        rpy="0 0 0" />
+      <mass
+        value="0.000526636346253179" />
+      <inertia
+        ixx="2.02100021410092E-09"
+        ixy="-2.54226845281041E-10"
+        ixz="-6.59734936904708E-10"
+        iyy="5.75584791299005E-09"
+        iyz="-1.16850382620202E-10"
+        izz="6.47148213147093E-09" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/if_slider_abpart_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/if_slider_abpart_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="if_slider_abpart_link"
+    type="continuous">
+    <origin
+      xyz="-0.029189 0.0010654 0.00030518"
+      rpy="0 0 0" />
+    <parent
+      link="if_slider_link" />
+    <child
+      link="if_slider_abpart_link" />
+    <axis
+      xyz="-0.082734 0.99276 0.087135" />
+  </joint>
+  <link
+    name="if_proximal_link">
+    <inertial>
+      <origin
+        xyz="-0.016911951986149 -0.00765749366613764 -0.00334236834850994"
+        rpy="0 0 0" />
+      <mass
+        value="0.00154952958352476" />
+      <inertia
+        ixx="6.20200913201911E-08"
+        ixy="-7.88931806956546E-09"
+        ixz="2.14332181974192E-09"
+        iyy="1.54230936622336E-07"
+        iyz="-1.10636494913782E-09"
+        izz="1.69485646305645E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/if_proximal_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/if_proximal_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="if_proximal_link"
+    type="continuous">
+    <origin
+      xyz="-0.11324 -0.024137 0.0032314"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_right_baselink" />
+    <child
+      link="if_proximal_link" />
+    <axis
+      xyz="-0.082428 0.99278 0.087177" />
+  </joint>
+  <link
+    name="if_distal_link">
+    <inertial>
+      <origin
+        xyz="-0.0201374868799976 -0.00765839764328939 -0.00662950783512292"
+        rpy="0 0 0" />
+      <mass
+        value="0.00486631616894411" />
+      <inertia
+        ixx="1.06037458594174E-07"
+        ixy="-2.80052670107197E-08"
+        ixz="-1.10754286705661E-07"
+        iyy="5.59829063970866E-07"
+        iyz="-8.01484559546708E-09"
+        izz="5.48253746727419E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/if_distal_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/if_distal_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="if_distal_link"
+    type="continuous">
+    <origin
+      xyz="-0.035776 -0.0028401 -0.0014841"
+      rpy="0 0 0" />
+    <parent
+      link="if_proximal_link" />
+    <child
+      link="if_distal_link" />
+    <axis
+      xyz="-0.082428 0.99278 0.087177" />
+  </joint>
+  <link
+    name="if_connecting_link">
+    <inertial>
+      <origin
+        xyz="-0.0149214142555827 -0.00339461470143052 -0.00756951243385832"
+        rpy="0 0 0" />
+      <mass
+        value="0.000197689248381643" />
+      <inertia
+        ixx="4.07222521241257E-09"
+        ixy="-1.11279905101146E-09"
+        ixz="-9.07365678556378E-09"
+        iyy="2.70144151560738E-08"
+        iyz="-4.02636120037544E-10"
+        izz="2.30773508713418E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/if_connecting_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/if_connecting_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="if_connecting_link"
+    type="continuous">
+    <origin
+      xyz="-0.12029 -0.028806 0.0072922"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_right_baselink" />
+    <child
+      link="if_connecting_link" />
+    <axis
+      xyz="-0.082428 0.99278 0.087177" />
+  </joint>
+  <link
+    name="mf_slider_link">
+    <inertial>
+      <origin
+        xyz="-0.0138786110407517 -0.000185270392211319 -7.69158771327105E-08"
+        rpy="0 0 0" />
+      <mass
+        value="0.000489138286069735" />
+      <inertia
+        ixx="4.37587749533903E-09"
+        ixy="-4.42411170419709E-10"
+        ixz="-1.36586897440314E-11"
+        iyy="3.84552026805131E-08"
+        iyz="-1.78840748392823E-13"
+        izz="3.92778850218071E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/mf_slider_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/mf_slider_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="mf_slider_link"
+    type="prismatic">
+    <origin
+      xyz="-0.076974 -0.010077 -0.0016353"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_right_baselink" />
+    <child
+      link="mf_slider_link" />
+    <axis
+      xyz="0.99991 0.013228 0.00010039" />
+    <limit
+      lower="0"
+      upper="0.019"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="mf_slider_abpart_link">
+    <inertial>
+      <origin
+        xyz="-0.0098119455834705 -0.00362935245878584 -0.000504858603029756"
+        rpy="0 0 0" />
+      <mass
+        value="0.000526636368526203" />
+      <inertia
+        ixx="2.04436010906919E-09"
+        ixy="-4.91500227589239E-11"
+        ixz="-7.8831220122798E-10"
+        iyy="5.7661259675915E-09"
+        iyz="-1.04922947060781E-11"
+        izz="6.43784527640786E-09" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/mf_slider_abpart_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/mf_slider_abpart_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="mf_slider_abpart_link"
+    type="continuous">
+    <origin
+      xyz="-0.029044 0.0031153 0"
+      rpy="0 0 0" />
+    <parent
+      link="mf_slider_link" />
+    <child
+      link="mf_slider_abpart_link" />
+    <axis
+      xyz="-0.013228 0.99991 7.2594E-05" />
+  </joint>
+  <link
+    name="mf_proximal_link">
+    <inertial>
+      <origin
+        xyz="-0.0197978588062098 -0.00676309331424427 -0.00446755065405406"
+        rpy="0 0 0" />
+      <mass
+        value="0.00189501857338832" />
+      <inertia
+        ixx="7.78041708071735E-08"
+        ixy="-2.0667592450232E-09"
+        ixz="-1.00293189957718E-08"
+        iyy="2.34038237089644E-07"
+        iyz="-1.31948795498825E-10"
+        izz="2.46195986184317E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/mf_proximal_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/mf_proximal_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="mf_proximal_link"
+    type="continuous">
+    <origin
+      xyz="-0.11605 -0.0040932 0.0069659"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_right_baselink" />
+    <child
+      link="mf_proximal_link" />
+    <axis
+      xyz="-0.013244 0.99991 -4.2699E-05" />
+  </joint>
+  <link
+    name="mf_distal_link">
+    <inertial>
+      <origin
+        xyz="-0.0205799567083225 -0.00679450784333847 -0.00619598626408838"
+        rpy="0 0 0" />
+      <mass
+        value="0.00486610881870854" />
+      <inertia
+        ixx="1.05820356063162E-07"
+        ixy="-5.96217069992573E-09"
+        ixz="-1.13841963470745E-07"
+        iyy="5.61305496694097E-07"
+        iyz="-1.48710666865769E-09"
+        izz="5.46868992272727E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/mf_distal_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/mf_distal_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="mf_distal_link"
+    type="continuous">
+    <origin
+      xyz="-0.040851 -0.00054126 -0.0035364"
+      rpy="0 0 0" />
+    <parent
+      link="mf_proximal_link" />
+    <child
+      link="mf_distal_link" />
+    <axis
+      xyz="-0.013244 0.99991 -2.1055E-05" />
+  </joint>
+  <link
+    name="mf_connecting_link">
+    <inertial>
+      <origin
+        xyz="-0.0172404027176054 -0.00302882403489448 -0.00839495079986684"
+        rpy="0 0 0" />
+      <mass
+        value="0.000216186298115104" />
+      <inertia
+        ixx="5.71911032121687E-09"
+        ixy="-4.34635722671368E-10"
+        ixz="-1.31282576362091E-08"
+        iyy="3.85062669375328E-08"
+        iyz="-1.74010213990928E-10"
+        izz="3.28217382655966E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/mf_connecting_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/mf_connecting_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="mf_connecting_link"
+    type="continuous">
+    <origin
+      xyz="-0.12342 -0.0078912 0.011366"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_right_baselink" />
+    <child
+      link="mf_connecting_link" />
+    <axis
+      xyz="-0.013244 0.99991 -2.1054E-05" />
+  </joint>
+  <link
+    name="rf_slider_link">
+    <inertial>
+      <origin
+        xyz="-0.0138577276275272 0.000783291982999354 -2.57947158771588E-09"
+        rpy="0 0 0" />
+      <mass
+        value="0.000489138255422532" />
+      <inertia
+        ixx="4.4801306165684E-09"
+        ixy="1.93332298746995E-09"
+        ixz="-1.34549090986576E-11"
+        iyy="3.83509471510986E-08"
+        iyz="7.58561752901306E-13"
+        izz="3.92778831148437E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/rf_slider_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/rf_slider_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="rf_slider_link"
+    type="prismatic">
+    <origin
+      xyz="-0.074498 0.0072492 -0.0023801"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_right_baselink" />
+    <child
+      link="rf_slider_link" />
+    <axis
+      xyz="0.9984 -0.056554 9.5082E-05" />
+    <limit
+      lower="0"
+      upper="0.019"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="rf_slider_abpart_link">
+    <inertial>
+      <origin
+        xyz="-0.0100460782718657 -0.00293580717799607 -0.000398409844149738"
+        rpy="0 0 0" />
+      <mass
+        value="0.000526636350514617" />
+      <inertia
+        ixx="2.03917187638513E-09"
+        ixy="2.11241960983381E-10"
+        ixz="-7.39578422790513E-10"
+        iyy="5.75480358477282E-09"
+        iyz="4.18225341671665E-11"
+        izz="6.45435515888634E-09" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/rf_slider_abpart_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/rf_slider_abpart_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="rf_slider_abpart_link"
+    type="continuous">
+    <origin
+      xyz="-0.028756 0.0051336 0"
+      rpy="0 0 0" />
+    <parent
+      link="rf_slider_link" />
+    <child
+      link="rf_slider_abpart_link" />
+    <axis
+      xyz="0.056554 0.9984 7.942E-05" />
+  </joint>
+  <link
+    name="rf_proximal_link">
+    <inertial>
+      <origin
+        xyz="-0.0177310287909376 -0.00550519929476113 -0.00333587081746279"
+        rpy="0 0 0" />
+      <mass
+        value="0.0015495346822944" />
+      <inertia
+        ixx="6.1627993173526E-08"
+        ixy="5.28043591321876E-09"
+        ixz="-1.35824301643415E-09"
+        iyy="1.54490462686207E-07"
+        iyz="8.36929214668239E-11"
+        izz="1.69619189994361E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/rf_proximal_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/rf_proximal_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="rf_proximal_link"
+    type="continuous">
+    <origin
+      xyz="-0.11287 0.015935 0.0062161"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_right_baselink" />
+    <child
+      link="rf_proximal_link" />
+    <axis
+      xyz="0.05658 0.9984 -2.102E-05" />
+  </joint>
+  <link
+    name="rf_distal_link">
+    <inertial>
+      <origin
+        xyz="-0.0205452704454659 -0.00536749629258281 -0.00756097673363692"
+        rpy="0 0 0" />
+      <mass
+        value="0.00486607601001256" />
+      <inertia
+        ixx="1.24271987974525E-07"
+        ixy="2.48401012771062E-08"
+        ixz="-1.41965837565003E-07"
+        iyy="5.59956587625226E-07"
+        iyz="8.06905373260045E-09"
+        izz="5.29737231583633E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/rf_distal_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/rf_distal_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="rf_distal_link"
+    type="continuous">
+    <origin
+      xyz="-0.035766 0.0020268 -0.0026198"
+      rpy="0 0 0" />
+    <parent
+      link="rf_proximal_link" />
+    <child
+      link="rf_distal_link" />
+    <axis
+      xyz="0.05658 0.9984 -2.102E-05" />
+  </joint>
+  <link
+    name="rf_connecting_link">
+    <inertial>
+      <origin
+        xyz="-0.0149581978586362 -0.00195701448922151 -0.00799324332753841"
+        rpy="0 0 0" />
+      <mass
+        value="0.000197689252304948" />
+      <inertia
+        ixx="4.92836846137584E-09"
+        ixy="1.25465287447078E-09"
+        ixz="-9.87167520544273E-09"
+        iyy="2.70003622691774E-08"
+        iyz="5.59331393640482E-10"
+        izz="2.22352610693874E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/rf_connecting_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/rf_connecting_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="rf_connecting_link"
+    type="continuous">
+    <origin
+      xyz="-0.1204851022382 0.0126604995038233 0.0106153804877178"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_right_baselink" />
+    <child
+      link="rf_connecting_link" />
+    <axis
+      xyz="0.0565797489260885 0.99839808271532 -2.10198201110756E-05" />
+  </joint>
+  <link
+    name="lf_slider_link">
+    <inertial>
+      <origin
+        xyz="-0.0137830050652566 0.00163673819958291 3.10002635612108E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.000489138222296884" />
+      <inertia
+        ixx="4.84694102463702E-09"
+        ixy="4.00378603315495E-09"
+        ixz="-5.27247404385965E-12"
+        iyy="3.79903471786704E-08"
+        iyz="7.21125885153376E-11"
+        izz="3.92716625459811E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/lf_slider_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/lf_slider_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="lf_slider_link"
+    type="prismatic">
+    <origin
+      xyz="-0.0708466334619896 0.0241824111749996 -0.00489967270216645"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_right_baselink" />
+    <child
+      link="lf_slider_link" />
+    <axis
+      xyz="0.993009723934899 -0.118032543523823 8.27044911595336E-05" />
+    <limit
+      lower="0"
+      upper="0.019"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="lf_slider_abpart_link">
+    <inertial>
+      <origin
+        xyz="-0.0102063555652567 -0.00234259650590587 -0.000209525841910842"
+        rpy="0 0 0" />
+      <mass
+        value="0.000526636335571007" />
+      <inertia
+        ixx="2.08132552306167E-09"
+        ixy="3.69565387537111E-10"
+        ixz="-7.78261185028171E-10"
+        iyy="5.73614117437819E-09"
+        iyz="1.51002988209835E-10"
+        izz="6.43086320825401E-09" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/lf_slider_abpart_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/lf_slider_abpart_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="lf_slider_abpart_link"
+    type="continuous">
+    <origin
+      xyz="-0.0283858043783233 0.00688449840682251 -0.000306788289491815"
+      rpy="0 0 0" />
+    <parent
+      link="lf_slider_link" />
+    <child
+      link="lf_slider_abpart_link" />
+    <axis
+      xyz="0.117590610595967 0.989230669602698 -0.0871500465694956" />
+  </joint>
+  <link
+    name="lf_proximal_link">
+    <inertial>
+      <origin
+        xyz="-0.0162288997665586 -0.00489295515461147 -0.00285461884567003"
+        rpy="0 0 0" />
+      <mass
+        value="0.00136677973237" />
+      <inertia
+        ixx="5.65577187001445E-08"
+        ixy="6.43606986195803E-09"
+        ixz="-2.86666526076883E-09"
+        iyy="1.12197398928047E-07"
+        iyz="1.61247214480287E-09"
+        izz="1.27256606416047E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/lf_proximal_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/lf_proximal_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="lf_proximal_link"
+    type="continuous">
+    <origin
+      xyz="-0.10871130258864 0.0359583660197833 0.00309824490260681"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_right_baselink" />
+    <child
+      link="lf_proximal_link" />
+    <axis
+      xyz="0.117591058209323 0.989234457465869 -0.0871064359930968" />
+  </joint>
+  <link
+    name="lf_distal_link">
+    <inertial>
+      <origin
+        xyz="-0.0131613846630599 -0.00544871200568296 -0.00463526283326208"
+        rpy="0 0 0" />
+      <mass
+        value="0.00326999621591245" />
+      <inertia
+        ixx="5.95701111045849E-08"
+        ixy="7.82239562000353E-09"
+        ixz="-3.78877982628279E-08"
+        iyy="1.53009904450743E-07"
+        iyz="4.48079481900786E-09"
+        izz="1.53335411327093E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/lf_distal_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/lf_distal_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="lf_distal_link"
+    type="continuous">
+    <origin
+      xyz="-0.031562 0.0034532 -0.003392"
+      rpy="0 0 0" />
+    <parent
+      link="lf_proximal_link" />
+    <child
+      link="lf_distal_link" />
+    <axis
+      xyz="0.11759 0.98923 -0.087106" />
+  </joint>
+  <link
+    name="lf_connecting_link">
+    <inertial>
+      <origin
+        xyz="-0.0129208949539236 -0.00198480160598055 -0.00783823800520824"
+        rpy="0 0 0" />
+      <mass
+        value="0.000176981602686642" />
+      <inertia
+        ixx="4.93706907107081E-09"
+        ixy="1.08018685509757E-09"
+        ixz="-8.19111708831926E-09"
+        iyy="2.00115909902661E-08"
+        iyz="5.47675927664685E-10"
+        izz="1.52537546369551E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/lf_connecting_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/lf_connecting_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="lf_connecting_link"
+    type="continuous">
+    <origin
+      xyz="-0.11647 0.033555 0.0078033"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_right_baselink" />
+    <child
+      link="lf_connecting_link" />
+    <axis
+      xyz="0.11759 0.98924 -0.087085" />
+  </joint>
+  <link
+    name="th_root_link">
+    <inertial>
+      <origin
+        xyz="-0.0182056024312271 -0.00620278411274924 -0.00602504863372063"
+        rpy="0 0 0" />
+      <mass
+        value="0.00217782328356739" />
+      <inertia
+        ixx="1.92048481479894E-07"
+        ixy="-8.02008675069051E-08"
+        ixz="-1.58292104587684E-08"
+        iyy="1.97385228513266E-07"
+        iyz="-2.84372060188982E-08"
+        izz="2.25370032308905E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/th_root_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/th_root_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="th_root_link"
+    type="revolute">
+    <origin
+      xyz="-0.024656 -0.019554 -0.018266"
+      rpy="0 0 0" />
+    <parent
+      link="rohand_right_baselink" />
+    <child
+      link="th_root_link" />
+    <axis
+      xyz="0.97616 0.01293 0.21667" />
+    <limit
+      lower="0"
+      upper="1.57"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="th_proximal_link">
+    <inertial>
+      <origin
+        xyz="-0.0184116092810015 -0.0115354100517607 0.00417628792862241"
+        rpy="0 0 0" />
+      <mass
+        value="0.00501307756145889" />
+      <inertia
+        ixx="7.32552864862064E-07"
+        ixy="-6.67933190699978E-07"
+        ixz="-2.77355271268145E-07"
+        iyy="1.50720254529732E-06"
+        iyz="-1.29786986672997E-07"
+        izz="2.02068566316036E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/th_proximal_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/th_proximal_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="th_proximal_link"
+    type="continuous">
+    <origin
+      xyz="-0.025097 -0.021667 -0.015581"
+      rpy="0 0 0" />
+    <parent
+      link="th_root_link" />
+    <child
+      link="th_proximal_link" />
+    <axis
+      xyz="-0.21699 -0.032029 0.97565" />
+  </joint>
+  <link
+    name="th_slider_link">
+    <inertial>
+      <origin
+        xyz="-0.00851609590265527 -0.00542248522665952 -0.00171626270578038"
+        rpy="0 0 0" />
+      <mass
+        value="0.000966927715708797" />
+      <inertia
+        ixx="4.78157132134601E-08"
+        ixy="-2.60371829130736E-08"
+        ixz="-1.95870059545572E-09"
+        iyy="5.57310162346669E-08"
+        iyz="-5.63523062150475E-09"
+        izz="6.02181085440815E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/th_slider_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/th_slider_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="th_slider_link"
+    type="prismatic">
+    <origin
+      xyz="-0.0053401 -0.0053494 0.0068801"
+      rpy="0 0 0" />
+    <parent
+      link="th_proximal_link" />
+    <child
+      link="th_slider_link" />
+    <axis
+      xyz="-0.76198 -0.63028 -0.14877" />
+    <limit
+      lower="0"
+      upper="0.01"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="th_connecting_link">
+    <inertial>
+      <origin
+        xyz="-0.00136684006934208 -0.00145247600958444 -0.00439754221886702"
+        rpy="0 0 0" />
+      <mass
+        value="0.000607798102631607" />
+      <inertia
+        ixx="4.70576711466197E-09"
+        ixy="-1.33681610352704E-09"
+        ixz="-8.45531416476559E-11"
+        iyy="6.82689720568738E-09"
+        iyz="-3.48022069928473E-10"
+        izz="5.2757667153237E-09" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/th_connecting_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/th_connecting_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="th_connecting_link"
+    type="continuous">
+    <origin
+      xyz="-0.026144 -0.020984 -0.0010258"
+      rpy="0 0 0" />
+    <parent
+      link="th_slider_link" />
+    <child
+      link="th_connecting_link" />
+    <axis
+      xyz="-0.21699 0.032029 0.97565" />
+  </joint>
+  <link
+    name="th_distal_link">
+    <inertial>
+      <origin
+        xyz="-0.000439994899924894 -0.0101522919044099 -0.0069088261128312"
+        rpy="0 0 0" />
+      <mass
+        value="0.00601772502419511" />
+      <inertia
+        ixx="2.88077211935751E-07"
+        ixy="-5.85470950376845E-08"
+        ixz="1.21533994284891E-08"
+        iyy="2.18588933453259E-07"
+        iyz="-1.22530053465934E-08"
+        izz="2.45149442778336E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/th_distal_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Bot2_urdf/meshes_hand/meshes_r/th_distal_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="th_distal_link"
+    type="continuous">
+    <origin
+      xyz="-0.049076 -0.023254 0.004868"
+      rpy="0 0 0" />
+    <parent
+      link="th_proximal_link" />
+    <child
+      link="th_distal_link" />
+    <axis
+      xyz="-0.21698 0.032029 0.97565" />
+  </joint>
+</robot>
