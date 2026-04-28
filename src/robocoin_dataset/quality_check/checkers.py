@@ -15,6 +15,43 @@ from robocoin_dataset.quality_check.checker_registry import (
 
 import time
 from functools import wraps
+import os
+import mediapipe as mp
+import warnings
+import datetime
+from pathlib import Path
+from multiprocessing import Pool, cpu_count
+from functools import partial
+
+
+# 全局手部检测器单例
+_HANDS_DETECTOR = None
+_DETECTOR_PARAMS = None   # 记录当前检测器使用的参数
+
+def get_hand_detector(min_detection_confidence=0.6, min_tracking_confidence=0.5, max_num_hands=2):
+    global _HANDS_DETECTOR, _DETECTOR_PARAMS
+    current_params = (min_detection_confidence, min_tracking_confidence, max_num_hands)
+    if _HANDS_DETECTOR is None or _DETECTOR_PARAMS != current_params:
+        # 参数变化时重新创建
+        if _HANDS_DETECTOR is not None:
+            _HANDS_DETECTOR.close()
+        mp_hands = mp.solutions.hands
+        _HANDS_DETECTOR = mp_hands.Hands(
+            static_image_mode=False,
+            max_num_hands=max_num_hands,
+            min_detection_confidence=min_detection_confidence,
+            min_tracking_confidence=min_tracking_confidence
+        )
+        _DETECTOR_PARAMS = current_params
+    return _HANDS_DETECTOR
+
+def close_hand_detector():
+    global _HANDS_DETECTOR
+    if _HANDS_DETECTOR is not None:
+        _HANDS_DETECTOR.close()
+        _HANDS_DETECTOR = None
+        _DETECTOR_PARAMS = None
+
 
 # 全局缓存：key=(episode_idx, video_path), value=解码结果
 VIDEO_DECODE_CACHE = {}
@@ -42,6 +79,11 @@ def check_cuda_availability() -> bool:
     返回: True=有可用GPU，False=无GPU/环境不可用
     """
     global HAS_CUDA_GPU
+    if os.getenv("ENABLE_GPU_ACCELERATION", "True") == "False":
+        HAS_CUDA_GPU = False
+        print("[GPU检测] 根据手动配置，已禁用 GPU 解码，将使用 CPU")
+        return False
+    
     if HAS_CUDA_GPU is not None:
         return HAS_CUDA_GPU
     
@@ -108,7 +150,7 @@ def decode_video_once(video_path: str | Path, episode_idx: int = None):
             del VIDEO_DECODE_CACHE[k]
         ACTIVE_EPISODE_IDX = episode_idx
         # 输出剩余缓存的路径（可选）
-        remaining_paths = [k[1] for k in VIDEO_DECODE_CACHE.keys()]
+        # remaining_paths = [k[1] for k in VIDEO_DECODE_CACHE.keys()]
         # print(f"[Cache] 切换后剩余缓存项：{len(VIDEO_DECODE_CACHE)}个 | 路径列表：{remaining_paths}")
     
     # 2. 命中缓存直接返回（核心修改：输出完整路径）
@@ -198,7 +240,7 @@ def clear_video_decode_cache():
     global VIDEO_DECODE_CACHE, ACTIVE_EPISODE_IDX
     VIDEO_DECODE_CACHE.clear()
     ACTIVE_EPISODE_IDX = None
-    print("[Cache] 全局视频解码缓存已清空")
+    # print("[Cache] 全局视频解码缓存已清空")
 
 @dataset_data_checker_registry("few_episode_frames")
 def detect_short_episodes(
@@ -528,7 +570,7 @@ def detect_stable_then_jump_frames(
 
 
 @episode_video_checker_registry("max_frame_stable_then_jump_rate")
-def dectect_max_frame_stable_then_jump(video_paths: list[str | Path], episode_idx: int = None) -> float:
+def dectect_max_frame_stable_then_jump(video_paths: list[str | Path], episode_idx: int = None, max_dist_threshold: int = 125) -> float:
     """
     【Episode视频算子】检测视频稳定后跳变的最大汉明距离
     功能：计算所有视频中“稳定后跳变”的最大汉明距离，并归一化到0~1范围
@@ -551,9 +593,9 @@ def dectect_max_frame_stable_then_jump(video_paths: list[str | Path], episode_id
             return 1
         current_jump, _ = detect_stable_then_jump_frames(str(video_path), episode_idx=episode_idx)
         max_jump = max(max_jump, current_jump)
-    if max_jump > 125:
-        max_jump = 125  # 限制最大值，避免极端跳变导致分数过高
-    return max_jump / 125  # 归一化，假设100以上视为严重异常，125是为了让分数在0~1范围内更平滑
+    if max_jump > max_dist_threshold:
+        max_jump = max_dist_threshold  # 限制最大值，避免极端跳变导致分数过高
+    return max_jump / max_dist_threshold  # 归一化，假设100以上视为严重异常，125是为了让分数在0~1范围内更平滑
 
 
 @episode_video_checker_registry("max_frame_jump_dist")
@@ -702,6 +744,14 @@ def compute_phash(image: np.ndarray, hash_size: int = 16) -> str:
     phash = "".join(["1" if x > avg else "0" for x in dct_left.flatten()])
     return phash
 
+
+def compute_dhash(image: np.ndarray, hash_size: int = 8) -> str:
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    resized = cv2.resize(gray, (hash_size+1, hash_size))
+    # 计算相邻像素差异
+    diff = resized[:, 1:] > resized[:, :-1]
+    return ''.join('1' if b else '0' for row in diff for b in row)
+
 def hamming_distance(hash1: str, hash2: str) -> int:
     """计算两个哈希的汉明距离"""
     return sum(c1 != c2 for c1, c2 in zip(hash1, hash2))
@@ -771,7 +821,7 @@ def detect_consecutive_static_frames(
             # 所有采样帧哈希一致 → 判定相机卡死
             if all_sample_same:
                 camera_freeze_detected = True
-                print(f"⚠️ [严重异常] Episode {episode_idx} 视频 {video_path} 均匀采样{sample_count}个关键帧（索引：{sample_indices}）哈希完全一致，判定相机卡死")
+                # print(f"⚠️ [严重异常] Episode {episode_idx} 视频 {video_path} 均匀采样{sample_count}个关键帧（索引：{sample_indices}）哈希完全一致，判定相机卡死")
         
         # 检测到卡死，直接返回最高异常分
         if camera_freeze_detected:
@@ -783,7 +833,7 @@ def detect_consecutive_static_frames(
         all_frame_hashes = []
         if total_frames > 0:
             for frame_bgr in all_frames_bgr:
-                all_frame_hashes.append(compute_phash(frame_bgr))
+                all_frame_hashes.append(compute_dhash(frame_bgr))
         
         abnormal_score = 0.0
         max_static_frames = 0
@@ -803,6 +853,7 @@ def detect_consecutive_static_frames(
                     distance = hamming_distance(prev_hash, current_hash)
                     
                     if distance <= phash_dist_threshold:
+                        # print(f"Frame {frame_idx}: distance={distance} <= {phash_dist_threshold} -> static")
                         static_count += 1
                         max_static_frames = max(max_static_frames, static_count)
                     else:
@@ -1062,3 +1113,206 @@ def get_valid_motion_frame_range_from_video(
     min_start = min(min_start, max_end)
 
     return (min_start, max_end)
+
+
+@episode_video_checker_registry("hand_quality_detection")
+def hand_quality_detection(
+    video_paths: list[str | Path],
+    episode_idx: int = None,
+    edge_pixel_tol: int = 5,
+    min_detection_confidence: float = 0.6,
+    min_tracking_confidence: float = 0.5,
+    max_num_hands: int = 2,
+    max_out_of_bound_lms: int = 3
+) -> dict:
+    if not video_paths:
+        return {"hand_score": 0.0, "hand_in_frame_ratio": 0.0, "two_hands_ratio": 0.0}
+    video_path = str(video_paths[0])
+
+    
+    cache = decode_video_once(video_path, episode_idx=episode_idx)
+    if not cache["valid"] or not cache["all_frames_bgr"]:
+        return {"two_hands_ratio": 0.0, "hand_in_frame_ratio": 0.0, "has_hand_ratio": 0.0}
+
+    # 直接传已解码的帧给手部检测，跳过重复解码
+    hand_result = json.loads(check_hand_quality_from_frames(
+        all_frames_bgr=cache["all_frames_bgr"],
+        edge_pixel_tol=edge_pixel_tol,
+        min_detection_confidence=min_detection_confidence,
+        min_tracking_confidence=min_tracking_confidence,
+        max_num_hands=max_num_hands,
+        max_out_of_bound_lms=max_out_of_bound_lms
+    ))
+    return {
+        "two_hands_ratio": hand_result["frame_statistics"]["two_hands_ratio"],
+        "hand_in_frame_ratio": hand_result["frame_statistics"]["hand_in_frame_ratio"],
+        "has_hand_ratio": hand_result["frame_statistics"]["has_hand_total_ratio"]
+    }
+
+def check_hand_quality_from_frames(
+    all_frames_bgr: list[np.ndarray],
+    edge_pixel_tol: int = 5,
+    min_detection_confidence: float = 0.6,
+    min_tracking_confidence: float = 0.5,
+    max_num_hands: int = 2,
+    max_out_of_bound_lms: int = 3
+) -> str:
+    warnings.filterwarnings('ignore')
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    os.environ['MEDIAPIPE_DISABLE_GPU'] = '1'
+
+    hands = get_hand_detector(min_detection_confidence, min_tracking_confidence, max_num_hands)
+
+    frame_idx = 0
+    cnt_no_hand = 0
+    cnt_one_hand = 0
+    cnt_two_hands = 0
+    cnt_all_hand_out = 0
+    cnt_two_hands_in = 0
+
+    def is_hand_out_bound(hand_landmarks, w, h):
+        out_count = 0
+        for lm in hand_landmarks.landmark:
+            x = lm.x * w
+            y = lm.y * h
+            if x < edge_pixel_tol or x > w - edge_pixel_tol or \
+               y < edge_pixel_tol or y > h - edge_pixel_tol:
+                out_count += 1
+                if out_count > max_out_of_bound_lms:
+                    return True
+        return out_count > max_out_of_bound_lms
+
+    # 直接遍历已解码的帧，不再读视频
+    h, w = all_frames_bgr[0].shape[:2]
+    for img in all_frames_bgr:
+        frame_idx += 1
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        results = hands.process(img_rgb)
+
+        hand_num = 0
+        hand_landmarks_list = []
+        if results.multi_hand_landmarks:
+            hand_num = len(results.multi_hand_landmarks)
+            hand_landmarks_list = results.multi_hand_landmarks
+
+        if hand_num == 0:
+            cnt_no_hand += 1
+        elif hand_num == 1:
+            cnt_one_hand += 1
+            hand_out = is_hand_out_bound(hand_landmarks_list[0], w, h)
+            if hand_out:
+                cnt_all_hand_out += 1
+        elif hand_num == 2:
+            cnt_two_hands += 1
+            hand1_out = is_hand_out_bound(hand_landmarks_list[0], w, h)
+            hand2_out = is_hand_out_bound(hand_landmarks_list[1], w, h)
+            frame_out = hand1_out or hand2_out
+            if not frame_out:
+                cnt_two_hands_in += 1
+            else:
+                cnt_all_hand_out += 1
+
+    total = max(frame_idx, 1)
+    has_hand_total = cnt_one_hand + cnt_two_hands
+    has_hand_ratio = has_hand_total / total
+    two_hand_ratio = cnt_two_hands / total
+
+    if cnt_two_hands == 0:
+        in_ratio = 0.0
+    else:
+        in_ratio = cnt_two_hands_in / cnt_two_hands
+
+    rate_no_hand = cnt_no_hand / total
+    rate_one_hand = cnt_one_hand / total
+
+    if has_hand_total > 0:
+        hand_in_frame_ratio = (has_hand_total - cnt_all_hand_out) / has_hand_total
+    else:
+        hand_in_frame_ratio = 0.0
+
+    result = {
+        "status": "success",
+        "error": "",
+        "video_info": {"total_frames": total, "fps": 0, "resolution": f"{w}x{h}"},
+        "frame_statistics": {
+            "total_frames": total,
+            "no_hand_ratio": round(rate_no_hand, 4),
+            "one_hand_ratio": round(rate_one_hand, 4),
+            "two_hands_ratio": round(two_hand_ratio, 4),
+            "has_hand_total_frames": has_hand_total,
+            "has_hand_total_ratio": round(has_hand_ratio, 4),
+            "hand_in_frame_ratio": round(hand_in_frame_ratio, 4)
+        },
+        "核心结论": {
+            "画面是否存在手": round(has_hand_ratio, 4),
+            "所有有手画面是否未出界": round(hand_in_frame_ratio, 4)
+        }
+    }
+    return json.dumps(result, ensure_ascii=False, indent=4)
+
+
+def check_video_3_scores(video_path: str | Path) -> str:
+    start_time = datetime.datetime.now()
+    print(f"[INFO] [{start_time.strftime('%Y-%m-%d %H:%M:%S')}] 开始处理视频: {video_path}")
+
+    MAX_VIDEO_BYTES = 1024 * 1024 * 1024  # 1 GB
+    try:
+        file_size = os.path.getsize(video_path)
+        if file_size > MAX_VIDEO_BYTES:
+            error_result = {
+                "video_path": str(video_path),
+                "status": "error",
+                "message": f"视频文件过大 ({file_size / (1024**2):.1f} MB) 超过阈值 {MAX_VIDEO_BYTES/(1024**2):.0f} MB，已跳过处理"
+            }
+            result_json = json.dumps(error_result, ensure_ascii=False, indent=4)
+            # 日志：跳过原因
+            print(f"[WARN] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 跳过视频: {video_path}，原因: {error_result['message']}")
+            return result_json
+        
+        video_path = str(video_path)
+        video_list = [video_path]
+        episode_idx = 0
+
+        cache = decode_video_once(video_path, episode_idx=episode_idx)
+        total_frames = len(cache.get("all_frames_bgr", [])) if cache.get("valid") else 0
+
+        hand_scores = hand_quality_detection(video_list, episode_idx=episode_idx, min_detection_confidence=0.6, min_tracking_confidence=0.5)
+        jump_score = dectect_max_frame_stable_then_jump(video_list, episode_idx=episode_idx, max_dist_threshold=125)
+        static_score = detect_consecutive_static_frames(video_list, episode_idx=episode_idx, phash_dist_threshold=2)
+        jump_score2 = detect_max_frame_jump_dist(video_list, episode_idx=episode_idx, max_dist_threshold=250)
+        final_jump_score = max(jump_score, jump_score2)
+
+        final_result = {
+            "video_path": video_path,
+            "status": "success",
+            "scores": {
+                "total_frames": total_frames,
+                "hand_detection": {
+                    "two_hands_ratio": hand_scores["two_hands_ratio"],
+                    "hand_in_frame_ratio": hand_scores["hand_in_frame_ratio"],
+                    "has_hand_ratio": hand_scores["has_hand_ratio"]
+                },
+                "max_frame_jump_rate": round(1 - final_jump_score, 4),
+                "consecutive_static_frames": round(1 - static_score, 4)
+            }
+        }
+
+        result_json = json.dumps(final_result, ensure_ascii=False, indent=4)
+        # 日志：处理完成 + 耗时 + 结果摘要（可选）
+        end_time = datetime.datetime.now()
+        elapsed = (end_time - start_time).total_seconds()
+        print(f"[INFO] [{end_time.strftime('%Y-%m-%d %H:%M:%S')}] 完成处理视频: {video_path}，耗时 {elapsed:.2f} 秒")
+        return result_json
+
+    except Exception as e:
+        error_result = {
+            "video_path": str(video_path),
+            "status": "error",
+            "message": str(e)
+        }
+        result_json = json.dumps(error_result, ensure_ascii=False, indent=4)
+        # 日志：异常错误
+        print(f"[ERROR] [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 处理视频失败: {video_path}，错误: {str(e)}")
+        return result_json
+    finally:
+        clear_video_decode_cache()

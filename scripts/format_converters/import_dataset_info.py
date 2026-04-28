@@ -135,12 +135,12 @@ def load_and_patch(yaml_path: Path, session, dry_run: bool = False) -> dict[str,
     new_name_id = max_id + 1
     data["dataset_name_id"] = new_name_id
     
-    # 原始路径（关键：不提前写文件，只记录路径）
+    # 操作文件用 Path
     old_folder_path = yaml_path.parent
     new_folder_path = old_folder_path.parent / f"{old_folder_path.name}_{new_name_id}"
     new_yaml_path = new_folder_path / yaml_path.name
     
-    # 存储路径信息，不写入文件
+    # 存储到字典 / 数据库 用 str（完全符合你的要求）
     data["yaml_file_path"] = str(new_yaml_path.resolve())
     data["data_path"] = str(new_folder_path.resolve())
     data["old_folder_path"] = str(old_folder_path)
@@ -170,7 +170,7 @@ def load_and_patch(yaml_path: Path, session, dry_run: bool = False) -> dict[str,
             used_uuids_global.add(existing_uuid)
         logging.info(f"[{original_dataset_name}] (ID: {new_name_id}) 使用已有 UUID: {existing_uuid}")
     else:
-        # 生成UUID（修复：使用原始yaml路径，不使用未创建的新路径）
+        # 生成UUID
         task_desc = data.get("task_instruction")
         device_model = data.get("device_model") or "unknown_device"
 
@@ -200,7 +200,7 @@ def load_and_patch(yaml_path: Path, session, dry_run: bool = False) -> dict[str,
     return data
 
 
-def collect_yaml_files(root_dirs: list[Path], output_dir: Path, dry_run: bool = False, skip_log_setup: bool = False) -> None:
+def collect_yaml_files(root_dirs: list[Path], output_dir: Path, dry_run: bool = False, skip_log_setup: bool = None) -> None:
     log_dir = output_dir / "logs"
     if not skip_log_setup:
         setup_logging(log_dir, dry_run=dry_run)
@@ -335,14 +335,16 @@ def main() -> None:
 
         with db.with_session() as session:
             for record in datasets:
-                # 1. 数据库入库
+                # 1. 数据库入库（路径用str，正常写入）
                 upsert_dataset_info(yaml_data=record, session=session)
                 logging.info(f"数据集已入库: {record['dataset_name']}")
                 
+                # 文件操作：str → Path（严格遵守你的规则）
                 yaml_path = Path(record["yaml_path"])
                 old_folder_path = Path(record["old_folder_path"])
                 new_folder_path = Path(record["new_folder_path"])
-                # 2. 重命名文件夹
+                
+                # 2. 重命名文件夹（Path操作）
                 rename_success = rename_folder_and_yaml(
                     yaml_path=yaml_path,
                     old_folder_path=old_folder_path,
@@ -351,15 +353,15 @@ def main() -> None:
                 )
 
                 if rename_success:
-                    # 正确拼接路径
+                    # 写入YAML（Path操作）
                     new_yaml = new_folder_path / yaml_path.name
                     with new_yaml.open("w", encoding="utf-8") as f:
                         yaml.dump(record, f, allow_unicode=True, default_flow_style=False, indent=2, sort_keys=False)
                     logging.info(f"已更新YAML: {new_yaml}")
                     
-                    # 4. 写入UUID文件
+                    # ✅ 关键修复：字典里是str，转成Path传入函数（文件操作用Path）
                     write_dataset_uuid_yaml(
-                        folder_path=record["new_folder_path"],
+                        folder_path=Path(record["new_folder_path"]),
                         dataset_uuid=record["dataset_uuid"],
                         dry_run=args.dry_run
                     )

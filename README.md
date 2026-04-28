@@ -58,7 +58,7 @@ source .venv/bin/activate    # Linux/macOS
 ### 5. 安装项目依赖
 
 ```bash
-uv pip install third_partes/robocoin-lerobot
+uv pip install third_parties/robocoin-lerobot
 ```
 
 #### 编辑模式
