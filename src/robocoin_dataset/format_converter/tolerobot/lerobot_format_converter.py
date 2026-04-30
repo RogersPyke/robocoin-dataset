@@ -53,7 +53,7 @@ VALIDATION_CONFIG = {
     "cam_name": {
         "valid_positions": [
             "left", "right", "front", "rear", "upper", 
-            "lower", "middle", "top", "side", "global", "env"
+            "lower", "middle", "top", "side", "global", "env", "ego"
         ],
         "valid_parts": [
             "wrist", "head", "chest", "arm", "leg", "torso", "fisheye"
@@ -62,7 +62,7 @@ VALIDATION_CONFIG = {
     },
     "state_action_names": {
     # 核心修改：将 gripper_open_scale 加入正则匹配规则
-    "pattern": "^(left|right)_(arm_joint_\\d+_rad|hand_joint_\\d+_rad|gripper_open|eef_pos_[xyz]_m|eef_rot_euler_[xyz]_rad|base_pos_[xyz]_m|base_[xyz]_rad)|^(head_joint_\\d+_rad|torso_joint_\\d+_rad|neck_joint_\\d+_rad)$",
+    "pattern": "^(left|right)_(arm_joint_\\d+_rad|hand_joint_\\d+_rad|gripper_open|eef_pos_[xyz]_m|eef_rot_euler_[xyz]_rad|eef_rot_quat_[xyzw]|base_pos_[xyz]_m|base_[xyz]_rad)|^(head_joint_\\d+_rad|torso_joint_\\d+_rad|neck_joint_\\d+_rad)$",
     "valid_prefixes": [],
     "valid_types": [
         # 手臂关节（支持任意数字 1,2,...7,8...）
@@ -468,22 +468,16 @@ class LerobotFormatConverter(ABC):
  
     @staticmethod
     def _validate_cam_name(cam_name: str) -> None:
-        """
-        校验摄像头名称格式：cam_<方位组合>_<部位>_<模态>
-        支持多个方位词组合，例如：cam_front_left_head_rgb、cam_top_right_wrist_rgb
-        """
         cam_config = VALIDATION_CONFIG["cam_name"]
         parts = cam_name.split("_")
         
-        # 基础格式校验：必须以 cam 开头，且至少包含 3 部分（cam + 位置组合 + 模态）
         if len(parts) < 3 or parts[0] != "cam":
             raise ValueError(
                 f"无效的摄像头名称格式: {cam_name}。"
-                f"正确格式应为: cam_<方位组合>_<部位>_<模态> 或 cam_<方位组合>_<模态>，"
-                f"例如 cam_front_left_rgb、cam_top_right_head_rgb"
+                f"正确格式应为: cam_<方位组合>_<部位/序号>_<模态>，例如 cam_ego_0_rgb"
             )
         
-        # 校验模态（最后一部分）
+        # 模态检查
         encoding = parts[-1]
         if encoding not in cam_config["encoding_map"]:
             raise ValueError(
@@ -491,33 +485,31 @@ class LerobotFormatConverter(ABC):
                 f"有效模态列表: {cam_config['encoding_map']}"
             )
         
-        # 分离位置组合+部位部分（cam 和 模态 之间的所有部分）
-        position_and_part_parts = parts[1:-1]
-        if not position_and_part_parts:
-            raise ValueError(f"摄像头名称 {cam_name} 缺少位置信息（方位组合）")
+        # 中间部分处理
+        middle_parts = parts[1:-1]
+        if not middle_parts:
+            raise ValueError(f"摄像头名称 {cam_name} 缺少位置信息")
         
-        # 提取方位组合和部位：
-        # 1. 从后往前找第一个有效的部位词
+        position_parts = []
         part = None
-        position_parts = position_and_part_parts
-        for i in range(len(position_and_part_parts)-1, -1, -1):
-            if position_and_part_parts[i] in cam_config["valid_parts"]:
-                part = position_and_part_parts[i]
-                position_parts = position_and_part_parts[:i]
-                break
+        for p in middle_parts:
+            if p.isdigit():          # 允许数字索引
+                continue
+            if p in cam_config["valid_parts"]:
+                if part is not None:
+                    raise ValueError(f"摄像头名称 {cam_name} 包含多个部位词: {part} 和 {p}")
+                part = p
+            else:
+                position_parts.append(p)
         
-        # 2. 校验方位组合（所有方位词都必须有效）
-        if not position_parts:
-            raise ValueError(f"摄像头名称 {cam_name} 缺少方位信息")
-        
-        invalid_positions = [p for p in position_parts if p not in cam_config["valid_positions"]]
-        if invalid_positions:
+        # 校验方位词
+        invalid_pos = [p for p in position_parts if p not in cam_config["valid_positions"]]
+        if invalid_pos:
             raise ValueError(
-                f"摄像头名称 {cam_name} 中包含无效的方位词: {invalid_positions}。"
+                f"摄像头名称 {cam_name} 中包含无效的方位词: {invalid_pos}。"
                 f"有效方位词列表: {cam_config['valid_positions']}"
             )
-        
-        # 3. 校验部位（如果有）
+        # 校验部位（若有）
         if part and part not in cam_config["valid_parts"]:
             raise ValueError(
                 f"摄像头名称 {cam_name} 中包含无效的部位 '{part}'。"

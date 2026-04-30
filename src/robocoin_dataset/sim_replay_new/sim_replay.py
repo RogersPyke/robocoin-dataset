@@ -284,7 +284,7 @@ def run_replay(repo_path, config_name, data_source="data", data_type="all", epis
             if not steps_ok:
                 break
             
-            rr.set_time_sequence("frame_index", frame_idx)
+            rr.set_time("frame_index", sequence = frame_idx)
             
             # 1. 记录视频（加前缀保证顺序）
             for cam_name, reader in video_readers.items():

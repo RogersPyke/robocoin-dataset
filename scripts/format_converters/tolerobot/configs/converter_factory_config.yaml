@@ -419,3 +419,10 @@ ruantong_a2d:
   module: robocoin_dataset.format_converter.tolerobot.lerobot_format_converter_h5_jpg
   class: LerobotFormatConverterH5Jpg
   converter_config_path: converter_config_ruantong_gt02_new.yaml
+
+ego:
+- version: rrd_normal
+  verison_description: ego-centric robot with RRD format (6 cam views as encoded images + state/action with end-effector pose)
+  module: robocoin_dataset.format_converter.tolerobot.lerobot_format_converter_rrd
+  class: LerobotFormatConverterRrd
+  converter_config_path: converter_config_ego_rrd_normal.yaml

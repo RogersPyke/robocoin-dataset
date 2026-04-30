@@ -1,0 +1,70 @@
+fps: 30
+features:
+  observation:
+    images:
+    - cam_name: cam_ego_0_rgb
+      args:
+        rrd_path: /encoded_images/camera0:EncodedImage:blob
+    - cam_name: cam_ego_1_rgb
+      args:
+        rrd_path: /encoded_images/camera1:EncodedImage:blob
+    - cam_name: cam_ego_2_rgb
+      args:
+        rrd_path: /encoded_images/camera2:EncodedImage:blob
+    - cam_name: cam_ego_3_rgb
+      args:
+        rrd_path: /encoded_images/camera3:EncodedImage:blob
+    - cam_name: cam_ego_4_rgb
+      args:
+        rrd_path: /encoded_images/camera4:EncodedImage:blob
+    - cam_name: cam_ego_5_rgb
+      args:
+        rrd_path: /encoded_images/camera5:EncodedImage:blob
+
+    state:
+      sub_state:
+      # 左手EEF位置 
+      - names: 
+        - left_eef_pos_x_m
+        - left_eef_pos_y_m
+        - left_eef_pos_z_m
+        args:
+          rrd_path: /world/trajectories/eef_pose/current_frame:Transform3D:translation
+          range_from: 0
+          range_to: 3
+
+      # 左手EEF旋转
+      - names: 
+        - left_eef_rot_quat_w
+        - left_eef_rot_quat_x
+        - left_eef_rot_quat_y
+        - left_eef_rot_quat_z
+        args:
+          rrd_path: /world/trajectories/eef_pose/current_frame:Transform3D:quaternion
+          range_from: 0
+          range_to: 4
+
+
+  action:
+    timeline_offset: 1
+    sub_action:
+      # 左手EEF位置 
+      - names: 
+        - left_eef_pos_x_m
+        - left_eef_pos_y_m
+        - left_eef_pos_z_m
+        args:
+          rrd_path: /world/trajectories/eef_pose/current_frame:Transform3D:translation
+          range_from: 0
+          range_to: 3
+
+      # 左手EEF旋转
+      - names: 
+        - left_eef_rot_quat_w
+        - left_eef_rot_quat_x
+        - left_eef_rot_quat_y
+        - left_eef_rot_quat_z
+        args:
+          rrd_path: /world/trajectories/eef_pose/current_frame:Transform3D:quaternion
+          range_from: 0
+          range_to: 4
