@@ -2,7 +2,7 @@
 postgresql:
   user: "robocoin_server"        # 替换为你的数据库用户名
   password: "7sK9$pR2!g"    # 替换为你的数据库密码
-  host: "localhost"            # 数据库主机地址
+  host: "172.16.13.138"            # 数据库主机地址
   port: 5432                  # 数据库端口
   database: "robocoin_datasets"  # 数据库名
   # 可选：添加其他连接参数

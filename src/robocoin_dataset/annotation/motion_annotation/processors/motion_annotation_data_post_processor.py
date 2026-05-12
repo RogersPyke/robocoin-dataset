@@ -573,22 +573,51 @@ class MotionAnnotationDataPostProcessor(DataPostProcessorBase):
         return eef_feature_names | gripper_feature_names
 
     def write_new_info_file(self) -> None:
-        """重写 write_new_info_file 方法，添加 has_gripper 信息"""
+        """重写 write_new_info_file 方法，补充 dtype、shape 元数据"""
         import json
 
         json_dict = {}
         json_dict["features"] = {}
 
+        # 1. 预定义所有特征的 数据类型 + 维度 映射（严格匹配你的要求）
+        feature_meta_config = {
+            # EEF 位姿：浮点型，12维
+            "eef_sim_pose_state": {"dtype": "float32", "shape": [12]},
+            "eef_sim_pose_action": {"dtype": "float32", "shape": [12]},
+            # EEF 运动标注：整型，2维
+            "eef_direction_state": {"dtype": "int32", "shape": [2]},
+            "eef_direction_action": {"dtype": "int32", "shape": [2]},
+            "eef_velocity_state": {"dtype": "int32", "shape": [2]},
+            "eef_velocity_action": {"dtype": "int32", "shape": [2]},
+            "eef_acc_mag_state": {"dtype": "int32", "shape": [2]},
+            "eef_acc_mag_action": {"dtype": "int32", "shape": [2]},
+            # 夹爪相关（有夹爪时生效）
+            "gripper_open_scale_state": {"dtype": "float32", "shape": [2]},
+            "gripper_open_scale_action": {"dtype": "float32", "shape": [2]},
+            "gripper_mode_state": {"dtype": "int32", "shape": [2]},
+            "gripper_mode_action": {"dtype": "int32", "shape": [2]},
+            "gripper_activity_state": {"dtype": "int32", "shape": [2]},
+            "gripper_activity_action": {"dtype": "int32", "shape": [2]},
+        }
+
+        # 2. 遍历特征，写入 names + dtype + shape
         for feature_key, names in self.get_modified_feature_names().items():
-            if names is not None:
-                if len(names) != len(set(names)):
-                    raise ValueError(f"given feature names contain duplicated names: {names}")
+            # 原有校验：防止重复字段名
+            if names is not None and len(names) != len(set(names)):
+                raise ValueError(f"given feature names contain duplicated names: {names}")
+            
+            # 初始化特征配置
             json_dict["features"][feature_key] = {}
             json_dict["features"][feature_key]["names"] = names
+            # 补充缺失的 dtype 和 shape
+            json_dict["features"][feature_key]["dtype"] = feature_meta_config[feature_key]["dtype"]
+            json_dict["features"][feature_key]["shape"] = feature_meta_config[feature_key]["shape"]
 
+        # 3. 写入meta信息JSON文件
         new_info_file_path = get_meta_info_file(self.convert_path, "motion_annotation")
         with open(new_info_file_path, "w") as f:
             json.dump(json_dict, f, indent=2)
+
 
     # 该方法将ori_state_data进行后处理，返回结果为后处理后的数据
     def process_episode_state_data(self, ori_state_data: np.ndarray) -> np.ndarray:

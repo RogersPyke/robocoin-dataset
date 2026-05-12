@@ -284,6 +284,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="递归查找 local_dataset_info.yaml/.yml，检查 dataset_uuid 并批量入库")
     parser.add_argument("scan_root", type=str, nargs='+', help="要扫描的根目录（支持传入多个路径）")
+    parser.add_argument("--use-subdirs", action="store_true", help="自动使用传入目录下的一级子文件夹作为扫描目标")
     parser.add_argument("--db-path", type=str, default="./db/postgresql_config.yaml", help="PostgreSQL配置文件路径")
     parser.add_argument("--workers", type=int, default=1, help="并行工作线程数")
     parser.add_argument("--collect-only", action="store_true", help="仅收集 yaml 文件，不做数据库导入")
@@ -291,8 +292,20 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="只扫描和模拟，不写入文件或数据库")
     args = parser.parse_args()
 
-    root_paths = [Path(p.strip()) for p in args.scan_root if p.strip()]
-    
+    root_paths = []
+    for p in args.scan_root:
+        path = Path(p.strip())
+        if not path.exists():
+            logging.error(f"路径不存在：{path}")
+            continue
+        # 开启 --use-subdirs 则遍历一级子目录
+        if args.use_subdirs:
+            subdirs = [d for d in path.iterdir() if d.is_dir()]
+            root_paths.extend(subdirs)
+            logging.info(f"目录 {path} 加载 {len(subdirs)} 个子文件夹")
+        else:
+            root_paths.append(path)
+
     log_dir = args.collect_output / "logs"
     setup_logging(log_dir, dry_run=args.dry_run)
 

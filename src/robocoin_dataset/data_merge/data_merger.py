@@ -50,7 +50,7 @@ class DataMergeConfig:
             DatasetDB.data_merge_version_ps_ma,
         ),
     }
-    patch_features = ["motion_annotation", "state_action"]
+    patch_features = ["motion_annotation"]
     merge_feature = None
 
 
@@ -263,15 +263,15 @@ def clean_merge_temp_files(root_dir: str | Path, logger: logging.Logger | None =
     # 1. 定义需要删除的文件夹
     folders_to_delete = [
         root_dir / "motion_annotation_data",
-        root_dir / "state_action_data"
+        # root_dir / "state_action_data"
     ]
     
     # 2. 定义需要删除的文件（meta文件夹下）
     files_to_delete = [
         meta_dir / "motion_annotation_episodes_stats.jsonl",
         meta_dir / "motion_annotation_info.json",
-        meta_dir / "state_action_episodes_stats.jsonl",
-        meta_dir / "state_action_info.json"
+        # meta_dir / "state_action_episodes_stats.jsonl",
+        # meta_dir / "state_action_info.json"
     ]
     
     # 3. 删除文件夹

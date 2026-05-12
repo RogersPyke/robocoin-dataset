@@ -76,22 +76,68 @@ class DatasetDB(Base):
     qced_repo_gen_version = Column(Integer, nullable=True, default=0)
     qced_repo_gen_version_ps = Column(Integer, nullable=True, default=0)
 
+    sim_replay_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
+    sim_replay_version_ps = Column(Integer, nullable=True, default=0)
+    sim_replay_version = Column(Integer, nullable=True, default=0)
+    sim_replay_error_msg = Column(Text, nullable=True)
+
     # state 和 action后处理及Replay相关
     sa_dpp_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
     sa_dpp_version_ps = Column(Integer, nullable=True, default=0)
     sa_dpp_version = Column(Integer, nullable=True, default=0)
     sa_dpp_err_msg = Column(Text, nullable=True)
 
-    sim_replay_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
-    sim_replay_version_ps = Column(Integer, nullable=True, default=0)
-    sim_replay_version = Column(Integer, nullable=True, default=0)
-    sim_replay_error_msg = Column(Text, nullable=True)
-
     # 运动标注相关
     motion_annotation_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
     motion_annotation_version_ps = Column(Integer, nullable=True, default=0)
     motion_annotation_version = Column(Integer, nullable=True, default=0)
     motion_annotation_err_msg = Column(Text, nullable=True)
+
+
+    scene_annotation_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
+    scene_annotation_version_ps = Column(Integer, nullable=True, default=0)
+    scene_annotation_version = Column(Integer, nullable=True, default=0)
+    scene_annotation_err_msg = Column(Text, nullable=True)
+
+    # 数据合并相关
+    data_merge_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
+    data_merge_version_ps_sta = Column(Integer, nullable=True, default=0)
+    data_merge_version_ps_sa = Column(Integer, nullable=True, default=0)
+    data_merge_version_ps_ma = Column(Integer, nullable=True, default=0)
+    data_merge_version = Column(Integer, nullable=True, default=0)
+    data_merge_err_msg = Column(Text, nullable=True)
+
+    # dataLoader 检测相关
+    data_loader_detection_status = Column(
+        Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True
+    )
+    data_loader_detection_version_ps = Column(Integer, nullable=True, default=0)
+    data_loader_detection_version = Column(Integer, nullable=True, default=0)
+    data_loader_detection_err_msg = Column(Text, nullable=True)
+
+    # 人工检测标注相关
+    visualize_check_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
+    visualize_check_version_ps = Column(Integer, nullable=True, default=0)
+    visualize_check_version = Column(Integer, nullable=True, default=0)
+    visualize_check_err_msg = Column(Text, nullable=True)
+
+    # 数据集上传相关
+    ms_upload_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
+    ms_upload_version_ps = Column(Integer, nullable=True, default=0)
+    ms_upload_version = Column(Integer, nullable=True, default=0)
+    ms_upload_err_msg = Column(Text, nullable=True)
+
+    huggingface_upload_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
+    huggingface_upload_version_ps = Column(Integer, nullable=True, default=0)
+    huggingface_upload_version = Column(Integer, nullable=True, default=0)
+    huggingface_upload_err_msg = Column(Text, nullable=True)
+
+    # 数据集信息同步相关
+    dataset_info_sync_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
+    dataset_info_sync_version_ps_hf = Column(Integer, nullable=True, default=0)
+    dataset_info_sync_version_ps_ms = Column(Integer, nullable=True, default=0)
+    dataset_info_sync_version = Column(Integer, nullable=True, default=0)
+    dataset_info_sync_err_msg = Column(Text, nullable=True)
 
     # subtask标注相关
     video_hash_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
@@ -124,51 +170,6 @@ class DatasetDB(Base):
     video_embed_subtask_annotation_version_ps = Column(Integer, nullable=True, default=0)
     video_embed_subtask_annotation_version = Column(Integer, nullable=True, default=0)
     video_embed_subtask_annotation_err_msg = Column(Text, nullable=True)
-
-    scene_annotation_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
-    scene_annotation_version_ps = Column(Integer, nullable=True, default=0)
-    scene_annotation_version = Column(Integer, nullable=True, default=0)
-    scene_annotation_err_msg = Column(Text, nullable=True)
-
-    # 数据合并相关
-    data_merge_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
-    data_merge_version_ps_sta = Column(Integer, nullable=True, default=0)
-    data_merge_version_ps_sa = Column(Integer, nullable=True, default=0)
-    data_merge_version_ps_ma = Column(Integer, nullable=True, default=0)
-    data_merge_version = Column(Integer, nullable=True, default=0)
-    data_merge_err_msg = Column(Text, nullable=True)
-
-    # dataLoader 检测相关
-    data_loader_detection_status = Column(
-        Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True
-    )
-    data_loader_detection_version_ps = Column(Integer, nullable=True, default=0)
-    data_loader_detection_version = Column(Integer, nullable=True, default=0)
-    data_loader_detection_err_msg = Column(Text, nullable=True)
-
-    # 人工检测相关
-    visualize_check_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
-    visualize_check_version_ps = Column(Integer, nullable=True, default=0)
-    visualize_check_version = Column(Integer, nullable=True, default=0)
-    visualize_check_err_msg = Column(Text, nullable=True)
-
-    # 数据集上传相关
-    ms_upload_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
-    ms_upload_version_ps = Column(Integer, nullable=True, default=0)
-    ms_upload_version = Column(Integer, nullable=True, default=0)
-    ms_upload_err_msg = Column(Text, nullable=True)
-
-    huggingface_upload_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
-    huggingface_upload_version_ps = Column(Integer, nullable=True, default=0)
-    huggingface_upload_version = Column(Integer, nullable=True, default=0)
-    huggingface_upload_err_msg = Column(Text, nullable=True)
-
-    # 数据集信息同步相关
-    dataset_info_sync_status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=True)
-    dataset_info_sync_version_ps_hf = Column(Integer, nullable=True, default=0)
-    dataset_info_sync_version_ps_ms = Column(Integer, nullable=True, default=0)
-    dataset_info_sync_version = Column(Integer, nullable=True, default=0)
-    dataset_info_sync_err_msg = Column(Text, nullable=True)
 
     # 多对多关系（保持不变）
     scene_types = relationship(
